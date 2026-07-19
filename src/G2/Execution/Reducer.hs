@@ -1750,6 +1750,7 @@ approximationHalter' stop_cond no_inline = mkSimpleHalter
                 -- liftIO $ do
                 --     putStrLn $ "approx halter log_path s = " ++ show (log_path s) ++ " " ++ show (num_steps s)
                 xs <- SM.gets ap_halter_states
+                let xs' = filter (\x -> num_steps x < num_steps s') xs
                 approx <- liftIO $ findM (\prev -> do
                                                 more_res_s <- moreRestrictiveIncludingPCAndNRPC
                                                                 mr_cont
@@ -1759,7 +1760,7 @@ approximationHalter' stop_cond no_inline = mkSimpleHalter
                                                                 prev
                                                                 s'
                                                 return $ more_res_s && stop_cond pr prev s
-                                                ) xs
+                                                ) xs'
                 case approx of
                     Just approx' ->  do
                         liftIO $ do
