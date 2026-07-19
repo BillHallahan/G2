@@ -23,7 +23,6 @@ import G2.Execution.LiteralTable
 import G2.Config.Config (DiscardUnknownStates (KeepUnknown))
 
 import Data.List
-import qualified Data.HashMap.Lazy as HM
 import Data.Maybe
 import qualified Data.Sequence as Seq
 
