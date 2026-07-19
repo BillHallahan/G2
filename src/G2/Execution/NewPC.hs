@@ -8,6 +8,7 @@ module G2.Execution.NewPC ( NewPC (..)
                           , reduceToFirstDiff ) where
 
 import G2.Data.Utils
+import qualified G2.Execution.DataConPCMap as DCPC
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.KnownValues as KV
@@ -57,14 +58,11 @@ reduceNewPC :: (Solver solver, Simplifier simplifier)
             -> NameGen
             -> NewPC t
             -> IO (NameGen, [State t])
-reduceNewPC _ _ _ ng NoState = return (ng, [])
+reduceNewPC _ _ _  ng NoState = return (ng, [])
 reduceNewPC _ _ _ ng (SingleState state) = return (ng, [state])
 reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state state_diffs)
     | inLitTableMode state
     , scrut_smt_rep || all (null . new_conc_entries) state_diffs = do
-        putStrLn "---"
-        print $ curr_expr state
-        print $ map new_path_conds state_diffs
         let state_diffs' = map elim_conc_entries state_diffs
         res <- reduceToFirstDiff discard_unknown_states solver simplifier ng state state_diffs'
         case res of
@@ -85,8 +83,8 @@ reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state 
 
         scrut_smt_rep = case unwrapped_ce of
                             Case e _ _ _ 
-                                | TyCon n _ <- tyAppCenter $ typeOf tv_env e ->
-                                    n == KV.tyBool kv || maybe False to_smt (HM.lookup n tenv)
+                                | DCPC.allInDCPC tenv $ typeOf tv_env e -> True
+                                | TyCon n _ <- typeOf tv_env e -> n == KV.tyBool kv
                             _ -> False
 
         getCurrExpr (CurrExpr _ e) = e
