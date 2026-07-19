@@ -89,7 +89,8 @@ reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state 
 
         getCurrExpr (CurrExpr _ e) = e
 
-        -- For booleans, we want to avoid concretization, only using the path conds
+        -- For types being branched on in literal tables, we want to avoid concretization,
+        -- only using the path conds
         elim_conc_entries d = d { new_conc_entries = []} 
 
         wrap diff = LitTableFrame (Diff diff (path_conds state)) True
