@@ -59,8 +59,8 @@ map1 xs =
         [] -> (7, ys)
 
 
-takeWhile5 :: Maybe Int -> [Int] -> (Int, [Int])
-takeWhile5 m xs =
+takeWhile5 :: [Int] -> (Int, [Int])
+takeWhile5 xs =
     let
         ys = takeWhile (\x -> x < 2) xs
     in
