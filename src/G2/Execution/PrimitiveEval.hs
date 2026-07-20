@@ -912,7 +912,7 @@ evalsToSMTRep seen eenv kv tc = go
         go e | isSMTRep eenv kv e = True
         go _ = False
 
-        goArg (Lam _ _ _) = True
+        goArg (Lam _ _ e) = go e
         goArg e = go e
 
 -- | Is the expression a symbolically representable string?
