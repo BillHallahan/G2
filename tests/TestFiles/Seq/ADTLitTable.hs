@@ -42,6 +42,23 @@ takeWhile3 x xs =
         (B:_) -> (2, ys)
         [] -> (3, ys)
 
+takeWhile4 :: Maybe AB -> [Int] -> (Int, [Int])
+takeWhile4 m xs =
+    let
+        ys = takeWhile (\x -> case m of
+                                Just _ -> x > 4
+                                Nothing -> x < 2) xs
+    in
+    case ys of
+        (5:_) -> (1, ys)
+        (1:_) -> (2, ys)
+        [] -> case m of
+                Just _ | 100:_ <- xs -> (1000, ys)
+                       | _:_ <- xs -> (3, ys)
+                       | otherwise -> (4, ys)
+                Nothing -> (5, ys)
+        _ -> (6, ys)
+
 map1 :: [AB] -> (Int, [AB])
 map1 xs =
     let

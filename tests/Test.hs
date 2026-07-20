@@ -669,6 +669,7 @@ testFileTests = testGroup "TestFiles"
                                                              , ("takeWhile2", 10000, [Exactly 4])
 #endif
                                                              , ("takeWhile3", 10000, [Exactly 3])
+                                                             , ("takeWhile4", 10000, [Exactly 6])
                                                              , ("map1", 10000, [Exactly 7]) ]
 
     , checkInputOutputsSMTListsWith "tests/TestFiles/Seq/Seq1.hs" "floatListEq" [ ("conFloat", 1000, [Exactly 1])
