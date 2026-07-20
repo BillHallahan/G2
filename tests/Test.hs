@@ -665,9 +665,7 @@ testFileTests = testGroup "TestFiles"
                                                         , ("pairExtract", 2000, [AtLeast 6, AtMost 8]) ]
 
     , checkInputOutputs "tests/TestFiles/Seq/ADTLitTable.hs" [ ("takeWhile1", 10000, [Exactly 4])
-#if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
                                                              , ("takeWhile2", 10000, [Exactly 4])
-#endif
                                                              , ("takeWhile3", 10000, [Exactly 3])
                                                              , ("takeWhile4", 50000, [AtLeast 6])
                                                              , ("takeWhile5", 50000, [AtLeast 6])
