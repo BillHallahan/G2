@@ -445,3 +445,13 @@ findIndices1 xs = case findIndices (\x -> x * 2 == 10) xs of
 
 findIndices2 :: [Double] -> [Int]
 findIndices2 = findIndices (\x -> x + 3 > 45.67)
+
+and1 :: [Bool] -> Int
+and1 xs = case L.and xs of
+    True -> 0
+    False -> 1
+
+or1 :: [Bool] -> Int
+or1 xs = case L.or xs of
+    True -> 0
+    False -> 1
