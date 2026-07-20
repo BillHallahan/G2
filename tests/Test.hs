@@ -690,6 +690,7 @@ testFileTests = testGroup "TestFiles"
                                         , ("map2", 20000, [Exactly 1])
                                         , ("dropWhile1", 20000, [Exactly 6])
                                         , ("takeWhile1", 20000, [Exactly 5])
+                                        , ("takeWhile2", 20000, [Exactly 2])
                                         , ("find1", 20000, [AtLeast 3, AtMost 4])
                                         , ("findIndex1", 20000, [Exactly 3])
                                         , ("findIndices1", 20000, [AtLeast 6, AtMost 7])
