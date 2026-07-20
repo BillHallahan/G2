@@ -1,6 +1,6 @@
 {-# LANGUAGE BangPatterns #-}
 
-module Zeno where
+module ZenoBadProp where
 
 import Prelude
   ( Eq
