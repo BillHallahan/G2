@@ -237,8 +237,11 @@ initStateFromSimpleState s m_mod useAssert mkCurr _argTys config =
     , sym_gens = Seq.empty
     , reached_hpc = S.empty
     , tags = S.empty
+    
     , lit_table_stack = Stack.empty
     , lit_tables = HM.empty
+    , global_lit_table_pc = PC.empty
+
     , reached_fc_ticks = []
     , log_path = []
     }

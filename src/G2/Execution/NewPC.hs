@@ -69,7 +69,9 @@ reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state 
                 let prev_stck = stopUpdateLastExpl $ exec_stack first_s
                     diffs_pushed = foldr S.push prev_stck $ map wrap other_diffs
                     expl_pushed = S.push (LitTableFrame (Exploring (PC.fromList pcs)) True) diffs_pushed
-                in return (ng', [first_s { exec_stack = expl_pushed }])
+
+                    glob_pc' = foldr PC.insert (global_lit_table_pc state) force_specific_cons_args
+                in return (ng', [first_s { exec_stack = expl_pushed, global_lit_table_pc = glob_pc' }])
             Nothing -> return (ng, [])
     | otherwise =
         mapAccumMaybeM (\ng' sd -> reduceStateDiff discard_unknown_states solver simplifier ng' state sd) ng state_diffs
@@ -90,7 +92,18 @@ reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state 
 
         -- For types being branched on in literal tables, we want to avoid concretization,
         -- only using the path conds
-        elim_conc_entries d = d { new_conc_entries = []} 
+        elim_conc_entries d = d { new_conc_entries = []}
+
+        force_specific_cons_args = map (uncurry consImpliesEq) (concatMap new_conc_entries state_diffs)
+        consImpliesEq n e
+            | Data dc <- appCenter e =
+                let
+                    v = Var (Id n $ typeOf tv_env e)
+                    has_cons = App (Prim (IsConstructor dc) TyUnknown) v
+                    eq_dc = mkApp [ Prim Eq TyUnknown, v, e]
+                in
+                ExtCond ( mkApp [Prim Implies TyUnknown, has_cons, eq_dc]) True 
+            | otherwise = error "Expected constructor"
 
         wrap diff = LitTableFrame (Diff diff (path_conds state)) True
 

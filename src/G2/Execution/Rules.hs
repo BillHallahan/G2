@@ -45,6 +45,7 @@ import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.PathConds as PC
 import G2.Language.Simplification
 import qualified G2.Language.Stack as S
+import qualified G2.Language.Stack as Stck
 import G2.Preprocessing.NameCleaner
 import G2.Solver hiding (Assert)
 import qualified Data.HashMap.Lazy as HM
@@ -1996,7 +1997,8 @@ retLTStartedBuilding s ng n =
         s1 = s { lit_tables = table_map'
                , lit_table_stack = lts'
                , curr_expr = CurrExpr Return lam_e
-               , path_conds = lt_init_pcs table
+               , path_conds = lt_init_pcs table `PC.union` global_lit_table_pc s
+               , global_lit_table_pc = if Stck.null lts' then PC.empty else global_lit_table_pc s
                , expr_env = insertSyms sym_diff (expr_env s) }
     in return (RuleReturnLitTableSB, [s1], ng1)
 
