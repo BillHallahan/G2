@@ -94,6 +94,15 @@ reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state 
         -- only using the path conds
         elim_conc_entries d = d { new_conc_entries = []}
 
+        -- Suppose we have:
+        --   x == Just y
+        -- If we negate this, we get:
+        --   not (x == Just y)
+        -- all variables in the path constraints are existential- so this is not quite what we want!
+        -- It allows `x = Just 4, y = 3`, for instance.
+        -- To avoid this, we introduce constraints that:
+        --   is-Just x ==> x == Just y
+        -- i.e. if x is a `Just` constructor, its argument MUST be equal to y.
         force_specific_cons_args = map (uncurry consImpliesEq) (concatMap new_conc_entries state_diffs)
         consImpliesEq n e
             | Data dc <- appCenter e =
