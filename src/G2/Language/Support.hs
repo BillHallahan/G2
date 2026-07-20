@@ -83,6 +83,7 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
 
                      , lit_tables :: HM.HashMap Name LitTable -- ^ Mapping of name to literal table
                      , lit_table_stack :: Stack LitTable -- ^ Stack for nested literal tables
+                     , global_lit_table_pc :: PathConds -- ^ Extra PCs to add to the main PCs after we are done building a literal table
 
                      , track :: t
                      } deriving (Show, Eq, Read, Generic, Data)
@@ -342,6 +343,7 @@ instance Named t => Named (State t) where
                , tags = tags s
                , lit_tables = rename old new $ lit_tables s
                , lit_table_stack = rename old new $ lit_table_stack s
+               , global_lit_table_pc = rename old new $ global_lit_table_pc s
                , reached_fc_ticks = rename old new $ reached_fc_ticks s
                , log_path = log_path s }
 
@@ -376,6 +378,7 @@ instance Named t => Named (State t) where
                , tags = tags s
                , lit_tables = renames hm $ lit_tables s
                , lit_table_stack = renames hm $ lit_table_stack s
+               , global_lit_table_pc = renames hm $ global_lit_table_pc s
                , reached_fc_ticks = renames hm $ reached_fc_ticks s
                , log_path = log_path s }
 
@@ -396,6 +399,7 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
                       (containedASTs $ rules s) ++
                       (containedASTs $ lit_tables s) ++
                       (containedASTs $ lit_table_stack s) ++
+                      (containedASTs $ global_lit_table_pc s) ++
                       (containedASTs $ reached_fc_ticks s) ++
                       (containedASTs $ rules s)
 
@@ -413,6 +417,7 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
                                 , track = modifyContainedASTs f $ track s
                                 , lit_tables = modifyContainedASTs f $ lit_tables s
                                 , lit_table_stack = modifyContainedASTs f $ lit_table_stack s
+                                , global_lit_table_pc = modifyContainedASTs f $ global_lit_table_pc s
                                 , sym_gens = modifyContainedASTs f $ sym_gens s
                                 , reached_fc_ticks = modifyContainedASTs f $ reached_fc_ticks s
                                 , rules = modifyContainedASTs f $ rules s }
@@ -436,6 +441,7 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                       (containedASTs $ rules s) ++
                       (containedASTs $ lit_tables s) ++
                       (containedASTs $ lit_table_stack s) ++
+                      (containedASTs $ global_lit_table_pc s) ++
                       (containedASTs $ reached_fc_ticks s) ++
                       (containedASTs $ rules s)
 
@@ -456,6 +462,7 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                                 , sym_gens = modifyContainedASTs f $ sym_gens s
                                 , lit_tables = modifyContainedASTs f $ lit_tables s
                                 , lit_table_stack = modifyContainedASTs f $ lit_table_stack s
+                                , global_lit_table_pc = modifyContainedASTs f $ global_lit_table_pc s
                                 , reached_fc_ticks = modifyContainedASTs f $ reached_fc_ticks s
                                 , rules = modifyContainedASTs f $ rules s }
 

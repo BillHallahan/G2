@@ -121,7 +121,8 @@ mkLamArg s ng lt = do
     lt_arg_e <- E.deepLookup lt_arg_name eenv
     (unboxed_sym, unboxed_name) <-
         case lt_arg_e of
-            App _ (v@(Var i)) -> Just (v, idName i)
+            App _ (v@(Var i)) | isPrimType (idType i) -> Just (v, idName i)
+            v@(Var i) -> Just (v, idName i)
             _ -> Nothing
 
     let lit_ty = typeOf tvnv unboxed_sym

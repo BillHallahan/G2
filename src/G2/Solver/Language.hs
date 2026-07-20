@@ -183,6 +183,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
 
             | V SMTName Sort
             | DataSMT SMTName [SMTAST]
+            | IsConstructorSMT SMTName SMTAST
 
             | FloatToIntSMT !SMTAST -- ^ Float to Integer conversion
             | DoubleToIntSMT !SMTAST -- ^ Double to Integer conversion
