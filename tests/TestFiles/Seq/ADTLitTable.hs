@@ -59,6 +59,23 @@ takeWhile4 m xs =
                 Nothing -> (5, ys)
         _ -> (6, ys)
 
+takeWhile5 :: [AB] -> [Int] -> (Int, [Int])
+takeWhile5 m xs =
+    let
+        ys = takeWhile (\x -> case m of
+                                _:_ -> x > 4
+                                [] -> x < 2) xs
+    in
+    case ys of
+        (5:_) -> (1, ys)
+        (1:_) -> (2, ys)
+        [] -> case m of
+                _:_ | 100:_ <- xs -> (1000, ys)
+                    | _:_ <- xs -> (3, ys)
+                    | otherwise -> (4, ys)
+                [] -> (5, ys)
+        _ -> (6, ys)
+
 map1 :: [AB] -> (Int, [AB])
 map1 xs =
     let
@@ -75,12 +92,3 @@ map1 xs =
         (B:_) -> (6, ys)
         [] -> (7, ys)
 
-
-takeWhile5 :: [Int] -> (Int, [Int])
-takeWhile5 xs =
-    let
-        ys = takeWhile (\x -> x < 2) xs
-    in
-    case length ys > 4 of
-        True -> (1, ys)
-        False -> (2, ys)
