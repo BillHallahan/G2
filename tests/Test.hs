@@ -642,6 +642,9 @@ testFileTests = testGroup "TestFiles"
                                                               , ("find1", 1000, [AtLeast 5])
                                                               , ("findIndex1", 1000, [AtLeast 5])
                                                               , ("findIndices1", 1000, [AtLeast 5])
+                                                              , ("or1", 1000, [AtLeast 5])`
+                                                              , ("and1", 1000, [AtLeast 5])`
+                                                              , ("span1", 1000, [AtLeast 5])`
 
                                                               ]
 
@@ -687,6 +690,9 @@ testFileTests = testGroup "TestFiles"
                                         , ("findIndex1", 20000, [Exactly 3])
                                         , ("findIndices1", 20000, [AtLeast 6, AtMost 7])
                                         , ("findIndices2", 20000, [Exactly 1])
+                                        , ("or1", 20000, [Exactly 2])
+                                        , ("and1", 20000, [Exactly 2])
+                                        , ("span1", 20000, [Exactly 9])
                                         ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"

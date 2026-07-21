@@ -455,3 +455,12 @@ or1 :: [Bool] -> Int
 or1 xs = case L.or xs of
     True -> 0
     False -> 1
+
+span1 :: [Int] -> Int
+span1 xs
+    | a == b = 0 -- Impossible
+    | length a > 5 = 1
+    | length a < 3 && length b > 3 = 2
+    | otherwise = 3
+    where f x = x <= 3
+          (a, b) = span f xs
