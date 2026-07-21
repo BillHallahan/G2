@@ -642,9 +642,9 @@ testFileTests = testGroup "TestFiles"
                                                               , ("find1", 1000, [AtLeast 5])
                                                               , ("findIndex1", 1000, [AtLeast 5])
                                                               , ("findIndices1", 1000, [AtLeast 5])
-                                                              , ("or1", 1000, [AtLeast 5])`
-                                                              , ("and1", 1000, [AtLeast 5])`
-                                                              , ("span1", 1000, [AtLeast 5])`
+                                                              , ("or1", 1000, [AtLeast 5])
+                                                              , ("and1", 1000, [AtLeast 5])
+                                                              , ("span1", 1000, [AtLeast 5])
 
                                                               ]
 
