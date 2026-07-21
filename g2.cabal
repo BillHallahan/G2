@@ -146,6 +146,7 @@ library
 
                        , G2.SMTSynth.Integrate
                        , G2.SMTSynth.Synthesizer
+                       , G2.SMTSynth.Verify
 
                        , G2.Solver
                        , G2.Solver.ADTNumericalSolver

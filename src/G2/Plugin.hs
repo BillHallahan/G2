@@ -34,7 +34,6 @@ import G2.Initialization.MkCurrExpr
 import G2.Interface
 import G2.Initialization.Types as IT
 import G2.Language as L
-import G2.Language.KnownValues as KV
 import qualified G2.Language.ExprEnv as E
 import G2.Plugin.Prim
 import G2.Translation as T
@@ -57,6 +56,7 @@ import qualified Data.Sequence as Seq
 import qualified Data.Text.IO as T
 import Options.Applicative
 import G2.Language.TyVarEnv as TV
+import qualified G2.SMTSynth.Verify as V
 import qualified Data.Text as TX
 
 import System.Clock
@@ -138,7 +138,9 @@ g2PluginPass' cmd_lne config env modguts = do
     let simp_state = initSimpleState injected_exg2 imports_nm import_tnm
 
     let equivTo (Name _ eq_m _ _) (SMTEquivIs eq_n) | Just (smt_n, smt_e) <- (E.lookupNameMod (TX.pack eq_n) eq_m $ IT.expr_env simp_state) =
-            Just (L.Var (Id smt_n $ L.typeOf TV.empty smt_e))
+            Just (Id smt_n $ L.typeOf TV.empty smt_e)
+        equivTo (Name _ eq_m _ _) (SMTEquivIsWithConfig eq_n _) | Just (smt_n, smt_e) <- (E.lookupNameMod (TX.pack eq_n) eq_m $ IT.expr_env simp_state) =
+            Just (Id smt_n $ L.typeOf TV.empty smt_e)
         equivTo _ _ = Nothing
         equiv_annots = HM.fromList $ mapMaybe (\(n, anns) -> (n,) <$> firstJust (equivTo n) anns) ann_fs_g2
 
@@ -153,14 +155,14 @@ addName occ md nm | Just n <- HM.lookup (occ, md) nm = (n, nm)
 ------------------------------------------------------------------------------
 
 runSymexAnnots :: [CommandLineOption]
-               -> HM.HashMap L.Name L.Expr -- Real definitions to SMT definitions
+               -> HM.HashMap L.Name L.Id -- Real definitions to SMT definitions
                -> SimpleState
                -> L.Name
                -> [SymEx]
                -> IO ()
 runSymexAnnots cmd_lne equiv_annots simp_state entry = mapM_ (runSymexAnnot cmd_lne equiv_annots simp_state entry)
 
-runSymexAnnot :: [CommandLineOption] -> HM.HashMap L.Name L.Expr -> SimpleState -> L.Name -> SymEx -> IO ()
+runSymexAnnot :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> SymEx -> IO ()
 runSymexAnnot cmd_lne _ simp_state entry SymEx =
     runFunc cmd_lne simp_state entry
 runSymexAnnot cmd_lne _ simp_state entry (SymExWithConfig extra_cmd_lne) =
@@ -207,84 +209,12 @@ logAcceptedStateTime entryName  = do
     file_exists <- doesFileExist file_name
     when file_exists $ appendFile file_name $ "\n" ++ entryName ++ " : "
 
-checkEquiv :: [CommandLineOption] -> HM.HashMap L.Name L.Expr -> SimpleState -> L.Name -> String -> IO ()
-checkEquiv cmd_lne equiv_annots simp_state entry_real entry_smt
-    | Just (entry_real_name, real_e) <- E.lookupNameMod (L.nameOcc entry_real) (L.nameModule entry_real) (IT.expr_env simp_state)
-    , Just (entry_smt_name, _) <- E.lookupNameMod (TX.pack entry_smt) (L.nameModule entry_real) (IT.expr_env simp_state)
-    , Just (comp_name, comp_e) <- E.lookupNameMod "comp" (Just "G2.Plugin") (IT.expr_env simp_state) = do
-        -- Get a Config to run this specific function
-        homedir <- liftIO $ getHomeDirectory
-        func_config <- liftIO . handleParseResult $ execParserPure defaultPrefs (pluginConfig homedir) cmd_lne
-        let func_config' = func_config { step_limit = False
-                                       , smt_strings = UseSMTStrings
-                                       , smt_prim_lists = UseSMTSeq { add_to_dcs = True, add_to_funcs = True }
-                                       , smt_strings_strictness = StrictSMTStrings
-                                       , search_strat = Subpath
-                                       , min_found = 1 }
-
-        let entry_id = Id entry_real_name $ L.typeOf TV.empty real_e
-            (init_state, bindings) = initStateFromSimpleState simp_state [L.nameModule entry_real] False
-                                (mkCurrExpr TV.empty Nothing Nothing entry_id)
-                                (E.higherOrderExprs TV.empty . IT.expr_env)
-                                func_config'
-            bindings' = bindings { higher_order_inst = HS.empty }
-
-            eenv = L.expr_env init_state
-            kv = L.known_values init_state
-            tv_env = tyvar_env init_state
-
-            real_var = L.Var (L.Id entry_real_name $ L.typeOf tv_env real_e)
-            smt_var = L.Var (L.Id entry_smt_name $ L.typeOf tv_env real_e)
-
-            -- Modify the real function to replace recursive calls with calls to the SMT definitions
-            real_e_mod_def = case E.lookup entry_real_name eenv of
-                                    Just e -> e
-                                    Nothing -> error "checkEquiv: definition not found"
-            real_e' = replaceVars equiv_annots real_e_mod_def
-            eenv' = E.insert entry_real_name real_e' eenv
-        
-            -- Set up a call to compare the real and SMT definitions
-            in_vars = mapMaybe (flip E.lookup eenv) $ input_names bindings'
-            call_real = mkApp (real_var:in_vars)
-            call_smt = mkApp (smt_var:in_vars)
-            eq = fromMaybe (error "checkEquiv: could not generate Eq typeclass")
-               $ typeClassInst (L.type_classes init_state) HM.empty (KV.eqTC kv) (L.typeOf tv_env call_real)
-
-            comp_expr = mkApp [ L.Var (L.Id comp_name $ L.typeOf tv_env comp_e)
-                              , L.Type TyUnknown
-                              , eq
-                              , call_real
-                              , call_smt]
-            comp_state = init_state { L.expr_env = eenv'
-                                    , curr_expr = CurrExpr Evaluate comp_expr
-                                    , true_assert = False }
-        (ers, _, _, time_outs, _) <- liftIO $ runG2WithConfig
-                                                            [] [] entry_id "" []
-                                                            [L.nameModule entry_real_name]
-                                                            comp_state
-                                                            func_config'
-                                                            bindings'
-        case ers of
-            [] | NoTimeOut <- time_outs -> putStrLn $ "Equivalent: "
-                                    <> TX.unpack (nameOcc entry_real_name) <> " and "
-                                    <> TX.unpack (nameOcc entry_smt_name)
-            _ | TimedOut _ <- time_outs -> putStrLn $ "Time Out: "
-                                                <> TX.unpack (nameOcc entry_real_name) <> " and "
-                                                <> TX.unpack (nameOcc entry_smt_name)
-            _ -> putStrLn $ "Inequivalent: "
-                                    <> TX.unpack (nameOcc entry_real_name) <> " and "
-                                    <> TX.unpack (nameOcc entry_smt_name)
-
-        return ()
-    | otherwise = do
-        putStrLn "checkEquiv: functions not found"
-        return ()
-
-replaceVars :: HM.HashMap L.Name L.Expr -> L.Expr -> L.Expr
-replaceVars m = modify go
-    where
-        go (L.Var (Id n _)) | Just e <- HM.lookup n m = e
-        go e = e
+checkEquiv :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> String -> IO ()
+checkEquiv cmd_lne equiv_annots simp_state entry_real entry_smt = do
+    -- Get a Config to run this specific function
+    homedir <- liftIO $ getHomeDirectory
+    func_config <- liftIO . handleParseResult $ execParserPure defaultPrefs (pluginConfig homedir) cmd_lne
+    V.checkEquiv func_config equiv_annots simp_state entry_real entry_smt
 
 ------------------------------------------------------------------------------
 -- Loading in functions and function annotations

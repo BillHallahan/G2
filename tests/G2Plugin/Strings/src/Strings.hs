@@ -33,14 +33,14 @@ smtAppMult :: [Int] -> [Int] -> [Int] -> [Int]
 smtAppMult xs ys zs = xs +++ ys +++ zs
 
 
-{-# ANN corr (SMTEquivIs "smtCorr") #-}
+{-# ANN corr (SMTEquivIsWithConfig "smtCorr" "") #-}
 corr :: Int -> Int
 corr = incorr
 
 smtCorr :: Int -> Int
 smtCorr x = x + 1
 
-{-# ANN incorr (SMTEquivIs "smtIncorr") #-}
+{-# ANN incorr (SMTEquivIsWithConfig "smtIncorr" "") #-}
 incorr :: Int -> Int
 incorr x = x + 1
 
