@@ -10,8 +10,22 @@ module G2.Plugin (SymEx (..)
                  , (==>)
 
                  , smtLen
-                 , (+++)
+                 , smtNth
+                 , smtExtract
+                 , ($++)
                  , smtAppend
+                 , smtAt
+                 , smtContains
+                 , smtIndexOf
+                 , smtReplace
+                 , smtReplaceAll
+                 , smtReverse
+                 , smtPrefixOf
+                 , smtSuffixOf
+                 
+                 , smtMap
+                 , smtFoldLeft
+                 , smtFoldLeftI
 
                  , comp
                 ) where
@@ -121,10 +135,18 @@ g2PluginPass cmd_lne config env modguts = do
 g2PluginPass' :: [CommandLineOption] -> Config -> HscEnv -> ModGuts -> CoreM ()
 g2PluginPass' cmd_lne config env modguts = do
     (new_nm, new_tm, ex_g2, prev_explored) <- loadExtractedG2 config env modguts
+    let very_simp_state = initSimpleState ex_g2 new_nm new_tm
 
     -- Get the names of functions we are going to be symbolically executing
     ann_fs_g2 <- getBinderAnnotations new_nm new_tm modguts
-    let fs_g2 = map fst ann_fs_g2
+    let equivTo (Name _ eq_m _ _) (SMTEquivIs eq_n) | Just (smt_n, smt_e) <- (E.lookupNameMod (TX.pack eq_n) eq_m $ IT.expr_env very_simp_state) =
+            Just (Id smt_n $ L.typeOf TV.empty smt_e)
+        equivTo (Name _ eq_m _ _) (SMTEquivIsWithConfig eq_n _) | Just (smt_n, smt_e) <- (E.lookupNameMod (TX.pack eq_n) eq_m $ IT.expr_env very_simp_state) =
+            Just (Id smt_n $ L.typeOf TV.empty smt_e)
+        equivTo _ _ = Nothing
+        equiv_annots = HM.fromList $ mapMaybe (\(n, anns) -> (n,) <$> firstJust (equivTo n) anns) ann_fs_g2
+
+    let fs_g2 = map fst ann_fs_g2 ++ map L.idName (HM.elems equiv_annots)
 
     -- Get an initial set of relevant bindings to load from imports
     let rel_names = Seq.fromList
@@ -136,13 +158,6 @@ g2PluginPass' cmd_lne config env modguts = do
 
     (imports_nm, import_tnm, injected_exg2) <- setUpImports comp_nm new_tm env ex_g2 prev_explored (comp_name Seq.:<| rel_names)
     let simp_state = initSimpleState injected_exg2 imports_nm import_tnm
-
-    let equivTo (Name _ eq_m _ _) (SMTEquivIs eq_n) | Just (smt_n, smt_e) <- (E.lookupNameMod (TX.pack eq_n) eq_m $ IT.expr_env simp_state) =
-            Just (Id smt_n $ L.typeOf TV.empty smt_e)
-        equivTo (Name _ eq_m _ _) (SMTEquivIsWithConfig eq_n _) | Just (smt_n, smt_e) <- (E.lookupNameMod (TX.pack eq_n) eq_m $ IT.expr_env simp_state) =
-            Just (Id smt_n $ L.typeOf TV.empty smt_e)
-        equivTo _ _ = Nothing
-        equiv_annots = HM.fromList $ mapMaybe (\(n, anns) -> (n,) <$> firstJust (equivTo n) anns) ann_fs_g2
 
     liftIO $ mapM_ (uncurry (runSymexAnnots cmd_lne equiv_annots simp_state)) ann_fs_g2
 
@@ -386,8 +401,28 @@ annotationsOn guts bndr = do
 adjustFunctions :: NameMap -> ExtractedG2 -> ExtractedG2
 adjustFunctions nm ex_g2 = do
       adjustFunction ("pSmtLen#", Just "G2.Plugin.Prim") nm (callPrim nm "strLen#")
+    . adjustFunction ("pSmtNth#", Just "G2.Plugin.Prim") nm (callPrim nm "seqNthInt#")
+    -- . adjustFunction ("pSmtUpdate#", Just "G2.Plugin.Prim") nm (callPrim nm "strUpdate#")
+    . adjustFunction ("pSmtExtract#", Just "G2.Plugin.Prim") nm (callPrim nm "strSubstr#")
     . adjustFunction ("pSmtAppend#", Just "G2.Plugin.Prim") nm (callPrim nm "strAppend#")
+    . adjustFunction ("pSmtAt#", Just "G2.Plugin.Prim") nm (callPrim nm "strAt#")
+    . adjustFunction ("pSmtContains#", Just "G2.Plugin.Prim") nm (callPrim nm "strContains#")
+    . adjustFunction ("pSmtIndexOf#", Just "G2.Plugin.Prim") nm (callPrim nm "strIndexOf#")
+    . adjustFunction ("pSmtReplace#", Just "G2.Plugin.Prim") nm (callPrim nm "strReplace#")
+    . adjustFunction ("pSmtReplaceAll#", Just "G2.Plugin.Prim") nm (callPrim nm "strReplaceAll#")
+    . adjustFunction ("pSmtReverse#", Just "G2.Plugin.Prim") nm (callPrim nm "strReverse#")
+    . adjustFunction ("pSmtPrefixOf#", Just "G2.Plugin.Prim") nm (callPrim nm "strPrefixOf#")
+    . adjustFunction ("pSmtSuffixOf#", Just "G2.Plugin.Prim") nm (callPrim nm "strSuffixOf#")
+
+    . adjustFunction ("pBuildLitTable#", Just "G2.Plugin.Prim") nm (callPrim nm "buildLitTable#")
+    . adjustFunction ("pSmtMap#", Just "G2.Plugin.Prim") nm (callPrim nm "smtMap#")
+    . adjustFunction ("pSmtFoldLeft#", Just "G2.Plugin.Prim") nm (callPrim nm "smtFoldLeft#")
+    . adjustFunction ("pSmtFoldLeftI#", Just "G2.Plugin.Prim") nm (callPrim nm "smtFoldLeftI#")
+
     . adjustFunction ("pIsSMTRep#", Just "G2.Plugin.Prim") nm (callPrim nm "isSMTRep#")
+
+    . adjustFunction ("$&&#", Just "G2.Plugin.Prim") nm (callPrim nm "&&#")
+
     . adjustAssert "assert" "G2.Plugin" nm
     $ adjustAssume (Just "G2.Plugin") nm ex_g2
 
@@ -403,11 +438,59 @@ callPrim nm n =
 smtLen :: [a] -> Int
 smtLen xs = xs `evalSeq` I# (pSmtLen# xs)
 
-(+++) :: [a] -> [a] -> [a]
-(+++) = smtAppend
+smtNth :: [a] -> Int -> a
+smtNth xs (I# x) = xs `evalSeq` pSmtNth# xs x
+
+smtExtract :: [a] -> Int -> Int -> [a]
+smtExtract xs (I# i) (I# j) = xs `evalSeq` pSmtExtract# xs i j
+
+($++) :: [a] -> [a] -> [a]
+($++) = smtAppend
 
 smtAppend :: [a] -> [a] -> [a]
 smtAppend xs ys = xs `evalSeq` ys `evalSeq` pSmtAppend# xs ys
+
+smtAt :: [a] -> Int -> [a]
+smtAt xs (I# x) = xs `evalSeq` pSmtAt# xs x
+
+smtContains :: [a] -> [a] -> Bool
+smtContains xs ys = xs `evalSeq` ys `evalSeq` pSmtContains# xs ys
+
+smtIndexOf :: [a] -> [a] -> Int -> Int
+smtIndexOf xs ys (I# i) = xs `evalSeq` ys `evalSeq` I# (pSmtIndexOf# xs ys i)
+
+smtReplace :: [a] -> [a] -> [a] -> [a]
+smtReplace xs ys zs = xs `evalSeq` ys `evalSeq` zs `evalSeq` pSmtReplace# xs ys zs
+
+smtReplaceAll :: [a] -> [a] -> [a] -> [a]
+smtReplaceAll xs ys zs = xs `evalSeq` ys `evalSeq` zs `evalSeq` pSmtReplaceAll# xs ys zs
+
+smtReverse :: [a] -> [a]
+smtReverse xs = xs `evalSeq` pSmtReverse# xs
+
+smtPrefixOf :: [a] -> [a] -> Bool
+smtPrefixOf xs ys = xs `evalSeq` ys `evalSeq` pSmtPrefixOf# xs ys
+
+smtSuffixOf :: [a] -> [a] -> Bool
+smtSuffixOf xs ys = xs `evalSeq` ys `evalSeq` pSmtSuffixOf# xs ys
+
+smtMap :: (a -> b) -> [a] -> [b]
+smtMap f xs = xs `evalSeq` smtMap' f xs 
+
+smtMap' :: (a -> b) -> [a] -> [b]
+smtMap' f xs = 
+    let !(LTI lt success inLT partial) = pBuildLitTable# f
+        !mapped = pSmtMap# lt xs
+        !pt_a = if not partial then True else pSmtFoldLeft# (\acc e -> acc $&& inLT e) True xs
+    in assume pt_a $ if success then mapped else map f xs
+
+smtFoldLeft :: (a -> b -> a) -> a -> [b] -> a
+smtFoldLeft f !x xs = xs `evalSeq` pSmtFoldLeft# f x xs 
+
+smtFoldLeftI :: (Int -> a -> b -> a) -> Int -> a -> [b] -> a
+smtFoldLeftI f (I# i) !x xs =
+    let f' j = f (I# j) in
+    xs `evalSeq` pSmtFoldLeftI# f' i x xs 
 
 {-# NOINLINE evalSeq #-}
 evalSeq :: [a] -> b -> b
