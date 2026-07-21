@@ -1,8 +1,10 @@
 {-# LANGUAGE BangPatterns, MagicHash, ScopedTypeVariables #-}
 
-module G2.Plugin.Prim where
+module G2.Plugin.Prim ( module G2.Plugin.Prim
+                      , LitTableInfo (..)) where
 
 import GHC.Exts
+import GHC.Prim2
 
 ------------------------------------------------------------------------------
 -- String Functions
@@ -81,11 +83,6 @@ pSmtFoldLeftI# = error "pSmtFoldLeftI#"
 {-# NOINLINE pIsSMTRep# #-}
 pIsSMTRep# :: [a] -> Bool
 pIsSMTRep# _ = error "pIsSMTRep#"
-
-data LitTableInfo a b = LTI { lit_table :: !(a -> b)
-                            , lt_success :: !Bool
-                            , lt_partial :: !(a -> Bool)
-                            , lt_is_partial :: !Bool }
 
 {-# NOINLINE pBuildLitTable# #-}
 pBuildLitTable# :: (a -> b) -> LitTableInfo a b

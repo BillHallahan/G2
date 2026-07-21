@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, TupleSections #-}
 
 module G2.SMTSynth.Verify ( checkEquiv
                           , insertFCTick ) where
@@ -57,7 +57,7 @@ checkEquiv func_config equiv_annots simp_state entry_real entry_smt
             in_vars = mapMaybe (flip E.lookup eenv'') $ input_names bindings'
             call_real = mkApp (real_var:in_vars)
             call_smt = mkApp (smt_var:in_vars)
-            eq = fromMaybe (error "checkEquiv: could not generate Eq typeclass")
+            eq = fromMaybe (error $ "checkEquiv: could not generate Eq typeclass")
                $ typeClassInst (type_classes init_state) HM.empty (KV.eqTC kv) (typeOf tv_env call_real)
 
             comp_expr = mkApp [ Var (Id comp_name $ typeOf tv_env comp_e)
@@ -113,53 +113,62 @@ insertFCTick :: Expr -> Name -> TyVarEnv -> Expr
 insertFCTick expr func tv_env =
     let ret_name = Name "G2_!!_RET_VAR" Nothing 0 Nothing in
     insertInLams (\is e ->
-                    let ret_id = Id ret_name (typeOf tv_env e) in
-                    Let [(ret_id, e)] $ Tick (FCTick $ FuncCall { funcName = func, arguments = map Var is, returns = Var ret_id }) (Var ret_id)) expr
+                    let
+                        ty_e = typeOf tv_env e
+                        anon_ty = anonArgumentTypes ty_e
+                        new_lam_is = zipWith (\i at -> Id (Name "G2_!!_LAM" Nothing i Nothing) at) [1..] anon_ty
+                        ret_id = Id ret_name (returnType ty_e)
+
+                        all_is = is ++ new_lam_is
+                        e' = mkApp $ e:map Var new_lam_is
+                    in
+                       mkLams (map (TermL,) new_lam_is)
+                    $ Let [(ret_id, e')] $ Tick (FCTick $ FuncCall { funcName = func, arguments = map Var all_is, returns = Var ret_id }) (Var ret_id)) expr
 
 checkFCStateBindings :: ExprEnv -> [ExecRes ()] -> Bindings -> [(Name, State (), Bindings)]
 checkFCStateBindings orig_eenv er bindings =     
     let new_state_bindings =
             concatMap (\ExecRes { final_state = s@State { expr_env = eenv, tyvar_env = tv_env, known_values = kv, type_classes = tc } } ->
-                            map (\fc->
-                                    let
-                                        func_t = typeOf tv_env $ fromMaybe (error "runFunc: func not found") $ E.lookup (funcName fc) eenv
-                                        num_ty = length $ leadingTyForAllBindings func_t
+                map (\fc->
+                        let
+                            func_t = typeOf tv_env $ fromMaybe (error "runFunc: func not found") $ E.lookup (funcName fc) eenv
+                            num_ty = length $ leadingTyForAllBindings func_t
 
-                                        (arg_ns, ng') = freshIds (map (typeOf tv_env) $ arguments fc) (name_gen bindings)
-                                        ty_args_ns = take num_ty arg_ns
-                                        var_args_ns = drop num_ty arg_ns
+                            (arg_ns, ng') = freshIds (map (typeOf tv_env) $ arguments fc) (name_gen bindings)
+                            ty_args_ns = take num_ty arg_ns
+                            var_args_ns = drop num_ty arg_ns
 
-                                        tv_env' = foldr (\(Id n _, e) -> TV.insert n (fromMaybe TyBottom $ TV.deepLookup tv_env e)) tv_env (zip ty_args_ns $ arguments fc)
-                                        
-                                        -- Set up the expression environment. We want function definitions from the ORIGINAL expression environment,
-                                        -- but also all bindings from the new expression environment.
-                                        -- We also introduce bindings for the arguments that we are running the function on.
-                                        eenv' = orig_eenv `E.union` eenv
-                                        eenv'' = foldr (\(Id n _, e) -> E.insert n e) eenv' (zip var_args_ns . drop num_ty $ arguments fc)
+                            tv_env' = foldr (\(Id n _, e) -> TV.insert n (fromMaybe TyBottom $ TV.deepLookup tv_env e)) tv_env (zip ty_args_ns $ arguments fc)
+                            
+                            -- Set up the expression environment. We want function definitions from the ORIGINAL expression environment,
+                            -- but also all bindings from the new expression environment.
+                            -- We also introduce bindings for the arguments that we are running the function on.
+                            eenv' = orig_eenv `E.union` eenv
+                            eenv'' = foldr (\(Id n _, e) -> E.insert n e) eenv' (zip var_args_ns . drop num_ty $ arguments fc)
 
-                                        -- Set up the current expression
-                                        apply_to_args = mkApp $ Var (Id (funcName fc) TyUnknown):map Var arg_ns
-                                        ret_val = returns fc
-                                        t = typeOf tv_env ret_val
+                            -- Set up the current expression
+                            apply_to_args = mkApp $ Var (Id (funcName fc) TyUnknown):map Var arg_ns
+                            ret_val = returns fc
+                            t = typeOf tv_env ret_val
 
-                                        eq_func = Var (Id (eqFunc kv) TyUnknown)
-                                        eq_dict = fromMaybe (error "checkEquiv: could not generate Eq typeclass")
-                                                $ typeClassInst  tc HM.empty (KV.eqTC kv) t
-                                        
-                                        call_res_i = Id (Name "CALL_!!_RES_G2__" Nothing 0 Nothing) t
-                                        call_res_v = Var call_res_i
-                                        eq_call = mkApp [ eq_func
-                                                        , Type t
-                                                        , eq_dict
-                                                        , call_res_v
-                                                        , ret_val
-                                                        ]
-                                        assert_eq = Assert Nothing eq_call call_res_v
-                                        let_e = Let [(call_res_i, apply_to_args)] assert_eq
-                                    in
-                                    ( funcName fc
-                                    , s { expr_env = eenv'', tyvar_env = tv_env', true_assert = False, curr_expr = CurrExpr Evaluate let_e }
-                                    , bindings { input_names = map idName arg_ns, name_gen = ng' })
-                                ) (reached_fc_ticks s)
-                      ) er
+                            eq_func = Var (Id (eqFunc kv) TyUnknown)
+                            eq_dict = fromMaybe (error $ "checkEquiv: could not generate Eq typeclass" ++ "\n" ++ show (typeOf tv_env t) ++ "\n" ++ show t ++ "\n" ++ show ret_val)
+                                    $ typeClassInst  tc HM.empty (KV.eqTC kv) t
+                            
+                            call_res_i = Id (Name "CALL_!!_RES_G2__" Nothing 0 Nothing) t
+                            call_res_v = Var call_res_i
+                            eq_call = mkApp [ eq_func
+                                            , Type t
+                                            , eq_dict
+                                            , call_res_v
+                                            , ret_val
+                                            ]
+                            assert_eq = Assert Nothing eq_call call_res_v
+                            let_e = Let [(call_res_i, apply_to_args)] assert_eq
+                        in
+                        ( funcName fc
+                        , s { expr_env = eenv'', tyvar_env = tv_env', true_assert = False, curr_expr = CurrExpr Evaluate let_e }
+                        , bindings { input_names = map idName arg_ns, name_gen = ng' })
+                    ) (reached_fc_ticks s)
+            ) er
     in new_state_bindings

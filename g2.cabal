@@ -182,6 +182,8 @@ library
                        , G2.Verify.Reducer
                        , G2.Verify.StaticArgTrans
 
+                       , GHC.Prim2
+
   if impl(ghc > 9.4)
       exposed-modules:   G2.Plugin
 
