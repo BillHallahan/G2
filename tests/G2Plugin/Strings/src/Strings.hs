@@ -17,7 +17,7 @@ f2 xs =
         True -> [1] +++ xs
         False -> [1] +++ xs +++ [1] +++ xs
 
-{-# ANN myApp (SMTEquivIsWithConfig "app" "--log-pretty a_app") #-}
+{-# ANN myApp (SMTEquivIsWithConfig "app" "") #-}
 myApp :: [Int] -> [Int] -> [Int]
 myApp [] ys = ys
 myApp (x:xs) ys = x:(myApp xs ys)

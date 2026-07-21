@@ -205,7 +205,9 @@ checkEquiv cmd_lne simp_state entry_real entry_smt
         homedir <- liftIO $ getHomeDirectory
         func_config <- liftIO . handleParseResult $ execParserPure defaultPrefs (pluginConfig homedir) cmd_lne
         let func_config' = func_config { step_limit = False
+                                       , smt_strings = UseSMTStrings
                                        , smt_prim_lists = UseSMTSeq { add_to_dcs = True, add_to_funcs = True }
+                                       , smt_strings_strictness = StrictSMTStrings
                                        , search_strat = Subpath
                                        , min_found = 1 }
 
@@ -224,7 +226,10 @@ checkEquiv cmd_lne simp_state entry_real entry_smt
             smt_var = L.Var (L.Id entry_smt_name $ L.typeOf tv_env real_e)
 
             -- Modify the real function to replace recursive calls with calls to the SMT definition
-            real_e' = replaceVar entry_real_name smt_var real_e
+            real_e_mod_def = case E.lookup entry_real_name eenv of
+                                    Just e -> e
+                                    Nothing -> error "checkEquiv: definition not found"
+            real_e' = replaceVar entry_real_name smt_var real_e_mod_def
             eenv' = E.insert entry_real_name real_e' eenv
         
             -- Set up a call to compare the real and SMT definitions
