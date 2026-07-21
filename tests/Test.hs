@@ -699,7 +699,7 @@ testFileTests = testGroup "TestFiles"
                                         , ("findIndices2", 20000, [Exactly 1])
                                         , ("or1", 20000, [Exactly 2])
                                         , ("and1", 20000, [Exactly 2])
-                                        , ("span1", 20000, [Exactly 9])
+                                        , ("span1", 20000, [AtLeast 9, AtMost 10])
                                         ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"

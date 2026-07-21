@@ -858,7 +858,7 @@ evalTypeAnyArgPrim _ tenv tv kv _ (TypeIndex tyh) t _
                                                  || t_a == tyFloat kv
                                                  || t_a == tyDouble kv
                                                  || t_a == tyBool kv
-                                                 || supportsSMT t_a = Just (Lit (LitInt 2 ))
+                                                 || supportsSMT t_a = Just (Lit (LitInt 2))
                                                  | otherwise = Just (Lit (LitInt 0))
     where
         supportsSMT t' | s_t <- tyVarSubst tv t'
@@ -867,7 +867,6 @@ evalTypeAnyArgPrim _ tenv tv kv _ (TypeIndex tyh) t _
                        || s_t == tyInteger kv
                        || s_t == tyFloat kv
                        || s_t == tyDouble kv
-                       || s_t == tyBool kv
                        || maybe False to_smt (M.lookup n tenv)
                        , all supportsSMT ts = True
                        | otherwise = False
