@@ -867,6 +867,7 @@ evalTypeAnyArgPrim _ tenv tv kv _ (TypeIndex tyh) t _
                        || s_t == tyInteger kv
                        || s_t == tyFloat kv
                        || s_t == tyDouble kv
+                       || s_t == tyBool kv
                        || maybe False to_smt (M.lookup n tenv)
                        , all supportsSMT ts = True
                        | otherwise = False
