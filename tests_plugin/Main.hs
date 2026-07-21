@@ -17,6 +17,7 @@ main = do
 tests :: TestTree
 tests = testGroup "All Tests"
         [ checkG2Package "tests/G2Plugin/Simple" ["f", "g", "recCall"]
+        , checkG2Package "tests/G2Plugin/Strings" ["f"]
         , checkNebulaPackage "tests/RewriteVerify/PluginTests/Simple" ["add_assoc", "fg", "fg_toint"] ["f_one"]]
 
 -------------------------------------------------------------------------------

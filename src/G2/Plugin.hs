@@ -236,13 +236,13 @@ checkEquiv cmd_lne simp_state entry_real entry_smt
                                                             func_config'
                                                             bindings'
         case ers of
-            [] | NoTimeOut <- time_outs -> putStrLn $ "Verified equivalence of "
+            [] | NoTimeOut <- time_outs -> putStrLn $ "Equivalent: "
                                     <> TX.unpack (nameOcc entry_real_name) <> " and "
                                     <> TX.unpack (nameOcc entry_smt_name)
-            _ | TimedOut _ <- time_outs -> putStrLn $ "Some states timed out while checking"
+            _ | TimedOut _ <- time_outs -> putStrLn $ "Time Out: "
                                                 <> TX.unpack (nameOcc entry_real_name) <> " and "
                                                 <> TX.unpack (nameOcc entry_smt_name)
-            _ -> putStrLn $ "Found inequivalence of "
+            _ -> putStrLn $ "Inequivalent: "
                                     <> TX.unpack (nameOcc entry_real_name) <> " and "
                                     <> TX.unpack (nameOcc entry_smt_name)
 
