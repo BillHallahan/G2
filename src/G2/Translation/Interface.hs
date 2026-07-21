@@ -6,7 +6,9 @@ module G2.Translation.Interface ( translateBase
                                 , specialInject
                                 , dirPath
                                 
-                                , adjustAssume) where
+                                , adjustAssume
+                                , adjustAssert
+                                , adjustFunction) where
 
 import Control.Monad.Extra
 import qualified Data.HashMap.Lazy as HM
@@ -112,16 +114,18 @@ adjustMkSymbolicPrim sym_log occ_n md_nm nm exg2 =
     let
         n = (occ_n, md_nm)
     in
-    adjustFunction n nm exg2
+    adjustFunction n nm
             (let a = Id (Name "a" Nothing 0 Nothing) TYPE in G2.Lam TypeL a (SymGen sym_log $ TyVar a))
+            exg2
 
 adjustAssume :: Maybe T.Text -> NameMap -> ExtractedG2 -> ExtractedG2
 adjustAssume mdl nm exg2 =
-    adjustFunction ("assume", mdl) nm exg2
+    adjustFunction ("assume", mdl) nm
             (let a = Id (Name "a" Nothing 0 Nothing) TYPE
                  b = Id (Name "b" Nothing 0 Nothing) TyUnknown
                  x = Id (Name "x" Nothing 0 Nothing) (TyVar a) in
                 G2.Lam TypeL a . G2.Lam TermL b . G2.Lam TermL x $ G2.Assume Nothing (G2.Var b) (G2.Var x))
+            exg2
 
 adjustAssertG2Symbolic :: NameMap -> ExtractedG2 -> ExtractedG2
 adjustAssertG2Symbolic = adjustAssert "assert" "G2.Symbolic"
@@ -131,18 +135,19 @@ adjustAssertGHC = adjustAssert "assert" "GHC.Base"
 
 adjustAssert :: T.Text -> T.Text -> NameMap -> ExtractedG2 -> ExtractedG2
 adjustAssert f m nm exg2 =
-    adjustFunction (f, Just m) nm exg2
+    adjustFunction (f, Just m) nm
             (let a = Id (Name "a" Nothing 0 Nothing) TYPE
                  b = Id (Name "b" Nothing 0 Nothing) TyUnknown
                  x = Id (Name "x" Nothing 0 Nothing) (TyVar a) in
                 G2.Lam TypeL a . G2.Lam TermL b . G2.Lam TermL x $ G2.Assert Nothing (G2.Var b) (G2.Var x))
+            exg2
 
-adjustFunction :: (T.Text, Maybe T.Text) -> NameMap -> ExtractedG2 -> G2.Expr -> ExtractedG2
-adjustFunction fname@(_, Just _) nm exg2@(ExtractedG2 { exg2_binds = binds}) e =
+adjustFunction :: (T.Text, Maybe T.Text) -> NameMap -> G2.Expr -> ExtractedG2 -> ExtractedG2
+adjustFunction fname@(_, Just _) nm e exg2@(ExtractedG2 { exg2_binds = binds}) =
     case HM.lookup fname nm of
         Just sym_n -> exg2 { exg2_binds = HM.insert sym_n e binds }
         Nothing -> exg2
-adjustFunction (n, Nothing) _ exg2@(ExtractedG2 { exg2_binds = binds}) e =
+adjustFunction (n, Nothing) _ e exg2@(ExtractedG2 { exg2_binds = binds}) =
     case find (\b -> nameOcc b == n) (HM.keys binds) of
         Just sym_n -> exg2 { exg2_binds = HM.insert sym_n e binds }
         Nothing -> exg2
