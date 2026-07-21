@@ -31,3 +31,18 @@ appMult xs ys zs = xs `myApp` ys `myApp` zs
 
 smtAppMult :: [Int] -> [Int] -> [Int] -> [Int]
 smtAppMult xs ys zs = xs +++ ys +++ zs
+
+
+{-# ANN corr (SMTEquivIs "smtCorr") #-}
+corr :: Int -> Int
+corr = incorr
+
+smtCorr :: Int -> Int
+smtCorr x = x + 1
+
+{-# ANN incorr (SMTEquivIs "smtIncorr") #-}
+incorr :: Int -> Int
+incorr x = x + 1
+
+smtIncorr :: Int -> Int
+smtIncorr x = x + 2
