@@ -17,10 +17,17 @@ f2 xs =
         True -> [1] +++ xs
         False -> [1] +++ xs +++ [1] +++ xs
 
-{-# ANN myApp (SMTEquivIsWithConfig "app" "") #-}
+{-# ANN myApp (SMTEquivIs "app") #-}
 myApp :: [Int] -> [Int] -> [Int]
 myApp [] ys = ys
 myApp (x:xs) ys = x:(myApp xs ys)
 
 app :: [Int] -> [Int] -> [Int]
 app xs ys = xs +++ ys
+
+{-# ANN appMult (SMTEquivIs "smtAppMult") #-}
+appMult :: [Int] -> [Int] -> [Int] -> [Int]
+appMult xs ys zs = xs `myApp` ys `myApp` zs
+
+smtAppMult :: [Int] -> [Int] -> [Int] -> [Int]
+smtAppMult xs ys zs = xs +++ ys +++ zs

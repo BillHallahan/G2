@@ -21,6 +21,7 @@ module G2.Data.Utils ( uncurry3
 
                      , compareLength
 
+                     , firstJust
                      , fromJustErr
                      ) where
 
@@ -29,6 +30,7 @@ import Data.Bifunctor
 #if (MIN_VERSION_base(4,21,0))
 import Data.List
 #endif
+import Data.Maybe
 
 #if !(MIN_VERSION_base(4,18,0))
 import qualified Control.Monad.State.Lazy as CM
@@ -140,6 +142,9 @@ compareLength xs n
     xs
     n
 #endif
+
+firstJust :: (a -> Maybe b) -> [a] -> Maybe b
+firstJust f = listToMaybe . mapMaybe f
 
 {-# INLINE fromJustErr #-}
 fromJustErr :: String -> Maybe a -> a

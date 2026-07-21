@@ -28,6 +28,7 @@ import GHC.Exts
 import GHC.Types.TyThing
 
 import G2.Config
+import G2.Data.Utils (firstJust)
 import G2.Execution.FuncConstraints
 import G2.Initialization.MkCurrExpr
 import G2.Interface
@@ -136,7 +137,12 @@ g2PluginPass' cmd_lne config env modguts = do
     (imports_nm, import_tnm, injected_exg2) <- setUpImports comp_nm new_tm env ex_g2 prev_explored (comp_name Seq.:<| rel_names)
     let simp_state = initSimpleState injected_exg2 imports_nm import_tnm
 
-    liftIO $ mapM_ (uncurry (runSymexAnnots cmd_lne simp_state)) ann_fs_g2
+    let equivTo (Name _ eq_m _ _) (SMTEquivIs eq_n) | Just (smt_n, smt_e) <- (E.lookupNameMod (TX.pack eq_n) eq_m $ IT.expr_env simp_state) =
+            Just (L.Var (Id smt_n $ L.typeOf TV.empty smt_e))
+        equivTo _ _ = Nothing
+        equiv_annots = HM.fromList $ mapMaybe (\(n, anns) -> (n,) <$> firstJust (equivTo n) anns) ann_fs_g2
+
+    liftIO $ mapM_ (uncurry (runSymexAnnots cmd_lne equiv_annots simp_state)) ann_fs_g2
 
 addName :: TX.Text -> Maybe TX.Text -> NameMap -> (L.Name, NameMap)
 addName occ md nm | Just n <- HM.lookup (occ, md) nm = (n, nm)
@@ -146,18 +152,23 @@ addName occ md nm | Just n <- HM.lookup (occ, md) nm = (n, nm)
 -- Run Symbolic Execution
 ------------------------------------------------------------------------------
 
-runSymexAnnots :: [CommandLineOption] -> SimpleState -> L.Name -> [SymEx] -> IO ()
-runSymexAnnots cmd_lne simp_state entry = mapM_ (runSymexAnnot cmd_lne simp_state entry)
+runSymexAnnots :: [CommandLineOption]
+               -> HM.HashMap L.Name L.Expr -- Real definitions to SMT definitions
+               -> SimpleState
+               -> L.Name
+               -> [SymEx]
+               -> IO ()
+runSymexAnnots cmd_lne equiv_annots simp_state entry = mapM_ (runSymexAnnot cmd_lne equiv_annots simp_state entry)
 
-runSymexAnnot :: [CommandLineOption] -> SimpleState -> L.Name -> SymEx -> IO ()
-runSymexAnnot cmd_lne simp_state entry SymEx =
+runSymexAnnot :: [CommandLineOption] -> HM.HashMap L.Name L.Expr -> SimpleState -> L.Name -> SymEx -> IO ()
+runSymexAnnot cmd_lne _ simp_state entry SymEx =
     runFunc cmd_lne simp_state entry
-runSymexAnnot cmd_lne simp_state entry (SymExWithConfig extra_cmd_lne) =
+runSymexAnnot cmd_lne _ simp_state entry (SymExWithConfig extra_cmd_lne) =
     runFunc (cmd_lne ++ words extra_cmd_lne) simp_state entry
-runSymexAnnot cmd_lne simp_state entry (SMTEquivIs smt_equiv_f) =
-    checkEquiv cmd_lne simp_state entry smt_equiv_f
-runSymexAnnot cmd_lne simp_state entry (SMTEquivIsWithConfig smt_equiv_f extra_cmd_lne) =
-    checkEquiv (cmd_lne ++ words extra_cmd_lne) simp_state entry smt_equiv_f
+runSymexAnnot cmd_lne equiv_annots simp_state entry (SMTEquivIs smt_equiv_f) =
+    checkEquiv cmd_lne equiv_annots simp_state entry smt_equiv_f
+runSymexAnnot cmd_lne equiv_annots simp_state entry (SMTEquivIsWithConfig smt_equiv_f extra_cmd_lne) =
+    checkEquiv (cmd_lne ++ words extra_cmd_lne) equiv_annots simp_state entry smt_equiv_f
 
 runFunc :: [CommandLineOption] -> SimpleState -> L.Name -> IO ()
 runFunc cmd_lne simp_state entry
@@ -196,8 +207,8 @@ logAcceptedStateTime entryName  = do
     file_exists <- doesFileExist file_name
     when file_exists $ appendFile file_name $ "\n" ++ entryName ++ " : "
 
-checkEquiv :: [CommandLineOption] -> SimpleState -> L.Name -> String -> IO ()
-checkEquiv cmd_lne simp_state entry_real entry_smt
+checkEquiv :: [CommandLineOption] -> HM.HashMap L.Name L.Expr -> SimpleState -> L.Name -> String -> IO ()
+checkEquiv cmd_lne equiv_annots simp_state entry_real entry_smt
     | Just (entry_real_name, real_e) <- E.lookupNameMod (L.nameOcc entry_real) (L.nameModule entry_real) (IT.expr_env simp_state)
     , Just (entry_smt_name, _) <- E.lookupNameMod (TX.pack entry_smt) (L.nameModule entry_real) (IT.expr_env simp_state)
     , Just (comp_name, comp_e) <- E.lookupNameMod "comp" (Just "G2.Plugin") (IT.expr_env simp_state) = do
@@ -225,11 +236,11 @@ checkEquiv cmd_lne simp_state entry_real entry_smt
             real_var = L.Var (L.Id entry_real_name $ L.typeOf tv_env real_e)
             smt_var = L.Var (L.Id entry_smt_name $ L.typeOf tv_env real_e)
 
-            -- Modify the real function to replace recursive calls with calls to the SMT definition
+            -- Modify the real function to replace recursive calls with calls to the SMT definitions
             real_e_mod_def = case E.lookup entry_real_name eenv of
                                     Just e -> e
                                     Nothing -> error "checkEquiv: definition not found"
-            real_e' = replaceVar entry_real_name smt_var real_e_mod_def
+            real_e' = replaceVars equiv_annots real_e_mod_def
             eenv' = E.insert entry_real_name real_e' eenv
         
             -- Set up a call to compare the real and SMT definitions
@@ -268,6 +279,12 @@ checkEquiv cmd_lne simp_state entry_real entry_smt
     | otherwise = do
         putStrLn "checkEquiv: functions not found"
         return ()
+
+replaceVars :: HM.HashMap L.Name L.Expr -> L.Expr -> L.Expr
+replaceVars m = modify go
+    where
+        go (L.Var (Id n _)) | Just e <- HM.lookup n m = e
+        go e = e
 
 ------------------------------------------------------------------------------
 -- Loading in functions and function annotations
