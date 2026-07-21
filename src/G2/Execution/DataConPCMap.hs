@@ -1,4 +1,4 @@
-{-# LANGUAGE DeriveDataTypeable, OverloadedStrings #-}
+{-# LANGUAGE DeriveDataTypeable, LambdaCase, OverloadedStrings #-}
 
 module G2.Execution.DataConPCMap ( DCArgBind (..)
                                  , DataConPCInfo (..)
@@ -13,6 +13,9 @@ module G2.Execution.DataConPCMap ( DCArgBind (..)
                                  , listCons
                                  , listEmpty
                                  , arbDC
+
+                                 , getDCPCInfo
+                                 , allInDCPC
                                  ) where
 
 import G2.Language.Naming
@@ -22,7 +25,7 @@ import G2.Language.KnownValues (KnownValues)
 import qualified G2.Language.KnownValues as KV
 import G2.Language.PathConds (PathCond (..))
 import G2.Language.Primitives
-import G2.Language.TypeEnv (TypeEnv)
+import G2.Language.TypeEnv (TypeEnv, AlgDataTy (..))
 import qualified G2.Language.Typing as T
 import G2.Language.TyVarEnv (TyVarEnv)
 
@@ -31,6 +34,7 @@ import qualified Data.HashMap.Lazy as HM
 
 import Control.Exception
 import Data.Data (Data)
+import Data.List as L
 import qualified Data.Text as T
 
 data DCArgBind =
@@ -69,7 +73,7 @@ addToDCPCMap n ts dcpi = HM.insertWith (++) n [(ts, dcpi)]
 
 -- | Map Name's of DataCons to associations of type arguments to DataConPCInfos
 -- alongside an Expr representing the entire expression (used by IntToString)
-dcpcMap :: TyVarEnv -> KnownValues -> TypeEnv -> HM.HashMap Name [([Type], DataConPCInfo)]
+dcpcMap :: TyVarEnv -> KnownValues -> TypeEnv -> DataConPCMap
 dcpcMap tv kv tenv = HM.fromList [
                       ( KV.dcCons kv, [ ([T.tyChar kv], strCons kv tenv tv) ])
                     , ( KV.dcEmpty kv, [ ([T.tyChar kv], strEmpty kv tv) ])
@@ -191,3 +195,28 @@ mkDCArg (pc, ng, be, concs, syms) (ArgConcretize { binder_name = bn, fresh_vars 
         be' = map (renames rn_hm) be
     in
     (pc', ng', be', (idName i, e'):concs, fv' ++ syms)
+
+getDCPCInfo :: DataCon -> Type -> TypeEnv -> TyVarEnv -> DataConPCMap -> Maybe DataConPCInfo
+getDCPCInfo dc t tenv tv_env dcpm
+    | Just dcpcs <- HM.lookup (dcName dc) dcpm
+    , _:ty_args <- T.unTyApp t
+    , Just dcpc <- L.lookup ty_args dcpcs = Just dcpc
+    | Just dcpcs <- HM.lookup (dcName dc) dcpm
+    , _:ty_args <- T.unTyApp $ T.tyVarSubst tv_env t
+    , all (allInDCPC tenv) ty_args = getDefaultDCPC ty_args dcpcs
+    | otherwise = Nothing
+
+allInDCPC :: TypeEnv -> Type -> Bool
+allInDCPC tenv t
+    | TyCon n _:ts <- T.unTyApp t
+    , Just (DataTyCon { to_smt = True }) <- HM.lookup n tenv
+    , all (allInDCPC tenv) ts = True
+    | otherwise = T.isPrimType t
+
+getDefaultDCPC :: [Type] -> [([Type], DataConPCInfo)] -> Maybe DataConPCInfo
+getDefaultDCPC ts dcpis =
+    case find (\(dcpi_ts, _) -> all T.isTyVar dcpi_ts) dcpis of
+        Just (tyvars, dcpi) ->
+            let tvar_names = map (\case TyVar (Id n _) -> n; _ -> error "getDefaultDCPC: impossible- expected TyVar") tyvars in
+            Just $ dcpi { dc_pc = T.replaceTyVars (HM.fromList $ zip tvar_names ts) $ dc_pc dcpi }
+        Nothing -> Nothing

@@ -582,6 +582,8 @@ mkPrimHaskell pg = pr
         pr ReadMutVar = "readMutVar##"
         pr WriteMutVar = "writeMutVar##"
 
+        pr (IsConstructor dc) = "isConstructor-" <> mkDataConHaskell pg dc
+
         pr ToInt = "toInt"
 
         pr Error = "error"

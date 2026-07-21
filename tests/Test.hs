@@ -667,6 +667,13 @@ testFileTests = testGroup "TestFiles"
     , checkInputOutputs "tests/TestFiles/Seq/SeqADT.hs" [ ("conLen", 2000, [Exactly 5])
                                                         , ("pairExtract", 2000, [AtLeast 6, AtMost 8]) ]
 
+    , checkInputOutputs "tests/TestFiles/Seq/ADTLitTable.hs" [ ("takeWhile1", 10000, [Exactly 4])
+                                                             , ("takeWhile2", 10000, [Exactly 4])
+                                                             , ("takeWhile3", 10000, [Exactly 3])
+                                                             , ("takeWhile4", 50000, [AtLeast 6])
+                                                             , ("takeWhile5", 50000, [AtLeast 6])
+                                                             , ("map1", 10000, [Exactly 7]) ]
+
     , checkInputOutputsSMTListsWith "tests/TestFiles/Seq/Seq1.hs" "floatListEq" [ ("conFloat", 1000, [Exactly 1])
                                                                                 , ("conDouble", 1000, [Exactly 1])]
 
