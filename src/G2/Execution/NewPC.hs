@@ -8,8 +8,10 @@ module G2.Execution.NewPC ( NewPC (..)
                           , reduceToFirstDiff ) where
 
 import G2.Data.Utils
+import qualified G2.Execution.DataConPCMap as DCPC
 import G2.Language
 import qualified G2.Language.ExprEnv as E
+import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as S
 import qualified G2.Language.TyVarEnv as TV
@@ -55,35 +57,64 @@ reduceNewPC :: (Solver solver, Simplifier simplifier)
             -> NameGen
             -> NewPC t
             -> IO (NameGen, [State t])
-reduceNewPC _ _ _ ng NoState = return (ng, [])
+reduceNewPC _ _ _  ng NoState = return (ng, [])
 reduceNewPC _ _ _ ng (SingleState state) = return (ng, [state])
 reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state state_diffs)
     | inLitTableMode state
-    , scrut_bool || all (null . new_conc_entries) state_diffs = do
-        res <- reduceToFirstDiff discard_unknown_states solver simplifier ng state state_diffs
+    , scrut_smt_rep || all (null . new_conc_entries) state_diffs = do
+        let state_diffs' = map elim_conc_entries state_diffs
+        res <- reduceToFirstDiff discard_unknown_states solver simplifier ng state state_diffs'
         case res of
             Just (ng', first_s, pcs, other_diffs) ->
                 let prev_stck = stopUpdateLastExpl $ exec_stack first_s
                     diffs_pushed = foldr S.push prev_stck $ map wrap other_diffs
                     expl_pushed = S.push (LitTableFrame (Exploring (PC.fromList pcs)) True) diffs_pushed
-                in return (ng', [first_s { exec_stack = expl_pushed }])
+
+                    glob_pc' = foldr PC.insert (global_lit_table_pc state) force_specific_cons_args
+                in return (ng', [first_s { exec_stack = expl_pushed, global_lit_table_pc = glob_pc' }])
             Nothing -> return (ng, [])
     | otherwise =
         mapAccumMaybeM (\ng' sd -> reduceStateDiff discard_unknown_states solver simplifier ng' state sd) ng state_diffs
     where
         kv = known_values state
+        tenv = type_env state
         tv_env = tyvar_env state
         ce = curr_expr state
         unwrapped_ce = getCurrExpr ce
 
-        scrut_bool = case unwrapped_ce of
-                      Case e _ _ _ -> typeOf tv_env e == tyBool kv
-                      _ -> False
+        scrut_smt_rep = case unwrapped_ce of
+                            Case e _ _ _ 
+                                | DCPC.allInDCPC tenv $ typeOf tv_env e -> True
+                                | TyCon n _ <- typeOf tv_env e -> n == KV.tyBool kv
+                            _ -> False
 
         getCurrExpr (CurrExpr _ e) = e
 
-        -- For booleans, we want to avoid concretization, only using the path conds
-        wrap diff = LitTableFrame (Diff (diff {new_conc_entries = []}) (path_conds state)) True
+        -- For types being branched on in literal tables, we want to avoid concretization,
+        -- only using the path conds
+        elim_conc_entries d = d { new_conc_entries = []}
+
+        -- Suppose we have:
+        --   x == Just y
+        -- If we negate this, we get:
+        --   not (x == Just y)
+        -- all variables in the path constraints are existential- so this is not quite what we want!
+        -- It allows `x = Just 4, y = 3`, for instance.
+        -- To avoid this, we introduce constraints that:
+        --   is-Just x ==> x == Just y
+        -- i.e. if x is a `Just` constructor, its argument MUST be equal to y.
+        force_specific_cons_args = map (uncurry consImpliesEq) (concatMap new_conc_entries state_diffs)
+        consImpliesEq n e
+            | Data dc <- appCenter e =
+                let
+                    v = Var (Id n $ typeOf tv_env e)
+                    has_cons = App (Prim (IsConstructor dc) TyUnknown) v
+                    eq_dc = mkApp [ Prim Eq TyUnknown, v, e]
+                in
+                ExtCond ( mkApp [Prim Implies TyUnknown, has_cons, eq_dc]) True 
+            | otherwise = error "Expected constructor"
+
+        wrap diff = LitTableFrame (Diff diff (path_conds state)) True
 
 -- Find the first diff to explore, when in literal table building mode
 reduceToFirstDiff :: (Solver solver, Simplifier simplifier)

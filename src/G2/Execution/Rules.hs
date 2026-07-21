@@ -45,6 +45,7 @@ import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.PathConds as PC
 import G2.Language.Simplification
 import qualified G2.Language.Stack as S
+import qualified G2.Language.Stack as Stck
 import G2.Preprocessing.NameCleaner
 import G2.Solver hiding (Assert)
 import qualified Data.HashMap.Lazy as HM
@@ -692,7 +693,7 @@ concretizeVarExpr' s@(State { type_env = tenv
             binds = [(cvar, (Var mexpr_id))]
             aexpr'' = liftCaseBinds binds aexpr'
 
-            (pcs, ngen'', concs, syms) = adjustExprEnvAndPathConds tvnv ngen' dcpm dcon dcon'' mexpr_id params' news
+            (pcs, ngen'', concs, syms) = adjustExprEnvAndPathConds tenv tvnv ngen' dcpm dcon dcon'' mexpr_id params' news
         in
             Just (SD { new_conc_entries = concs, new_sym_entries = syms
                      , new_path_conds = pcs, concretized = [mexpr_id]
@@ -783,7 +784,9 @@ cleanParamsAndMakeDcon tv kv params ngen dcon aexpr mexpr_t m_coercion tenv =
 
 -- | Determines an ExprEnv and Path Constraints from following a particular branch of symbolic execution.
 -- Has special handling for Strings- see [String Concretizations and Constraints]
-adjustExprEnvAndPathConds :: TV.TyVarEnv
+adjustExprEnvAndPathConds ::
+                     TypeEnv
+                  -> TV.TyVarEnv
                   -> NameGen
                   -> DataConPCMap
                   -> DataCon -- ^ The data con in the scrutinee (as in `case scrutinee of ...`)
@@ -792,10 +795,8 @@ adjustExprEnvAndPathConds :: TV.TyVarEnv
                   -> [Id] -- ^ Constructor Argument Ids
                   -> [Name]
                   -> ([PathCond], NameGen, EEDiff, EESymDiff)
-adjustExprEnvAndPathConds tv ng dcpm dc dc_e mexpr params dcargs
-    | Just dcpcs <- HM.lookup (dcName dc) dcpm
-    , _:ty_args <- unTyApp $ typeOf tv mexpr
-    , Just dcpc <- L.lookup ty_args dcpcs =
+adjustExprEnvAndPathConds tenv tv ng dcpm dc dc_e mexpr params dcargs
+    | Just dcpc <- getDCPCInfo dc (typeOf tv mexpr) tenv tv dcpm =
         let (pcs, ng', _, concs, syms) = applyDCPC ng new_ids (Var mexpr) dcpc
         in (pcs, ng', mexpr_dc:concs, syms)
     | otherwise = ([], ng, [mexpr_dc], new_ids)
@@ -853,9 +854,7 @@ createExtCond s ngen dcpm mexpr cvar (dcon, bindees, aexpr)
             , new_curr_expr = CurrExpr Evaluate aexpr'
             , new_conc_types = [], new_sym_types = []
             , new_mut_vars = [] }, ngen)
-    | Just dcpcs <- HM.lookup (dcName dcon) dcpm
-    , _:ty_args <- unTyApp $ typeOf tvnv mexpr
-    , Just dcpc <- L.lookup ty_args dcpcs =
+    | Just dcpc <- getDCPCInfo dcon (typeOf (tyvar_env s) mexpr) (type_env s) (tyvar_env s) dcpm =
         let
             mexpr_t = typeOf tvnv mexpr
 
@@ -2000,7 +1999,8 @@ retLTStartedBuilding s ng n =
         s1 = s { lit_tables = table_map'
                , lit_table_stack = lts'
                , curr_expr = CurrExpr Return lam_e
-               , path_conds = lt_init_pcs table
+               , path_conds = lt_init_pcs table `PC.union` global_lit_table_pc s
+               , global_lit_table_pc = if Stck.null lts' then PC.empty else global_lit_table_pc s
                , expr_env = insertSyms sym_diff (expr_env s) }
     in return (RuleReturnLitTableSB, [s1], ng1)
 
