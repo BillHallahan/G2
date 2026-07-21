@@ -219,10 +219,18 @@ checkEquiv cmd_lne simp_state entry_real entry_smt
             eenv = L.expr_env init_state
             kv = L.known_values init_state
             tv_env = tyvar_env init_state
+
+            real_var = L.Var (L.Id entry_real_name $ L.typeOf tv_env real_e)
+            smt_var = L.Var (L.Id entry_smt_name $ L.typeOf tv_env real_e)
+
+            -- Modify the real function to replace recursive calls with calls to the SMT definition
+            real_e' = replaceVar entry_real_name smt_var real_e
+            eenv' = E.insert entry_real_name real_e' eenv
         
+            -- Set up a call to compare the real and SMT definitions
             in_vars = mapMaybe (flip E.lookup eenv) $ input_names bindings'
-            call_real = mkApp (L.Var (L.Id entry_real_name $ L.typeOf tv_env real_e):in_vars)
-            call_smt = mkApp (L.Var (L.Id entry_smt_name $ L.typeOf tv_env real_e):in_vars)
+            call_real = mkApp (real_var:in_vars)
+            call_smt = mkApp (smt_var:in_vars)
             eq = fromMaybe (error "checkEquiv: could not generate Eq typeclass")
                $ typeClassInst (L.type_classes init_state) HM.empty (KV.eqTC kv) (L.typeOf tv_env call_real)
 
@@ -231,7 +239,8 @@ checkEquiv cmd_lne simp_state entry_real entry_smt
                               , eq
                               , call_real
                               , call_smt]
-            comp_state = init_state { curr_expr = CurrExpr Evaluate comp_expr
+            comp_state = init_state { L.expr_env = eenv'
+                                    , curr_expr = CurrExpr Evaluate comp_expr
                                     , true_assert = False }
         (ers, _, _, time_outs, _) <- liftIO $ runG2WithConfig
                                                             [] [] entry_id "" []

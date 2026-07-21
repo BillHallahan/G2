@@ -1090,7 +1090,7 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
 liftSymDefAlt'' :: State t -> Expr -> Expr -> Id -> [Alt] -> [StateDiff]
 liftSymDefAlt'' s mexpr aexpr cvar as =
     let
-        conds = mapMaybe (liftSymDefAltPCs (known_values s) mexpr) (map altMatch as)
+        conds = mapMaybe (liftSymDefAltPCs (known_values s) (tyvar_env s) mexpr) (map altMatch as)
 
         binds = [(cvar, mexpr)]
         aexpr' = liftCaseBinds binds aexpr
@@ -1103,14 +1103,16 @@ liftSymDefAlt'' s mexpr aexpr cvar as =
         , new_mut_vars = []
     }]
 
-liftSymDefAltPCs :: KnownValues -> Expr -> AltMatch -> Maybe PathCond
-liftSymDefAltPCs kv mexpr (DataAlt dc _) = -- Only DataAlts would be True/False
-    let boolVal = getBoolFromDataCon kv dc
-    in case boolVal of
-        True -> Just $ ExtCond mexpr False
-        False -> Just $ ExtCond mexpr True
-liftSymDefAltPCs _ mexpr (LitAlt lit) = Just $ AltCond lit mexpr False
-liftSymDefAltPCs _ _ Default = Nothing
+liftSymDefAltPCs :: KnownValues -> TyVarEnv -> Expr -> AltMatch -> Maybe PathCond
+liftSymDefAltPCs kv tv_env mexpr (DataAlt dc _)
+    | typeOf tv_env mexpr == tyBool kv =
+        let boolVal = getBoolFromDataCon kv dc
+        in case boolVal of
+            True -> Just $ ExtCond mexpr False
+            False -> Just $ ExtCond mexpr True
+    -- | otherwise = Just $ ExtCond (App (Prim Not TyUnknown) (App (Prim (IsConstructor dc) TyUnknown) mexpr)) True
+liftSymDefAltPCs _ _ mexpr (LitAlt lit) = Just $ AltCond lit mexpr False
+liftSymDefAltPCs _ _ _ Default = Nothing
 
 defAltExpr :: [Alt] -> Maybe Expr
 defAltExpr [] = Nothing
