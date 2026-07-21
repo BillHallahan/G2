@@ -131,12 +131,16 @@ g2PluginPass' cmd_lne config env modguts = do
                   $ HM.elems new_nm
         -- comp is a function defined in this module used for checking equivalence,
         -- we add it to rel_names here to make sure it is loaded
-        -- rel_names' = Seq.singleton (Name "comp" (Just "G2.Plugin") 0 Nothing) <> rel_names
+        (comp_name, comp_nm) = addName "comp" (Just "G2.Plugin") new_nm
 
-    (imports_nm, import_tnm, injected_exg2) <- setUpImports new_nm new_tm env ex_g2 prev_explored rel_names
+    (imports_nm, import_tnm, injected_exg2) <- setUpImports comp_nm new_tm env ex_g2 prev_explored (comp_name Seq.:<| rel_names)
     let simp_state = initSimpleState injected_exg2 imports_nm import_tnm
 
     liftIO $ mapM_ (uncurry (runSymexAnnots cmd_lne simp_state)) ann_fs_g2
+
+addName :: TX.Text -> Maybe TX.Text -> NameMap -> (L.Name, NameMap)
+addName occ md nm | Just n <- HM.lookup (occ, md) nm = (n, nm)
+                  | otherwise = (Name occ md 0 Nothing, HM.insert (occ, md) (Name occ md 0 Nothing) nm)
 
 ------------------------------------------------------------------------------
 -- Run Symbolic Execution
@@ -195,7 +199,7 @@ logAcceptedStateTime entryName  = do
 checkEquiv :: [CommandLineOption] -> SimpleState -> L.Name -> String -> IO ()
 checkEquiv cmd_lne simp_state entry_real entry_smt
     | Just (entry_real_name, real_e) <- E.lookupNameMod (L.nameOcc entry_real) (L.nameModule entry_real) (IT.expr_env simp_state)
-    , Just (entry_smt_name, smt_e) <- E.lookupNameMod (TX.pack entry_smt) (L.nameModule entry_real) (IT.expr_env simp_state)
+    , Just (entry_smt_name, _) <- E.lookupNameMod (TX.pack entry_smt) (L.nameModule entry_real) (IT.expr_env simp_state)
     , Just (comp_name, comp_e) <- E.lookupNameMod "comp" (Just "G2.Plugin") (IT.expr_env simp_state) = do
         -- Get a Config to run this specific function
         homedir <- liftIO $ getHomeDirectory
