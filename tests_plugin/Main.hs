@@ -20,10 +20,12 @@ tests = testGroup "All Tests"
         , checkG2PackageEquiv "tests/G2Plugin/Strings" [ ("f", "f2")
                                                        , ("myApp", "app")
                                                        , ("appMult", "smtAppMult")
+                                                       , ("myRev", "smtMyRev")
                                                        ]
                                                        [ ("corr", "smtCorr")
                                                        , ("incorr", "smtIncorr")
-                                                       , ("addTwoAll", "smtAddTwoAll") ]
+                                                       , ("addTwoAll", "smtAddTwoAll")
+                                                       , ("myRevBad", "smtMyRevBad") ]
         , checkNebulaPackage "tests/RewriteVerify/PluginTests/Simple" ["add_assoc", "fg", "fg_toint"] ["f_one"]]
 
 -------------------------------------------------------------------------------

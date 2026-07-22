@@ -24,7 +24,7 @@ module G2.Plugin (SymEx (..)
                  , smtSuffixOf
                  
                  , smtMap
-                --  , smtFoldLeft
+                 , smtFoldLeft
                 --  , smtFoldLeftI
 
                  , comp
@@ -493,15 +493,15 @@ smtMap' f xs =
 -- appFT (LTI lt success inLt partial) =
 --     let !pt_a = if not partial then True else pSmtFoldLeft# (\acc e -> acc $&& inLT e) True xs
 
--- smtFoldLeft :: (a -> b -> a) -> a -> [b] -> a
--- smtFoldLeft f !x xs = xs `evalSeq` smtFoldLeft' f x xs 
+smtFoldLeft :: (a -> b -> a) -> a -> [b] -> a
+smtFoldLeft f !x xs = xs `evalSeq` smtFoldLeft' f x xs 
 
--- smtFoldLeft' :: (a -> b -> a) -> a -> [b] -> a
--- smtFoldLeft' f x xs =
---     let !(LTI lt success inLT partial) = pBuildLitTable# f
---         !mapped = xs `evalSeq` pSmtFoldLeft# lt x xs
---         !pt_a = if not partial then True else pSmtFoldLeft# (\acc e -> acc $&& inLT e) True xs
---     in assume pt_a $ if success then mapped else foldl' f x xs
+smtFoldLeft' :: (a -> b -> a) -> a -> [b] -> a
+smtFoldLeft' f x xs =
+    let !(LTI lt success inLT partial) = pBuildLitTable# f
+        !folded = xs `evalSeq` pSmtFoldLeft# lt x xs
+        !pt_a = True -- if not partial then True else pSmtFoldLeft# (\acc e -> acc $&& inLT e) True xs
+    in assume pt_a $ if success then folded else F.foldl' f x xs
 
 -- smtFoldLeftI :: (Int -> a -> b -> a) -> Int -> a -> [b] -> a
 -- smtFoldLeftI f (I# i) !x xs =

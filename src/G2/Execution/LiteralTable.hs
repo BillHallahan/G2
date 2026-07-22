@@ -193,7 +193,8 @@ litTableToLam' s ng lt =
 
 litTableToLamBool :: State t -> NameGen -> LitTable -> Maybe (Expr, EESymDiff, NameGen)
 litTableToLamBool s ng lt = do
-    let kv = known_values s
+    let eenv = expr_env s
+        kv = known_values s
         tenv = type_env s
         tv_env = tyvar_env s
     (elem_var_to_unboxed_name, ng1) <- mkLamArg s ng lt
@@ -205,9 +206,9 @@ litTableToLamBool s ng lt = do
         -- At this point, we know the literal table is non-empty, since we are creating a lambda for
         -- a boolean-returning function
         or_exp = mkDisjunction kv lt_trues
-        or_exp1 = foldr (\(ev, un) -> replaceVar un (Var ev)) or_exp elem_var_to_unboxed_name
+        or_exp1 = foldr (\(ev, un) -> replaceVar un (Var ev)) (inlineVars eenv or_exp) elem_var_to_unboxed_name
         fun_exp = mkLams (map (TermL,) elem_var) or_exp1
-        lt' = foldr (\(ev, un) -> replaceVar un (Var ev)) lt elem_var_to_unboxed_name
+        lt' = foldr (\(ev, un) -> replaceVar un (Var ev)) (inlineVars eenv lt) elem_var_to_unboxed_name
         (partial_check, is_partial) = createPartialHandler lt' kv elem_var
         tup_exp = mkLitTableInfo kv tenv tv_env
                       fun_exp
@@ -221,7 +222,8 @@ litTableToLamNonBool s ng lt = do
     (elem_var_to_unboxed_name, ng1) <- mkLamArg s ng lt
     let (elem_var, _) = unzip elem_var_to_unboxed_name
 
-    let kv = known_values s
+    let eenv = expr_env s
+        kv = known_values s
         tv_env = tyvar_env s
         tenv = type_env s
         lt_lst = HM.toList $ lt_mapping lt
@@ -244,9 +246,9 @@ litTableToLamNonBool s ng lt = do
                                 (wrap def_e $ typeOf tv_env def_e)
                                 (reverse rest)
                     _ -> Nothing
-    let ite_exp1 = foldr (\(ev, un) -> replaceVar un (Var ev)) ite_exp elem_var_to_unboxed_name
+    let ite_exp1 = foldr (\(ev, un) -> replaceVar un (Var ev)) (inlineVars eenv ite_exp) elem_var_to_unboxed_name
         fun_exp = mkLams (map (TermL,) elem_var) ite_exp1
-        lt' = foldr (\(ev, un) -> replaceVar un (Var ev)) lt elem_var_to_unboxed_name
+        lt' = foldr (\(ev, un) -> replaceVar un (Var ev)) (inlineVars eenv lt) elem_var_to_unboxed_name
         (partial_check, is_partial) = createPartialHandler lt' kv elem_var
         tup_exp = mkLitTableInfo kv tenv tv_env
                       fun_exp

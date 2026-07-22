@@ -504,6 +504,7 @@ evalCase s@(State { expr_env = eenv
   -- case expr to evaluate
   -- Note that we are in the nested case expression here
   | inLitTableMode s
+  , (_:_:_)<- alts -- We have at least two alts
   , Just (s1, outer_bind, t1, alts1) <- popToCaseFrame s (curr_expr s) =
       -- We're looking at the nested bindee here
       let alts2 = caseOfCaseAlts t1 alts1 alts outer_bind
@@ -1936,7 +1937,7 @@ retLitTableFrame :: (Solver solver, Simplifier simplifier)
                  -> S.Stack Frame
                  -> IO (Rule, [State t], NameGen)
 retLitTableFrame dus solver simplifier s ng ltc up stck = case ltc of
-    Exploring _ -> retLTExploring ng updated_state sym_id
+    Exploring _ -> return (RuleReturnLitTableExpl, [updated_state], ng)
     Diff sd conds ->
         retLTDiff dus solver simplifier s ng sd conds stck up
     StartedBuilding n ->
@@ -1954,12 +1955,8 @@ retLitTableFrame dus solver simplifier s ng ltc up stck = case ltc of
         updated_lts = if up
             then S.modifyTop (updateLiteralTable all_pcs e) $ lit_table_stack s
             else lit_table_stack s
-        sym_id = getLTArg s
         updated_state = s { exec_stack = stck, lit_table_stack = updated_lts }
 
-retLTExploring :: NameGen -> State t -> [Id] -> IO (Rule, [State t], NameGen)
-retLTExploring ng updated_state sym_id =
-    return (RuleReturnLitTableExpl, [updated_state { curr_expr = CurrExpr Return (Var $ head {- TODO BILL: WHAT SHOULD THIS BE? -} sym_id) } ], ng)
 
 retLTDiff :: (Solver solver, Simplifier simplifier)
           => DiscardUnknownStates
