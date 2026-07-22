@@ -39,7 +39,7 @@ jobs:
       id: z3
       uses: cda-tum/setup-z3@v1
       with:
-        version: 4.8.17
+        version: 4.16.0
    
     - name: Getting custom base
       run: bash base_setup.sh
