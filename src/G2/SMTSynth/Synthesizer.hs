@@ -1166,6 +1166,7 @@ relArgs s = filter (not . isCallStack . typeOf (tyvar_env s))
 exprToTerm :: KnownValues -> Expr -> Term
 exprToTerm _ (Lit (LitInt x)) = TermLit (LitNum x)
 exprToTerm _ (Lit (LitChar x)) = toStringTerm [x]
+exprToTerm _ (Lit (LitFloat x)) = TermIdent . ISymb . T.unpack . tbToText $ convertFloating castFloatToWord32 8 x
 exprToTerm _ (App _ (Lit (LitInt x))) = TermLit (LitNum x)
 exprToTerm _ (App _ (Lit (LitFloat x))) = TermIdent . ISymb . T.unpack . tbToText $ convertFloating castFloatToWord32 8 x
 exprToTerm _ (App _ (Lit (LitChar x))) = toStringTerm [x]
