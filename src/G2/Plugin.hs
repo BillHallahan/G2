@@ -484,8 +484,24 @@ smtMap' f xs =
         !pt_a = if not partial then True else pSmtFoldLeft# (\acc e -> acc $&& inLT e) True xs
     in assume pt_a $ if success then mapped else map f xs
 
+-- type FuncTable a b = LitTableInfo a b
+
+-- buildFT :: (a -> b) -> FuncTable a b
+-- buildFT f = pBuildLitTable# f
+
+-- appFT :: FuncTable a b -> a -> b
+-- appFT (LTI lt success inLt partial) =
+--     let !pt_a = if not partial then True else pSmtFoldLeft# (\acc e -> acc $&& inLT e) True xs
+
 -- smtFoldLeft :: (a -> b -> a) -> a -> [b] -> a
--- smtFoldLeft f !x xs = xs `evalSeq` pSmtFoldLeft# f x xs 
+-- smtFoldLeft f !x xs = xs `evalSeq` smtFoldLeft' f x xs 
+
+-- smtFoldLeft' :: (a -> b -> a) -> a -> [b] -> a
+-- smtFoldLeft' f x xs =
+--     let !(LTI lt success inLT partial) = pBuildLitTable# f
+--         !mapped = xs `evalSeq` pSmtFoldLeft# lt x xs
+--         !pt_a = if not partial then True else pSmtFoldLeft# (\acc e -> acc $&& inLT e) True xs
+--     in assume pt_a $ if success then mapped else foldl' f x xs
 
 -- smtFoldLeftI :: (Int -> a -> b -> a) -> Int -> a -> [b] -> a
 -- smtFoldLeftI f (I# i) !x xs =

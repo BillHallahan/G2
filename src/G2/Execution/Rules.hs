@@ -1957,9 +1957,9 @@ retLitTableFrame dus solver simplifier s ng ltc up stck = case ltc of
         sym_id = getLTArg s
         updated_state = s { exec_stack = stck, lit_table_stack = updated_lts }
 
-retLTExploring :: NameGen -> State t -> Id -> IO (Rule, [State t], NameGen)
+retLTExploring :: NameGen -> State t -> [Id] -> IO (Rule, [State t], NameGen)
 retLTExploring ng updated_state sym_id =
-    return (RuleReturnLitTableExpl, [updated_state { curr_expr = CurrExpr Return (Var sym_id) } ], ng)
+    return (RuleReturnLitTableExpl, [updated_state { curr_expr = CurrExpr Return (Var $ head {- TODO BILL: WHAT SHOULD THIS BE? -} sym_id) } ], ng)
 
 retLTDiff :: (Solver solver, Simplifier simplifier)
           => DiscardUnknownStates
