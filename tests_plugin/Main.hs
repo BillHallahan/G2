@@ -17,7 +17,13 @@ main = do
 tests :: TestTree
 tests = testGroup "All Tests"
         [ checkG2Package "tests/G2Plugin/Simple" ["f", "g", "recCall"]
-        , checkG2Package "tests/G2Plugin/Strings" ["f", "myApp"]
+        , checkG2PackageEquiv "tests/G2Plugin/Strings" [ ("f", "f2")
+                                                       , ("myApp", "app")
+                                                       , ("appMult", "smtAppMult")
+                                                       ]
+                                                       [ ("corr", "smtCorr")
+                                                       , ("incorr", "smtIncorr")
+                                                       , ("addTwoAll", "smtAddTwo") ]
         , checkNebulaPackage "tests/RewriteVerify/PluginTests/Simple" ["add_assoc", "fg", "fg_toint"] ["f_one"]]
 
 -------------------------------------------------------------------------------
@@ -43,6 +49,39 @@ ranFunc io_out =
                 (do
                     out <- io_out
                     assertBool ("Not run " ++ f) (isSubstringOf f out))
+        )
+
+checkG2PackageEquiv :: FilePath
+                    -> [(String, String)] -- ^ Functions that should be equivalent
+                    -> [(String, String)] -- ^ Functions that should be inequivalent
+                    -> TestTree
+checkG2PackageEquiv loc funcs_equiv funcs_inequiv =
+    withResource
+        (buildPackage loc)
+        (\_ -> return ()) $
+        \io_out ->
+            testGroup
+            loc
+            $ ranFuncEquiv io_out funcs_equiv ++ ranFuncInequiv io_out funcs_inequiv
+
+ranFuncEquiv :: IO String -> [(String, String)] -> [TestTree]
+ranFuncEquiv io_out =
+    map (\(f1, f2) -> testCase
+                (f1 ++ " and " ++ f2)
+                (do
+                    out <- io_out
+                    assertBool ("Not run " ++ f1 ++ " and " ++ f2)
+                               (isSubstringOf ("Equivalent: " ++ f1 ++ " and " ++ f2) out))
+        )
+
+ranFuncInequiv :: IO String -> [(String, String)] -> [TestTree]
+ranFuncInequiv io_out =
+    map (\(f1, f2) -> testCase
+                (f1 ++ " and " ++ f2)
+                (do
+                    out <- io_out
+                    assertBool ("Not run " ++ f1 ++ " and " ++ f2)
+                               (isSubstringOf ("Equivalence not proven: " ++ f1 ++ " and " ++ f2) out))
         )
 
 -------------------------------------------------------------------------------
