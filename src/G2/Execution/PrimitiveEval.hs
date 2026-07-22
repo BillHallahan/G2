@@ -625,8 +625,11 @@ evalPrimADT2 _ _ _ kv _ InRe s regex = do
 
 evalPrimADT2 eenv tenv tv_env kv tc Map (Lam _ (Id a_id _) e) lst = do
     lst' <- toExprList lst
-    let t = typeOf tv_env e
-    let mapped = L.foldl (\acc a_val -> acc ++ [replaceVar a_id a_val e]) [] lst'
+    let lst'' = map (\el -> case el of
+                                App (Data _) l@(Lit _) -> l
+                                _ -> el) lst'
+        t = typeOf tv_env e
+    let mapped = L.foldl (\acc a_val -> acc ++ [replaceVar a_id a_val e]) [] lst''
     let mapped' = toListExpr kv tenv t mapped
     return . evalPrims eenv tenv tv_env kv tc $ inlineVarsForPrim eenv tc mapped'
 evalPrimADT2 eenv tenv tv_env kv tc MapConcat (Lam _ (Id a_id _) e) lst = do
