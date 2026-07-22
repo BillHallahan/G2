@@ -783,6 +783,15 @@ toString _ = Nothing
 
 toExprList :: Expr -> Maybe [Expr]
 toExprList (App (Data _) _) = Just []
+toExprList (App (App (App (Data _) _) (App (Data dc) l)) xs)
+    | occ == "I#"
+    || occ == "Z#"
+    || occ == "W#"
+    || occ == "C#"
+    || occ == "F#"
+    || occ == "D#" = fmap (l:) $ toExprList xs
+    where
+        occ = nameOcc $ dc_name dc
 toExprList (App (App (App (Data _) _) l) xs) = fmap (l:) $ toExprList xs
 toExprList _ = Nothing
 

@@ -361,7 +361,7 @@ evalApp s@(State { expr_env = eenv
                 exP' = foldr Tick (stripAllTicks exP) ts
                 er = if null ts then Return else Evaluate
             in
-            ( RuleEvalPrimToNorm
+            ( RuleEvalForcePrimToNorm
             , newPCEmpty $ s_ { expr_env = eenv_', curr_expr = CurrExpr er exP' }
             , ng_ )
 

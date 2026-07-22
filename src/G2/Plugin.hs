@@ -480,7 +480,7 @@ smtMap f xs = xs `evalSeq` smtMap' f xs
 smtMap' :: (a -> b) -> [a] -> [b]
 smtMap' f xs = 
     let !(LTI lt success inLT partial) = pBuildLitTable# f
-        !mapped = pSmtMap# lt xs
+        !mapped = xs `evalSeq` pSmtMap# lt xs
         !pt_a = if not partial then True else pSmtFoldLeft# (\acc e -> acc $&& inLT e) True xs
     in assume pt_a $ if success then mapped else map f xs
 
