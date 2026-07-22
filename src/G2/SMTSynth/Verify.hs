@@ -77,7 +77,25 @@ checkEquiv func_config equiv_annots simp_state entry_real entry_smt
                                                             config_no_output
                                                             bindings'
         
-        -- Get States corresponding to SMT calls from the states that violated the spec
+        -- Get States corresponding to SMT calls from the states that violated the spec.
+        -- Consider some functions:
+        --      {-# ANN corr (SMTEquivIs "smtCorr") #-}
+        --      corr :: Int -> Int
+        --      corr = incorr
+
+        --      smtCorr :: Int -> Int
+        --      smtCorr x = x + 1
+
+        --      {-# ANN incorr (SMTEquivIs "smtIncorr") #-}
+        --      incorr :: Int -> Int
+        --      incorr x = x + 1
+
+        --      smtIncorr :: Int -> Int
+        --      smtIncorr x = x + 2
+        -- If we run corr, we may get a "counterexample" that corr 0 = 2. However, the glitch here is actually that
+        -- the specification of incorr is wrong. We figure this out by logging all values passed into and returned from
+        -- SMT definitions, and then checking if those values actually conform to the behavior of the real function.
+
         let smt_call_xs = (checkFCStateBindings eenv) ers bindings'
         mapM_ (\(func_n, new_s, new_b) -> do
             runG2WithConfig [] [] (Id func_n TyUnknown) "" [] [nameModule entry_real_name] new_s func_config' new_b) smt_call_xs
