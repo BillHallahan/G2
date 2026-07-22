@@ -694,7 +694,7 @@ matchesRegex' es (App (Prim ReComp _) r) = comp (splits es)
         splits [] = [([], [])]
         splits (x:xs) = ([], x:xs) : [ (x : before, after) | (before, after) <- splits xs ]
 
-matchesRegex' ((Lit (LitChar c)):es) (App (App (Prim ReRange _) lower) upper)
+matchesRegex' ((App (Data _) (Lit (LitChar c))):es) (App (App (Prim ReRange _) lower) upper)
     | Just lower_str <- toString lower
     , Just upper_str <- toString upper
     , lower_str <= [c]
@@ -783,15 +783,6 @@ toString _ = Nothing
 
 toExprList :: Expr -> Maybe [Expr]
 toExprList (App (Data _) _) = Just []
-toExprList (App (App (App (Data _) _) (App (Data dc) l)) xs)
-    | occ == "I#"
-    || occ == "Z#"
-    || occ == "W#"
-    || occ == "C#"
-    || occ == "F#"
-    || occ == "D#" = fmap (l:) $ toExprList xs
-    where
-        occ = nameOcc $ dc_name dc
 toExprList (App (App (App (Data _) _) l) xs) = fmap (l:) $ toExprList xs
 toExprList _ = Nothing
 
