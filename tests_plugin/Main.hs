@@ -23,7 +23,7 @@ tests = testGroup "All Tests"
                                                        ]
                                                        [ ("corr", "smtCorr")
                                                        , ("incorr", "smtIncorr")
-                                                       , ("addTwoAll", "smtAddTwo") ]
+                                                       , ("addTwoAll", "smtAddTwoAll") ]
         , checkNebulaPackage "tests/RewriteVerify/PluginTests/Simple" ["add_assoc", "fg", "fg_toint"] ["f_one"]]
 
 -------------------------------------------------------------------------------
