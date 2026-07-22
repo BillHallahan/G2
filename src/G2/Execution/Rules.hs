@@ -504,7 +504,6 @@ evalCase s@(State { expr_env = eenv
   -- case expr to evaluate
   -- Note that we are in the nested case expression here
   | inLitTableMode s
-  , (_:_:_)<- alts -- We have at least two alts
   , Just (s1, outer_bind, t1, alts1) <- popToCaseFrame s (curr_expr s) =
       -- We're looking at the nested bindee here
       let alts2 = caseOfCaseAlts t1 alts1 alts outer_bind
