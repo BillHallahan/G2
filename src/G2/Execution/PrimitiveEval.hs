@@ -694,7 +694,7 @@ matchesRegex' es (App (Prim ReComp _) r) = comp (splits es)
         splits [] = [([], [])]
         splits (x:xs) = ([], x:xs) : [ (x : before, after) | (before, after) <- splits xs ]
 
-matchesRegex' ((App (Data _) (Lit (LitChar c))):es) (App (App (Prim ReRange _) lower) upper)
+matchesRegex' ((Lit (LitChar c)):es) (App (App (Prim ReRange _) lower) upper)
     | Just lower_str <- toString lower
     , Just upper_str <- toString upper
     , lower_str <= [c]
