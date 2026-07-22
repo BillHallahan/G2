@@ -21,7 +21,7 @@ library
     exposed-modules:  Strings
     -- other-modules:
     -- other-extensions:
-    build-depends:    base ^>=4.21.0.0
+    build-depends:    base >=4.14
                     , g2 >= 0.1.0.2
     hs-source-dirs:   src
     ghc-options:      -fplugin=G2.Plugin
