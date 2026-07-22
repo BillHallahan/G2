@@ -1763,9 +1763,6 @@ unifyAllRetSymVars fcs@(fc_first:_) = do
         isSymbolicVar (Var (Id n _)) eenv | Just (E.Sym i) <- E.deepLookupConcOrSym n eenv = Just i
         isSymbolicVar _ _ = Nothing
 
-        firstJust f = listToMaybe . mapMaybe f
-
-
 -- If the same function is returning different constructors for an ADT, try to split it up using literals.
 -- For instance, if we have:
 --    f 1# = 2:xs

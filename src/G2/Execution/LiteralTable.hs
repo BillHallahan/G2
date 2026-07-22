@@ -109,7 +109,7 @@ mkIdLam s ng lt =
                     (mkTrue kv)
                     (Prim UnspecifiedOutput TyUnknown)
                     (mkFalse kv)
-    in if arg_ty == ret_ty then Just (tup_e, [arg_id], ng1) else Nothing
+    in if arg_ty == ret_ty then Just (tup_e, [], ng1) else Nothing
 
 -- Return Id for argument, and the Name that we're replacing in path conds
 mkLamArg :: State t -> NameGen -> LitTable -> Maybe (Id, Name, NameGen)
@@ -211,7 +211,7 @@ litTableToLamBool s ng lt = do
                       (mkTrue kv)
                       partial_check
                       is_partial
-    return (tup_exp, [elem_var], ng1)
+    return (tup_exp, [], ng1)
 
 litTableToLamNonBool :: State t -> NameGen -> LitTable -> Maybe (Expr, EESymDiff, NameGen)
 litTableToLamNonBool s ng lt = do
@@ -248,7 +248,7 @@ litTableToLamNonBool s ng lt = do
                       (mkTrue kv)
                       partial_check
                       is_partial
-    return (tup_exp, [elem_var], ng1)
+    return (tup_exp, [], ng1)
 
 mkDisjunction :: KnownValues -> [[PathCond]] -> Expr
 mkDisjunction kv conds =

@@ -1,7 +1,34 @@
-{-# LANGUAGE BangPatterns, CPP, DeriveDataTypeable, DeriveGeneric, 
-             FlexibleContexts, LambdaCase, OverloadedStrings, TupleSections #-}
+{-# LANGUAGE BangPatterns, CPP, DeriveDataTypeable, DeriveGeneric,
+             FlexibleContexts, LambdaCase, MagicHash, OverloadedStrings, ScopedTypeVariables, TupleSections #-}
 
-module G2.Plugin (SymEx (..), assume, (==>), plugin, logAcceptedStateTime) where
+module G2.Plugin (SymEx (..)
+                 , plugin
+                 , logAcceptedStateTime
+                 
+                 , assume
+                 , G2.Plugin.assert
+                 , (==>)
+
+                 , smtLen
+                 , smtNth
+                 , smtExtract
+                 , ($++)
+                 , smtAppend
+                 , smtAt
+                 , smtContains
+                 , smtIndexOf
+                 , smtReplace
+                 , smtReplaceAll
+                 , smtReverse
+                 , smtPrefixOf
+                 , smtSuffixOf
+                 
+                 , smtMap
+                --  , smtFoldLeft
+                --  , smtFoldLeftI
+
+                 , comp
+                ) where
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
 import GHC.Plugins as GHC hiding ((<>))
@@ -11,17 +38,21 @@ import GhcPlugins as GHC hiding ((<>))
 import GHC.Unit.External
 import GHC.Core.FamInstEnv
 import GHC.Core.InstEnv
+import GHC.Exts
 import GHC.Types.TyThing
 
 import G2.Config
+import G2.Data.Utils (firstJust)
 import G2.Execution.FuncConstraints
 import G2.Initialization.MkCurrExpr
 import G2.Interface
 import G2.Initialization.Types as IT
 import G2.Language as L
 import qualified G2.Language.ExprEnv as E
+import G2.Plugin.Prim
 import G2.Translation as T
 
+import qualified Control.Exception as Ex
 import Control.Monad
 import qualified Control.Monad.State.Strict as SM
 import Data.Data
@@ -39,12 +70,15 @@ import qualified Data.Sequence as Seq
 import qualified Data.Text.IO as T
 import Options.Applicative
 import G2.Language.TyVarEnv as TV
+import qualified G2.SMTSynth.Verify as V
 import qualified Data.Text as TX
 
 import System.Clock
 
 data SymEx = SymEx
            | SymExWithConfig String
+           | SMTEquivIs String -- ^ A corresponding SMT definition function name, which should be checked for equivalence
+           | SMTEquivIsWithConfig String String -- ^ A corresponding SMT definition function name, which should be checked for equivalence
              deriving (Show, Data, Generic)
 
 instance NFData SymEx
@@ -54,6 +88,13 @@ assume :: Bool -- ^ Condition to assume
        -> a -- ^ 
        -> a
 assume _ x = x
+
+{-# NOINLINE assert #-}
+-- | Assert that a condition is true
+assert :: Bool -- ^ Condition to assert
+       -> a -- ^ 
+       -> a
+assert _ x = x
 
 -- | Implies
 (==>) :: Bool -> Bool -> Bool
@@ -93,67 +134,65 @@ g2PluginPass cmd_lne config env modguts = do
 
 g2PluginPass' :: [CommandLineOption] -> Config -> HscEnv -> ModGuts -> CoreM ()
 g2PluginPass' cmd_lne config env modguts = do
-    -- We want simpl to be False so the simplifier does not run, because
-    -- this plugin gets inserted into the simplifier.  Thus, running the simplifier
-    -- results in an infinite loop.
-    let tconfig = (simplTranslationConfig { simpl = False
-                                          , load_rewrite_rules = True
-                                          , hpc_ticks = True })
-        ems = EnvModSumModGuts env [] [modguts]
-
-    prev_comp <- liftIO $ readIORef compiledModules
-    (base_exg2, base_nm, base_tnm, prev_explored) <- case prev_comp of
-                                        Just prev -> return prev
-                                        Nothing -> do
-                                            (b_exg2, b_nm, b_tnm) <- liftIO $ translateBase tconfig config [] Nothing
-                                            let expl = S.fromList . map fst . HM.toList $ exg2_binds b_exg2
-                                            return (b_exg2, b_nm, b_tnm, expl)
-
-    (new_nm, new_tm, exg2) <- liftIO $ hskToG2ViaEMS tconfig ems base_nm base_tnm
+    (new_nm, new_tm, ex_g2, prev_explored) <- loadExtractedG2 config env modguts
+    let very_simp_state = initSimpleState ex_g2 new_nm new_tm
 
     -- Get the names of functions we are going to be symbolically executing
-    let binders (NonRec b _) = [b]
-        binders (Rec b) = map fst b
-    all_fs <- mapM (\b -> (,b) <$> (annotationsOn modguts b :: CoreM [SymEx])) (concatMap binders $ mg_binds modguts)
-    let fs = filter (not . null . fst) all_fs
-    let ann_fs_g2 = SM.evalState (mapM (\(ann, b) -> do
-                                        n <- valNameLookup . varName $ b
-                                        return (ann, n)) fs) (new_nm, new_tm)
-        fs_g2 = map snd ann_fs_g2
+    ann_fs_g2 <- getBinderAnnotations new_nm new_tm modguts
+    let equivTo (Name _ eq_m _ _) (SMTEquivIs eq_n) | Just (smt_n, smt_e) <- (E.lookupNameMod (TX.pack eq_n) eq_m $ IT.expr_env very_simp_state) =
+            Just (Id smt_n $ L.typeOf TV.empty smt_e)
+        equivTo (Name _ eq_m _ _) (SMTEquivIsWithConfig eq_n _) | Just (smt_n, smt_e) <- (E.lookupNameMod (TX.pack eq_n) eq_m $ IT.expr_env very_simp_state) =
+            Just (Id smt_n $ L.typeOf TV.empty smt_e)
+        equivTo _ _ = Nothing
+        equiv_annots = HM.fromList $ mapMaybe (\(n, anns) -> (n,) <$> firstJust (equivTo n) anns) ann_fs_g2
+
+    let fs_g2 = map fst ann_fs_g2 ++ map L.idName (HM.elems equiv_annots)
 
     -- Get an initial set of relevant bindings to load from imports
-    let rel_names = deepseq ann_fs_g2
-                  . Seq.fromList
+    let rel_names = Seq.fromList
                   . filter (`elem` fs_g2)
                   $ HM.elems new_nm
+        -- comp is a function defined in this module used for checking equivalence,
+        -- we add it to rel_names here to make sure it is loaded
+        (comp_name, comp_nm) = addName "comp" (Just "G2.Plugin") new_nm
 
-    let merged_new_base = mergeExtractedG2s [exg2, base_exg2]
-
-    (imports_exg2, (imports_nm, import_tnm)) <- SM.runStateT (loadImports env (exg2_binds merged_new_base) prev_explored rel_names) (new_nm, new_tm)
-    -- special handling for assume
-    let assume_exg2 = adjustAssume (Just "G2.Plugin") imports_nm imports_exg2
-
-    let merged_exg2 = mergeExtractedG2s [merged_new_base, assume_exg2]
-        injected_exg2 = specialInject merged_exg2
-
-    liftIO $ writeIORef compiledModules $ Just (merged_exg2, imports_nm, import_tnm, prev_explored)
-
+    (imports_nm, import_tnm, injected_exg2) <- setUpImports comp_nm new_tm env ex_g2 prev_explored (comp_name Seq.:<| rel_names)
     let simp_state = initSimpleState injected_exg2 imports_nm import_tnm
 
-    liftIO $ mapM_ (uncurry (runFunc cmd_lne simp_state)) ann_fs_g2
+    liftIO $ mapM_ (uncurry (runSymexAnnots cmd_lne equiv_annots simp_state)) ann_fs_g2
 
-runFunc :: [CommandLineOption] -> SimpleState -> [SymEx] -> L.Name -> IO ()
-runFunc cmd_lne simp_state symex_annots entry = mapM_ (\symex_annot -> runFunc' cmd_lne simp_state symex_annot entry) symex_annots
+addName :: TX.Text -> Maybe TX.Text -> NameMap -> (L.Name, NameMap)
+addName occ md nm | Just n <- HM.lookup (occ, md) nm = (n, nm)
+                  | otherwise = (Name occ md 0 Nothing, HM.insert (occ, md) (Name occ md 0 Nothing) nm)
 
-runFunc' :: [CommandLineOption] -> SimpleState -> SymEx -> L.Name -> IO ()
-runFunc' cmd_lne simp_state symex_annot entry
+------------------------------------------------------------------------------
+-- Run Symbolic Execution
+------------------------------------------------------------------------------
+
+runSymexAnnots :: [CommandLineOption]
+               -> HM.HashMap L.Name L.Id -- Real definitions to SMT definitions
+               -> SimpleState
+               -> L.Name
+               -> [SymEx]
+               -> IO ()
+runSymexAnnots cmd_lne equiv_annots simp_state entry = mapM_ (runSymexAnnot cmd_lne equiv_annots simp_state entry)
+
+runSymexAnnot :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> SymEx -> IO ()
+runSymexAnnot cmd_lne _ simp_state entry SymEx =
+    runFunc cmd_lne simp_state entry
+runSymexAnnot cmd_lne _ simp_state entry (SymExWithConfig extra_cmd_lne) =
+    runFunc (cmd_lne ++ words extra_cmd_lne) simp_state entry
+runSymexAnnot cmd_lne equiv_annots simp_state entry (SMTEquivIs smt_equiv_f) =
+    checkEquiv cmd_lne equiv_annots simp_state entry smt_equiv_f
+runSymexAnnot cmd_lne equiv_annots simp_state entry (SMTEquivIsWithConfig smt_equiv_f extra_cmd_lne) =
+    checkEquiv (cmd_lne ++ words extra_cmd_lne) equiv_annots simp_state entry smt_equiv_f
+
+runFunc :: [CommandLineOption] -> SimpleState -> L.Name -> IO ()
+runFunc cmd_lne simp_state entry
     | Just (entry_name, e) <- E.lookupNameMod (L.nameOcc entry) (L.nameModule entry) (IT.expr_env simp_state) = do
         -- Get a Config to run this specific function
         homedir <- liftIO $ getHomeDirectory
-        let func_cmd_line = case symex_annot of
-                                SymExWithConfig extra_cmd_lne -> cmd_lne ++ words extra_cmd_lne
-                                SymEx -> cmd_lne
-        func_config <- liftIO . handleParseResult $ execParserPure defaultPrefs (pluginConfig homedir) func_cmd_line
+        func_config <- liftIO . handleParseResult $ execParserPure defaultPrefs (pluginConfig homedir) cmd_lne
 
         -- Run symbolic execution
         let entry_id = Id entry_name $ L.typeOf TV.empty e
@@ -184,6 +223,63 @@ logAcceptedStateTime entryName  = do
     let file_name = "time_logs/state_accept_log.txt"
     file_exists <- doesFileExist file_name
     when file_exists $ appendFile file_name $ "\n" ++ entryName ++ " : "
+
+checkEquiv :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> String -> IO ()
+checkEquiv cmd_lne equiv_annots simp_state entry_real entry_smt = do
+    -- Get a Config to run this specific function
+    homedir <- liftIO $ getHomeDirectory
+    func_config <- liftIO . handleParseResult $ execParserPure defaultPrefs (pluginConfig homedir) cmd_lne
+    V.checkEquiv func_config equiv_annots simp_state entry_real entry_smt
+
+------------------------------------------------------------------------------
+-- Loading in functions and function annotations
+------------------------------------------------------------------------------
+
+-- | Set up an initial extracted G2 with the base library and the functions from the module currently being compiled.
+loadExtractedG2 :: Config -> HscEnv -> ModGuts -> CoreM (NameMap, TypeNameMap, ExtractedG2, S.Set L.Name)
+loadExtractedG2 config env modguts = do
+    -- We want simpl to be False so the simplifier does not run, because
+    -- this plugin gets inserted into the simplifier.  Thus, running the simplifier
+    -- results in an infinite loop.
+    let tconfig = (simplTranslationConfig { simpl = False
+                                          , load_rewrite_rules = True
+                                          , hpc_ticks = True })
+        ems = EnvModSumModGuts env [] [modguts]
+
+    prev_comp <- liftIO $ readIORef compiledModules
+    (base_exg2, base_nm, base_tnm, prev_explored) <- case prev_comp of
+                                        Just prev -> return prev
+                                        Nothing -> do
+                                            (b_exg2, b_nm, b_tnm) <- liftIO $ translateBase tconfig config [] Nothing
+                                            let expl = S.fromList . map fst . HM.toList $ exg2_binds b_exg2
+                                            return (b_exg2, b_nm, b_tnm, expl)
+
+    (new_nm, new_tm, exg2) <- liftIO $ hskToG2ViaEMS tconfig ems base_nm base_tnm
+    let merged_exg2 = mergeExtractedG2s [exg2, base_exg2]
+        injected_exg2 = specialInject merged_exg2
+    return (new_nm, new_tm, injected_exg2, prev_explored)
+
+getBinderAnnotations :: forall ann . (Data ann, NFData ann) => NameMap -> TypeNameMap -> ModGuts -> CoreM [(L.Name, [ann])]
+getBinderAnnotations nm tm modguts = do
+    let binders (NonRec b _) = [b]
+        binders (Rec b) = map fst b
+    all_fs <- mapM (\b -> (,b) <$> (annotationsOn modguts b :: CoreM [ann])) (concatMap binders $ mg_binds modguts)
+    let fs = filter (not . null . fst) all_fs
+    let anns = SM.evalState (mapM (\(ann, b) -> do
+                                    n <- valNameLookup . varName $ b
+                                    return (n, ann)) fs) (nm, tm)
+    return $ deepseq anns anns
+
+-- | Add relevant functions from the imports into the ExtractedG2.
+setUpImports :: SM.MonadIO m => NameMap -> TypeNameMap -> HscEnv -> ExtractedG2 -> S.Set L.Name -> Seq.Seq L.Name -> m (NameMap, TypeNameMap, ExtractedG2)
+setUpImports nm tm env ex_g2 prev_explored rel_names = do
+    (imports_exg2, (imports_nm, import_tnm)) <- SM.runStateT (loadImports env (exg2_binds ex_g2) prev_explored rel_names) (nm, tm)
+    let adj_funcs_exg2 = adjustFunctions imports_nm imports_exg2
+
+    let merged_exg2 = mergeExtractedG2s [ex_g2, adj_funcs_exg2]
+        injected_exg2 = specialInject merged_exg2
+    liftIO $ writeIORef compiledModules $ Just (merged_exg2, imports_nm, import_tnm, prev_explored)
+    return (imports_nm, import_tnm, injected_exg2)
 
 -- Based on https://dl.acm.org/doi/pdf/10.1145/3495272
 loadImports :: SM.MonadIO m => HscEnv -> HM.HashMap L.Name L.Expr -> S.Set L.Name -> Seq.Seq L.Name -> NamesT m ExtractedG2
@@ -301,3 +397,120 @@ annotationsOn :: Data a => ModGuts -> CoreBndr -> CoreM [a]
 annotationsOn guts bndr = do
   (_, anns) <- getAnnotations deserializeWithData guts
   return $ lookupWithDefaultUFM anns [] (varName bndr)
+
+adjustFunctions :: NameMap -> ExtractedG2 -> ExtractedG2
+adjustFunctions nm ex_g2 = do
+      adjustFunction ("pSmtLen#", Just "G2.Plugin.Prim") nm (callPrim nm "strLen#")
+    . adjustFunction ("pSmtNth#", Just "G2.Plugin.Prim") nm (callPrim nm "seqNthInt#")
+    -- . adjustFunction ("pSmtUpdate#", Just "G2.Plugin.Prim") nm (callPrim nm "strUpdate#")
+    . adjustFunction ("pSmtExtract#", Just "G2.Plugin.Prim") nm (callPrim nm "strSubstr#")
+    . adjustFunction ("pSmtAppend#", Just "G2.Plugin.Prim") nm (callPrim nm "strAppend#")
+    . adjustFunction ("pSmtAt#", Just "G2.Plugin.Prim") nm (callPrim nm "strAt#")
+    . adjustFunction ("pSmtContains#", Just "G2.Plugin.Prim") nm (callPrim nm "strContains#")
+    . adjustFunction ("pSmtIndexOf#", Just "G2.Plugin.Prim") nm (callPrim nm "strIndexOf#")
+    . adjustFunction ("pSmtReplace#", Just "G2.Plugin.Prim") nm (callPrim nm "strReplace#")
+    . adjustFunction ("pSmtReplaceAll#", Just "G2.Plugin.Prim") nm (callPrim nm "strReplaceAll#")
+    . adjustFunction ("pSmtReverse#", Just "G2.Plugin.Prim") nm (callPrim nm "strReverse#")
+    . adjustFunction ("pSmtPrefixOf#", Just "G2.Plugin.Prim") nm (callPrim nm "strPrefixOf#")
+    . adjustFunction ("pSmtSuffixOf#", Just "G2.Plugin.Prim") nm (callPrim nm "strSuffixOf#")
+
+    . adjustFunction ("pBuildLitTable#", Just "G2.Plugin.Prim") nm (callPrim nm "buildLitTable#")
+    . adjustFunction ("pSmtMap#", Just "G2.Plugin.Prim") nm (callPrim nm "smtMap#")
+    . adjustFunction ("pSmtFoldLeft#", Just "G2.Plugin.Prim") nm (callPrim nm "smtFoldLeft#")
+    . adjustFunction ("pSmtFoldLeftI#", Just "G2.Plugin.Prim") nm (callPrim nm "smtFoldLeftI#")
+
+    . adjustFunction ("pIsSMTRep#", Just "G2.Plugin.Prim") nm (callPrim nm "isSMTRep#")
+
+    . adjustFunction ("$&&#", Just "G2.Plugin.Prim") nm (callPrim nm "&&#")
+
+    . adjustAssert "assert" "G2.Plugin" nm
+    $ adjustAssume (Just "G2.Plugin") nm ex_g2
+
+callPrim :: NameMap -> TX.Text -> L.Expr 
+callPrim nm n =
+    case HM.lookup (n, Just "GHC.Prim") nm of
+        Just prim_n -> L.Var (Id prim_n TyUnknown)
+        Nothing -> error "callPrim: primitive not found"
+
+------------------------------------------------------------------------------
+-- Functions for use in plugins
+------------------------------------------------------------------------------
+smtLen :: [a] -> Int
+smtLen xs = xs `evalSeq` I# (pSmtLen# xs)
+
+smtNth :: [a] -> Int -> a
+smtNth xs (I# x) = xs `evalSeq` pSmtNth# xs x
+
+smtExtract :: [a] -> Int -> Int -> [a]
+smtExtract xs (I# i) (I# j) = xs `evalSeq` pSmtExtract# xs i j
+
+($++) :: [a] -> [a] -> [a]
+($++) = smtAppend
+
+smtAppend :: [a] -> [a] -> [a]
+smtAppend xs ys = xs `evalSeq` ys `evalSeq` pSmtAppend# xs ys
+
+smtAt :: [a] -> Int -> [a]
+smtAt xs (I# x) = xs `evalSeq` pSmtAt# xs x
+
+smtContains :: [a] -> [a] -> Bool
+smtContains xs ys = xs `evalSeq` ys `evalSeq` pSmtContains# xs ys
+
+smtIndexOf :: [a] -> [a] -> Int -> Int
+smtIndexOf xs ys (I# i) = xs `evalSeq` ys `evalSeq` I# (pSmtIndexOf# xs ys i)
+
+smtReplace :: [a] -> [a] -> [a] -> [a]
+smtReplace xs ys zs = xs `evalSeq` ys `evalSeq` zs `evalSeq` pSmtReplace# xs ys zs
+
+smtReplaceAll :: [a] -> [a] -> [a] -> [a]
+smtReplaceAll xs ys zs = xs `evalSeq` ys `evalSeq` zs `evalSeq` pSmtReplaceAll# xs ys zs
+
+smtReverse :: [a] -> [a]
+smtReverse xs = xs `evalSeq` pSmtReverse# xs
+
+smtPrefixOf :: [a] -> [a] -> Bool
+smtPrefixOf xs ys = xs `evalSeq` ys `evalSeq` pSmtPrefixOf# xs ys
+
+smtSuffixOf :: [a] -> [a] -> Bool
+smtSuffixOf xs ys = xs `evalSeq` ys `evalSeq` pSmtSuffixOf# xs ys
+
+smtMap :: (a -> b) -> [a] -> [b]
+smtMap f xs = xs `evalSeq` smtMap' f xs 
+
+smtMap' :: (a -> b) -> [a] -> [b]
+smtMap' f xs = 
+    let !(LTI lt success inLT partial) = pBuildLitTable# f
+        !mapped = xs `evalSeq` pSmtMap# lt xs
+        !pt_a = if not partial then True else pSmtFoldLeft# (\acc e -> acc $&& inLT e) True xs
+    in assume pt_a $ if success then mapped else map f xs
+
+-- smtFoldLeft :: (a -> b -> a) -> a -> [b] -> a
+-- smtFoldLeft f !x xs = xs `evalSeq` pSmtFoldLeft# f x xs 
+
+-- smtFoldLeftI :: (Int -> a -> b -> a) -> Int -> a -> [b] -> a
+-- smtFoldLeftI f (I# i) !x xs =
+--     let f' j = f (I# j) in
+--     xs `evalSeq` pSmtFoldLeftI# f' i x xs 
+
+{-# NOINLINE evalSeq #-}
+evalSeq :: [a] -> b -> b
+evalSeq xs b = evalSeq' xs `seq` b
+
+evalSeq' :: [a] -> [a]
+evalSeq' xs = go xs
+  where
+    go ys | pIsSMTRep# ys = ys
+    go !ys | pIsSMTRep# ys = ys
+    go [] = []
+    go ((!y):ys) = y:go ys
+
+-- Equivalence Checking
+tryMaybe :: IO a -> IO (Maybe a)
+tryMaybe a = Ex.catch (a >>= \v -> return (Just v)) (\(_ :: Ex.SomeException) -> return Nothing)
+
+tryMaybeUnsafe :: a -> Maybe a
+tryMaybeUnsafe x = unsafePerformIO $ tryMaybe (let !y = x in return y)
+
+comp :: Eq a => a -> a -> a
+comp real_def smt_def = 
+    let b = tryMaybeUnsafe smt_def == tryMaybeUnsafe real_def in G2.Plugin.assert b real_def

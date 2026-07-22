@@ -31,6 +31,7 @@ import qualified G2.Language.TyVarEnv as TV
 import G2.Lib.Printers
 import G2.Solver.Converters
 import G2.Solver.SMT2
+import G2.SMTSynth.Verify
 import G2.Translation
 
 import qualified Sygus.LexSygus as Sy
@@ -609,13 +610,6 @@ setUpVerification entry_n s@(State { expr_env = eenv, known_values = kv, tyvar_e
           , known_values = addSmtStringFunc smt_n kv }
     | otherwise = s
 
-insertFCTick :: Expr -> Name -> TyVarEnv -> Expr
-insertFCTick expr func tv_env  =
-    let ret_name = Name "G2_!!_RET_VAR" Nothing 0 Nothing in
-    insertInLams (\is e ->
-                    let ret_id = Id ret_name (typeOf tv_env e) in
-                    Let [(ret_id, e)] $ Tick (FCTick $ FuncCall { funcName = func, arguments = map Var is, returns = Var ret_id }) (Var ret_id)) expr
-
 getFCStateBindings :: [ExecRes ()] -> Bindings -> [(State (), Bindings)]
 getFCStateBindings er bindings =     
     let new_state_bindings =
@@ -1172,6 +1166,7 @@ relArgs s = filter (not . isCallStack . typeOf (tyvar_env s))
 exprToTerm :: KnownValues -> Expr -> Term
 exprToTerm _ (Lit (LitInt x)) = TermLit (LitNum x)
 exprToTerm _ (Lit (LitChar x)) = toStringTerm [x]
+exprToTerm _ (Lit (LitFloat x)) = TermIdent . ISymb . T.unpack . tbToText $ convertFloating castFloatToWord32 8 x
 exprToTerm _ (App _ (Lit (LitInt x))) = TermLit (LitNum x)
 exprToTerm _ (App _ (Lit (LitFloat x))) = TermIdent . ISymb . T.unpack . tbToText $ convertFloating castFloatToWord32 8 x
 exprToTerm _ (App _ (Lit (LitChar x))) = toStringTerm [x]
