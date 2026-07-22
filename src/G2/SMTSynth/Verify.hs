@@ -13,6 +13,7 @@ import G2.Language.KnownValues as KV
 import G2.Language.TyVarEnv as TV
 
 import Control.Monad.IO.Class
+import qualified Data.Foldable as F
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import Data.Maybe
@@ -105,7 +106,7 @@ replaceVars m = modify go
 
 insertFCTickForAll :: [(Name, Name)] -> ExprEnv -> TyVarEnv -> ExprEnv
 insertFCTickForAll ns eenv tv_env =
-    foldl' (\eenv_ (real_n, smt_n) -> case E.lookup smt_n eenv_ of
+    F.foldl' (\eenv_ (real_n, smt_n) -> case E.lookup smt_n eenv_ of
                             Just e -> E.insert smt_n (insertFCTick e real_n tv_env) eenv_
                             Nothing -> eenv_) eenv ns
 
