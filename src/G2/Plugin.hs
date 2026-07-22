@@ -24,8 +24,8 @@ module G2.Plugin (SymEx (..)
                  , smtSuffixOf
                  
                  , smtMap
-                 , smtFoldLeft
-                 , smtFoldLeftI
+                --  , smtFoldLeft
+                --  , smtFoldLeftI
 
                  , comp
                 ) where
@@ -484,13 +484,13 @@ smtMap' f xs =
         !pt_a = if not partial then True else pSmtFoldLeft# (\acc e -> acc $&& inLT e) True xs
     in assume pt_a $ if success then mapped else map f xs
 
-smtFoldLeft :: (a -> b -> a) -> a -> [b] -> a
-smtFoldLeft f !x xs = xs `evalSeq` pSmtFoldLeft# f x xs 
+-- smtFoldLeft :: (a -> b -> a) -> a -> [b] -> a
+-- smtFoldLeft f !x xs = xs `evalSeq` pSmtFoldLeft# f x xs 
 
-smtFoldLeftI :: (Int -> a -> b -> a) -> Int -> a -> [b] -> a
-smtFoldLeftI f (I# i) !x xs =
-    let f' j = f (I# j) in
-    xs `evalSeq` pSmtFoldLeftI# f' i x xs 
+-- smtFoldLeftI :: (Int -> a -> b -> a) -> Int -> a -> [b] -> a
+-- smtFoldLeftI f (I# i) !x xs =
+--     let f' j = f (I# j) in
+--     xs `evalSeq` pSmtFoldLeftI# f' i x xs 
 
 {-# NOINLINE evalSeq #-}
 evalSeq :: [a] -> b -> b
