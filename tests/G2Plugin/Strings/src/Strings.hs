@@ -55,7 +55,7 @@ addOneAll (x:xs) = x + 1:addOneAll xs
 smtAddOneAll :: [Int] -> [Int]
 smtAddOneAll = smtMap (\x -> x + 1)
 
-{-# ANN addTwoAll (SMTEquivIsWithConfig "smtAddTwoAll" "") #-}
+{-# ANN addTwoAll (SMTEquivIs "smtAddTwoAll") #-}
 addTwoAll :: [Int] -> [Int]
 addTwoAll [] = []
 addTwoAll (x:xs) = x + 2:addOneAll xs -- Bug- calls addOneAll instead of addTwoAll
