@@ -72,6 +72,7 @@ stopUpdateLastExpl stck = case S.pop stck of
 makeAllTrue :: KnownValues -> [(PathConds, Expr)] -> [[PathCond]]
 makeAllTrue _ [] = []
 makeAllTrue kv ((pcs, e):xs) | Just True <- getBool kv e = (PC.toList pcs):makeAllTrue kv xs
+makeAllTrue kv ((_, e):xs)   | Just False <- getBool kv e = makeAllTrue kv xs
 makeAllTrue kv ((pcs, e):xs) =
     let lst = PC.toList pcs
         pc1 = ExtCond e True

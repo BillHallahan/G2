@@ -40,6 +40,7 @@ data Rule = RuleEvalVal
           | RuleEvalCaseNonVal
           | RuleEvalCaseBottom
           | RuleEvalCaseInCase
+          | RuleEvalCaseUpdates
 
           | RuleEvalCastSplit
           | RuleEvalCast

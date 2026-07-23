@@ -473,7 +473,7 @@ evalLet s@(State { expr_env = eenv })
                           , curr_expr = CurrExpr Evaluate e'}]
                      , ng')
 
--- | Pop and apply update frames until a case frame shows up
+-- | Pop and apply update frames until a case frame shows up.
 popToCaseFrame :: State t -> CurrExpr -> Maybe (State t, Id, Type, [Alt])
 popToCaseFrame s ce = case S.pop (exec_stack s) of
                         Just (UpdateFrame n, stck) ->
@@ -483,7 +483,18 @@ popToCaseFrame s ce = case S.pop (exec_stack s) of
                         _ -> Nothing
                       where unwrap (CurrExpr _ e) = e
 
--- | Create `[Alts]` for a case of case optimization
+-- | Pop all update frames, returning Nothing if there are none.
+popUpdateFrames :: Expr -> State t -> Maybe (State t)
+popUpdateFrames e s = case S.pop stck of
+                          Just (UpdateFrame n, stck') ->
+                              let s' = s { expr_env = E.insert n e eenv, exec_stack = stck' }
+                              in Just $ fromMaybe s' (popUpdateFrames e s')
+                          _ -> Nothing
+    where
+        eenv = expr_env s
+        stck = exec_stack s
+
+-- | Create `[Alts]` for a case of case optimization.
 caseOfCaseAlts :: Type -> [Alt] -> [Alt] -> Id -> [Alt]
 caseOfCaseAlts lower_t lower_alts higher_alts lower_bind = L.map makeAlt higher_alts
     where
@@ -498,6 +509,15 @@ evalCase s@(State { expr_env = eenv
                   , tyvar_env = tvnv
                   })
          (Bindings { name_gen = ng, data_con_pc_map = dcpm }) mexpr bind t alts
+
+  -- Hacky fix for `seq`. When we only have a default alt, and we have update
+  -- frames below us, point them all to the default alt's expr.
+  | inLitTableMode s
+  , alts <- [Alt Default branchexp]
+  , Just s1 <- popUpdateFrames branchexp s =
+    ( RuleEvalCaseUpdates
+    , newPCEmpty s1
+    , ng )
 
   -- Case of case optimization, always needed for literal table creation
   -- This pops the nested case frame off the stack, and creates a new
