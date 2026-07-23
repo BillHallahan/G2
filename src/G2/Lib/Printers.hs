@@ -826,6 +826,7 @@ printLiteralTableCond pg ltc
     | (Diff sd pc) <- ltc = prettyStateDiff pg sd <> "\nold conds to put back:\n"
                                 <> prettyPathConds pg pc <> "---\n"
     | (StartedBuilding n) <- ltc = "started building " <> mkNameHaskell pg n
+    | UpdateBlocker <- ltc = "update blocker"
 
 prettyStateDiff :: PrettyGuide -> StateDiff -> T.Text
 prettyStateDiff pg (SD { new_conc_entries = nce

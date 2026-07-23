@@ -642,6 +642,7 @@ instance ASTContainer Handle Type where
 data LitTableCond = Exploring PathConds
                   | Diff StateDiff PathConds
                   | StartedBuilding Name
+                  | UpdateBlocker
                   deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable LitTableCond
@@ -683,14 +684,17 @@ instance Named LitTableCond where
     names (Exploring pc) = names pc
     names (Diff sd prev_s) = names sd <> names prev_s
     names (StartedBuilding n) = names n
+    names UpdateBlocker = S.empty
 
     rename old new (Exploring pc) = Exploring $ rename old new pc
     rename old new (Diff sd prev_s) = Diff (rename old new sd) (rename old new prev_s)
     rename old new (StartedBuilding n) = StartedBuilding $ rename old new n
+    rename _ _  UpdateBlocker = UpdateBlocker
 
     renames hm (Exploring pc) = Exploring $ renames hm pc
     renames hm (Diff sd prev_s) = Diff (renames hm sd) (renames hm prev_s)
     renames hm (StartedBuilding n) = StartedBuilding $ renames hm n
+    renames _ UpdateBlocker = UpdateBlocker
 
 instance Named StateDiff where
     names sd = names (new_conc_entries sd)
@@ -759,19 +763,23 @@ instance ASTContainer LitTableCond Type where
     containedASTs (Exploring pc) = containedASTs pc
     containedASTs (Diff sd prev_s) = (containedASTs sd) ++ (containedASTs prev_s)
     containedASTs (StartedBuilding n) = containedASTs n
+    containedASTs UpdateBlocker = []
 
     modifyContainedASTs f (Exploring pc) = Exploring $ modifyContainedASTs f pc
     modifyContainedASTs f (Diff sd prev_s) = Diff (modifyContainedASTs f sd) (modifyContainedASTs f prev_s)
     modifyContainedASTs f (StartedBuilding n) = StartedBuilding $ modifyContainedASTs f n
+    modifyContainedASTs _ UpdateBlocker = UpdateBlocker
 
 instance ASTContainer LitTableCond Expr where
     containedASTs (Exploring pc) = containedASTs pc
     containedASTs (Diff sd prev_s) = (containedASTs sd) ++ (containedASTs prev_s)
     containedASTs (StartedBuilding n) = containedASTs n
+    containedASTs UpdateBlocker = []
 
     modifyContainedASTs f (Exploring pc) = Exploring $ modifyContainedASTs f pc
     modifyContainedASTs f (Diff sd prev_s) = Diff (modifyContainedASTs f sd) (modifyContainedASTs f prev_s)
     modifyContainedASTs f (StartedBuilding n) = StartedBuilding $ modifyContainedASTs f n
+    modifyContainedASTs _ UpdateBlocker = UpdateBlocker
 
 instance ASTContainer StateDiff Type where
     containedASTs sd = containedASTs (new_conc_entries sd)

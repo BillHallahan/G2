@@ -67,6 +67,7 @@ data Rule = RuleEvalVal
           | RuleReturnLitTableSB
           | RuleReturnLitTableDiff
           | RuleReturnLitTableErr
+          | RuleReturnLitTableBlock
 
           | RuleIdentity
           | RulePrimError
