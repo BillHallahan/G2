@@ -513,7 +513,7 @@ evalCase s@(State { expr_env = eenv
   -- Hacky fix for `seq`. When we only have a default alt, and we have update
   -- frames below us, point them all to the default alt's expr.
   | inLitTableMode s
-  , alts <- [Alt Default branchexp]
+  , [Alt Default branchexp] <- alts
   , Just s1 <- popUpdateFrames branchexp s =
     ( RuleEvalCaseUpdates
     , newPCEmpty s1
