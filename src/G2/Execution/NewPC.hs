@@ -68,7 +68,7 @@ reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state 
             Just (ng', first_s, pcs, other_diffs) ->
                 let prev_stck = stopUpdateLastExpl $ exec_stack first_s
                     diffs_pushed = foldr S.push prev_stck $ map wrap other_diffs
-                    expl_pushed = S.push (LitTableFrame (Exploring (PC.fromList pcs)) True) diffs_pushed
+                    expl_pushed = if not (hasUpcomingCase prev_stck) then S.push (LitTableFrame (Exploring (PC.fromList pcs)) True) diffs_pushed else exec_stack first_s
 
                     new_stack = if not $ isTyFun (typeOf tv_env $ unwrapped_ce) then expl_pushed else exec_stack first_s
 
@@ -117,6 +117,11 @@ reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state 
             | otherwise = error "Expected constructor"
 
         wrap diff = LitTableFrame (Diff diff (path_conds state)) True
+
+        hasUpcomingCase stck
+            | Just (UpdateFrame _, stck') <- S.pop stck = hasUpcomingCase stck'
+            | Just (CaseFrame _ _ _, _) <- S.pop stck = True
+            | otherwise = False
 
 -- Find the first diff to explore, when in literal table building mode
 reduceToFirstDiff :: (Solver solver, Simplifier simplifier)

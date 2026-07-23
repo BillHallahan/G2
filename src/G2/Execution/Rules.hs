@@ -1951,7 +1951,7 @@ retLitTableFrame dus solver simplifier s ng ltc up stck = case ltc of
         frames = S.toList $ exec_stack s
         explorings = filterJust $ map getExploringConds frames
         all_pcs = L.foldl' PC.union PC.empty explorings
-        updated_lts = if True -- up
+        updated_lts = if up
             then S.modifyTop (updateLiteralTable all_pcs e) $ lit_table_stack s
             else lit_table_stack s
         updated_state = s { exec_stack = stck, lit_table_stack = updated_lts }
