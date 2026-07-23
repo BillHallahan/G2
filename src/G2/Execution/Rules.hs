@@ -582,7 +582,7 @@ evalCase s@(State { expr_env = eenv
       in ( RuleEvalCaseNonVal
          , newPCEmpty $ s { expr_env = eenv
                           , curr_expr = CurrExpr Evaluate mexpr
-                          , exec_stack = S.push frame stck }, ng)
+                          , exec_stack = stck'' }, ng)
 
   -- If the list of alts is empty, that normally means that the bindee is guaranteed
   -- to be bottom (either evaluate to an error or not terminate.)  In either case, we would normally
