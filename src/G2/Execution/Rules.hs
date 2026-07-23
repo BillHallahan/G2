@@ -503,14 +503,14 @@ evalCase s@(State { expr_env = eenv
   -- This pops the nested case frame off the stack, and creates a new
   -- case expr to evaluate
   -- Note that we are in the nested case expression here
-  | inLitTableMode s
-  , Just (s1, outer_bind, t1, alts1) <- popToCaseFrame s (curr_expr s) =
-      -- We're looking at the nested bindee here
-      let alts2 = caseOfCaseAlts t1 alts1 alts outer_bind
-          new_case = Case mexpr bind t1 alts2
-      in ( RuleEvalCaseInCase
-         , newPCEmpty $ s1 { curr_expr = CurrExpr Evaluate new_case }
-         , ng )
+--   | inLitTableMode s
+--   , Just (s1, outer_bind, t1, alts1) <- popToCaseFrame s (curr_expr s) =
+--       -- We're looking at the nested bindee here
+--       let alts2 = caseOfCaseAlts t1 alts1 alts outer_bind
+--           new_case = Case mexpr bind t1 alts2
+--       in ( RuleEvalCaseInCase
+--          , newPCEmpty $ s1 { curr_expr = CurrExpr Evaluate new_case }
+--          , ng )
   
   -- Is the current expression able to match with a literal based `Alt`? If
   -- so, we do the cvar binding, and proceed with evaluation of the body.
@@ -1951,7 +1951,7 @@ retLitTableFrame dus solver simplifier s ng ltc up stck = case ltc of
         frames = S.toList $ exec_stack s
         explorings = filterJust $ map getExploringConds frames
         all_pcs = L.foldl' PC.union PC.empty explorings
-        updated_lts = if up
+        updated_lts = if True -- up
             then S.modifyTop (updateLiteralTable all_pcs e) $ lit_table_stack s
             else lit_table_stack s
         updated_state = s { exec_stack = stck, lit_table_stack = updated_lts }

@@ -2,7 +2,7 @@ module Strings where
 
 import G2.Plugin
 
-{-
+
 {-# ANN f (SMTEquivIs "f2" )
     #-}
 f :: [Int] -> [Int]
@@ -64,7 +64,7 @@ addTwoAll (x:xs) = x + 2:addOneAll xs -- Bug- calls addOneAll instead of addTwoA
 smtAddTwoAll :: [Int] -> [Int]
 smtAddTwoAll xs = smtMap (\x -> x + 2) xs
 
-
+{-
 {-# ANN sumList (SMTEquivIsWithConfig "smtSumList" "--log-pretty a_sum") #-}
 sumList :: [Int] -> Int
 sumList [] = 0
@@ -74,7 +74,7 @@ smtSumList :: [Int] -> Int
 smtSumList xs = smtFoldLeft (\x y -> x + y) 0 xs
 -}
 
-{-# ANN myIntersperse (SMTEquivIsWithConfig "smtMyIntersperse" "--log-pretty a_inter") #-}
+{-# ANN myIntersperse (SMTEquivIsWithConfig "smtMyIntersperse" "") #-}
 myIntersperse :: Int -> [Int] -> [Int]
 myIntersperse _ [] = []
 myIntersperse _ [x] = [x]
@@ -84,7 +84,7 @@ smtMyIntersperse :: Int -> [Int] -> [Int]
 smtMyIntersperse _ [] = []
 smtMyIntersperse _ [x] = [x]
 smtMyIntersperse x (i:ys) = i:smtFoldLeft (\acc y -> acc $++ [x] $++ [y]) [] ys
-{-
+
 {-# ANN myIntersperseBad (SMTEquivIsWithConfig "smtMyIntersperseBad" "") #-}
 myIntersperseBad :: Int -> [Int] -> [Int]
 myIntersperseBad _ [] = []
@@ -112,4 +112,4 @@ myRevBad (y:ys) = myRev ys ++ [y]
 
 smtMyRevBad :: [Int] -> [Int]
 smtMyRevBad ys = smtFoldLeft (\acc y -> acc $++ [y]) [] ys
--}
+
