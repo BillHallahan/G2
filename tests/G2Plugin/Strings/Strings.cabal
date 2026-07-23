@@ -1,0 +1,28 @@
+cabal-version:      3.0
+name:               Strings
+version:            0.1.0.0
+synopsis:           Anon
+-- description:
+homepage:           Anon
+license:            BSD-3-Clause
+license-file:       LICENSE
+author:             Anon
+maintainer:         Anon
+-- copyright:
+build-type:         Simple
+extra-doc-files:    CHANGELOG.md
+-- extra-source-files:
+
+common warnings
+    ghc-options: -Wall
+
+library
+    import:           warnings
+    exposed-modules:  Strings
+    -- other-modules:
+    -- other-extensions:
+    build-depends:    base >=4.14
+                    , g2 >= 0.1.0.2
+    hs-source-dirs:   src
+    ghc-options:      -fplugin=G2.Plugin
+    default-language: Haskell2010

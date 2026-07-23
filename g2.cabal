@@ -131,6 +131,8 @@ library
                        , G2.Language.PolyArgMap
 
                        , G2.Lib.Printers
+                       
+                       , G2.Plugin.Prim
 
                        , G2.Nebula
 
@@ -144,6 +146,7 @@ library
 
                        , G2.SMTSynth.Integrate
                        , G2.SMTSynth.Synthesizer
+                       , G2.SMTSynth.Verify
 
                        , G2.Solver
                        , G2.Solver.ADTNumericalSolver
@@ -178,6 +181,8 @@ library
                        , G2.Verify.Interface
                        , G2.Verify.Reducer
                        , G2.Verify.StaticArgTrans
+
+                       , GHC.Prim2
 
   if impl(ghc > 9.4)
       exposed-modules:   G2.Plugin

@@ -70,8 +70,10 @@ reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state 
                     diffs_pushed = foldr S.push prev_stck $ map wrap other_diffs
                     expl_pushed = S.push (LitTableFrame (Exploring (PC.fromList pcs)) True) diffs_pushed
 
+                    new_stack = if not $ isTyFun (typeOf tv_env $ unwrapped_ce) then expl_pushed else exec_stack first_s
+
                     glob_pc' = foldr PC.insert (global_lit_table_pc state) force_specific_cons_args
-                in return (ng', [first_s { exec_stack = expl_pushed, global_lit_table_pc = glob_pc' }])
+                in return (ng', [first_s { exec_stack = new_stack, global_lit_table_pc = glob_pc' }])
             Nothing -> return (ng, [])
     | otherwise =
         mapAccumMaybeM (\ng' sd -> reduceStateDiff discard_unknown_states solver simplifier ng' state sd) ng state_diffs
