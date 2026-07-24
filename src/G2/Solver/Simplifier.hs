@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, GADTs, RankNTypes, OverloadedStrings, TypeOperators #-}
+{-# LANGUAGE FlexibleContexts, GADTs, RankNTypes, OverloadedStrings, TypeOperators, ViewPatterns #-}
 {-# LANGUAGE InstanceSigs #-}
 
 module G2.Solver.Simplifier ( Simplifier (..)
@@ -24,8 +24,6 @@ import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Typing as T
 import qualified Data.HashSet as HS
 import qualified Data.List as L
-
-import Debug.Trace
 
 class Simplifier simplifier where
     -- | Simplifies a PC, by converting it into one or more path constraints that are easier
@@ -426,17 +424,12 @@ isEmpty kv (App (Data dc) _) = dc_name dc == dcEmpty kv
 isEmpty _ _ = False
 
 appendedSeqs :: TypeEnv -> KnownValues -> Expr -> Maybe (Expr, Expr)
-appendedSeqs _ _ (App (App (Prim StrAppend _) xs) ys) = Just (xs, ys)
-appendedSeqs _ kv (App (App (App (Data dc) _) _) (App (Data dc_emp) _)) 
-    | dc_name dc == dcCons kv
-    , dc_name dc_emp == dcEmpty kv = Nothing
-appendedSeqs tenv kv (App (App (App (Data dc) (Type t)) x) ys) | dc_name dc == dcCons kv =
-    let xs = mkG2List kv tenv t [x] in
-    Just (xs, ys)
+appendedSeqs tenv kv (consToAppend tenv kv -> (App (App (Prim StrAppend _) xs) ys)) = Just (xs, ys)
 appendedSeqs _ _ _ = Nothing
 
+-- | Convert (x:xs) into ([x] ++ xs) so that other simplifications fire
 consToAppend :: TypeEnv -> KnownValues -> Expr -> Expr
-consToAppend _ kv e@(App (App (App (Data dc) _) _) (App (Data dc_emp) _)) 
+consToAppend _ kv e@(App (App (App (Data dc) _) _) (App (Data dc_emp) _)) -- Make sure we don't go into an infinite loop
     | dc_name dc == dcCons kv
     , dc_name dc_emp == dcEmpty kv = e
 consToAppend tenv kv (App (App (App (Data dc) (Type t)) x) ys) | dc_name dc == dcCons kv =
@@ -467,7 +460,7 @@ isSplittableFold prim (Lam _ (Id col_v1 _) (Lam _ (Id _ _) e))
     , col_v1 `notElem` varNames e2 = True
 isSplittableFold _ _ = False
 
--- Convert applications to be right associative
+-- | Convert applications to be right associative
 makeRightAssoc :: Primitive -> Expr -> Expr
 makeRightAssoc prim
     (App 
