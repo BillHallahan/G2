@@ -25,6 +25,8 @@ import qualified G2.Language.Typing as T
 import qualified Data.HashSet as HS
 import qualified Data.List as L
 
+import Debug.Trace
+
 class Simplifier simplifier where
     -- | Simplifies a PC, by converting it into one or more path constraints that are easier
     -- for the Solver's to handle
@@ -351,57 +353,68 @@ data HigherOrderSimplifier = HigherOrderSimplifier
 instance Simplifier HigherOrderSimplifier where
     simplifyPC _ _ pc = [pc]
 
-    simplifyPCs _ _ pc = modifyASTs unfoldAppend . inFoldStringVars pc
+    simplifyPCs _ (State { type_env = tenv, known_values = kv }) pc = modifyASTs (unfoldAppend tenv kv) . inFoldStringVars pc
 
     reverseSimplification _ _ _ m = m
 
-unfoldAppend :: Expr -> Expr
+unfoldAppend :: TypeEnv -> KnownValues -> Expr -> Expr
 -- Split up folds containg appends
-unfoldAppend e | [Prim FoldLeft t, func, accum, App (App (Prim StrAppend t1) xs) ys] <- unApp e 
-               , isSplittableFoldAppend func =
-    mkApp [ Prim StrAppend t1
+unfoldAppend tenv kv e | [Prim FoldLeft t, func, accum, poss_app] <- unApp e
+                       , Just (xs, ys) <- appendedSeqs tenv kv poss_app
+                       , isSplittableFoldAppend func =
+    mkApp [ Prim StrAppend TyUnknown
           , mkApp [Prim FoldLeft t, func, accum, xs]
           , mkApp [Prim FoldLeft t, func, accum, ys]
           ]
-unfoldAppend e | [Prim FoldLeftI t, func, offset, accum, App (App (Prim StrAppend t1) xs) ys] <- unApp e
-               , isSplittableFoldAppend func =
+unfoldAppend tenv kv e | [Prim FoldLeftI t, func, offset, accum, App (App (Prim StrAppend t1) xs) ys] <- unApp e
+                       , isSplittableFoldAppend func =
     mkApp [ Prim StrAppend t1
           , mkApp [Prim FoldLeftI t, func, offset, accum, xs]
           , mkApp [Prim FoldLeftI t, func, offset, accum, ys]
           ]
 
 -- Split up folds containg ands
-unfoldAppend e | [Prim FoldLeft t, func, accum, App (App (Prim StrAppend _) xs) ys] <- unApp e 
-               , isSplittableFoldAnd func =
+unfoldAppend tenv kv e | [Prim FoldLeft t, func, accum, App (App (Prim StrAppend _) xs) ys] <- unApp e 
+                       , isSplittableFoldAnd func =
     mkApp [ Prim And TyUnknown
           , mkApp [Prim FoldLeft t, func, accum, xs]
           , mkApp [Prim FoldLeft t, func, accum, ys]
           ]
-unfoldAppend e | [Prim FoldLeftI t, func, offset, accum, App (App (Prim StrAppend _) xs) ys] <- unApp e
-               , isSplittableFoldAnd func =
+unfoldAppend tenv kv e | [Prim FoldLeftI t, func, offset, accum, App (App (Prim StrAppend _) xs) ys] <- unApp e
+                       , isSplittableFoldAnd func =
     mkApp [ Prim And TyUnknown
           , mkApp [Prim FoldLeftI t, func, offset, accum, xs]
           , mkApp [Prim FoldLeftI t, func, offset, accum, ys]
           ]
 
 -- Split up maps
-unfoldAppend e | [Prim Map t, func, App (App (Prim StrAppend t1) xs) ys] <- unApp e =
+unfoldAppend tenv kv e | [Prim Map t, func, App (App (Prim StrAppend t1) xs) ys] <- unApp e =
     mkApp [ Prim StrAppend t1
           , mkApp [Prim Map t, func, xs]
           , mkApp [Prim Map t, func, ys]
           ]
-unfoldAppend e | [Prim MapConcat t, func, App (App (Prim StrAppend t1) xs) ys] <- unApp e =
+unfoldAppend tenv kv e | [Prim MapConcat t, func, App (App (Prim StrAppend t1) xs) ys] <- unApp e =
     mkApp [ Prim StrAppend t1
           , mkApp [Prim MapConcat t, func, xs]
           , mkApp [Prim MapConcat t, func, ys]
           ]
 
-unfoldAppend e | [Prim MapConcatI t, func, App (App (Prim StrAppend t1) xs) ys] <- unApp e =
+unfoldAppend tenv kv e | [Prim MapConcatI t, func, App (App (Prim StrAppend t1) xs) ys] <- unApp e =
     mkApp [ Prim StrAppend t1
           , mkApp [Prim MapConcatI t, func, xs]
           , mkApp [Prim MapConcatI t, func, ys]
           ]
-unfoldAppend e = e
+unfoldAppend _ _ e = e
+
+appendedSeqs :: TypeEnv -> KnownValues -> Expr -> Maybe (Expr, Expr)
+appendedSeqs _ _ (App (App (Prim StrAppend _) xs) ys) = Just (xs, ys)
+appendedSeqs _ kv (App (App (App (Data dc) _) _) (App (Data dc_emp) _)) 
+    | dc_name dc == dcCons kv
+    , dc_name dc_emp == dcEmpty kv = Nothing
+appendedSeqs tenv kv (App (App (App (Data dc) (Type t)) x) ys) | dc_name dc == dcCons kv =
+    let xs = mkG2List kv tenv t [x] in
+    Just (xs, ys)
+appendedSeqs _ _ _ = Nothing
 
 -- foldl' (\zs x -> zs ++ f x) [] (xs ++ ys)
 -- ==

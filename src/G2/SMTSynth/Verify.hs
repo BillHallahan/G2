@@ -29,6 +29,8 @@ checkEquiv func_config equiv_annots simp_state entry_real entry_smt
                                        , smt_strings = UseSMTStrings
                                        , smt_prim_lists = UseSMTSeq { add_to_dcs = True, add_to_funcs = True }
                                        , smt_strings_strictness = StrictSMTStrings
+                                       , using_smt_lams = UseSMTLams
+                                       , literal_tables = UseLiteralTables
                                        , search_strat = Subpath
                                        , min_found = 1
                                        , smt_discard_on_unknown = KeepUnknown }

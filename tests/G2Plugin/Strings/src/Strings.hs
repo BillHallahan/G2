@@ -73,7 +73,8 @@ smtSumList :: [Int] -> Int
 smtSumList xs = smtFoldLeft (\x y -> x + y) 0 xs
 -}
 
-{-# ANN myIntersperse (SMTEquivIsWithConfig "smtMyIntersperse" "") #-}
+{-# ANN myIntersperse (SMTEquivIsWithConfig "smtMyIntersperse" "--print-smt")
+    #-}
 myIntersperse :: Int -> [Int] -> [Int]
 myIntersperse _ [] = []
 myIntersperse _ [x] = [x]
@@ -82,7 +83,7 @@ myIntersperse x (y:ys) = y:x:myIntersperse x ys
 smtMyIntersperse :: Int -> [Int] -> [Int]
 smtMyIntersperse _ [] = []
 smtMyIntersperse _ [x] = [x]
-smtMyIntersperse x (i:ys) = i:smtFoldLeft (\acc y -> acc $++ [x] $++ [y]) [] ys
+smtMyIntersperse x (i:ys) = i:smtFoldLeft (\acc y -> acc $++ ([x] $++ [y])) [] ys
 
 {-# ANN myIntersperseBad (SMTEquivIsWithConfig "smtMyIntersperseBad" "") #-}
 myIntersperseBad :: Int -> [Int] -> [Int]
