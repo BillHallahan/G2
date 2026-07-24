@@ -22,6 +22,7 @@ tests = testGroup "All Tests"
                                 , ("myApp", "app")
                                 , ("appMult", "smtAppMult")
                                 , ("myIntersperse", "smtMyIntersperse")
+                                , ("myIntersperse2", "smtMyIntersperse2")
                                 , ("myRev", "smtMyRev")
                                 ]
                                 [ ("corr", "smtCorr")

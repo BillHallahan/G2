@@ -366,21 +366,24 @@ unfoldAppend tenv kv e | [Prim FoldLeft t, func, accum, poss_app] <- unApp e
           , mkApp [Prim FoldLeft t, func, accum, xs]
           , mkApp [Prim FoldLeft t, func, accum, ys]
           ]
-unfoldAppend tenv kv e | [Prim FoldLeftI t, func, offset, accum, App (App (Prim StrAppend t1) xs) ys] <- unApp e
+unfoldAppend tenv kv e | [Prim FoldLeftI t, func, offset, accum, poss_app] <- unApp e
+                       , Just (xs, ys) <- appendedSeqs tenv kv poss_app
                        , isSplittableFoldAppend func =
-    mkApp [ Prim StrAppend t1
+    mkApp [ Prim StrAppend TyUnknown
           , mkApp [Prim FoldLeftI t, func, offset, accum, xs]
           , mkApp [Prim FoldLeftI t, func, offset, accum, ys]
           ]
 
 -- Split up folds containg ands
-unfoldAppend tenv kv e | [Prim FoldLeft t, func, accum, App (App (Prim StrAppend _) xs) ys] <- unApp e 
+unfoldAppend tenv kv e | [Prim FoldLeft t, func, accum, poss_app] <- unApp e 
+                       , Just (xs, ys) <- appendedSeqs tenv kv poss_app
                        , isSplittableFoldAnd func =
     mkApp [ Prim And TyUnknown
           , mkApp [Prim FoldLeft t, func, accum, xs]
           , mkApp [Prim FoldLeft t, func, accum, ys]
           ]
-unfoldAppend tenv kv e | [Prim FoldLeftI t, func, offset, accum, App (App (Prim StrAppend _) xs) ys] <- unApp e
+unfoldAppend tenv kv e | [Prim FoldLeftI t, func, offset, accum, poss_app] <- unApp e
+                       , Just (xs, ys) <- appendedSeqs tenv kv poss_app
                        , isSplittableFoldAnd func =
     mkApp [ Prim And TyUnknown
           , mkApp [Prim FoldLeftI t, func, offset, accum, xs]
@@ -388,19 +391,22 @@ unfoldAppend tenv kv e | [Prim FoldLeftI t, func, offset, accum, App (App (Prim 
           ]
 
 -- Split up maps
-unfoldAppend tenv kv e | [Prim Map t, func, App (App (Prim StrAppend t1) xs) ys] <- unApp e =
-    mkApp [ Prim StrAppend t1
+unfoldAppend tenv kv e | [Prim Map t, func, poss_app] <- unApp e
+                       , Just (xs, ys) <- appendedSeqs tenv kv poss_app =
+    mkApp [ Prim StrAppend TyUnknown
           , mkApp [Prim Map t, func, xs]
           , mkApp [Prim Map t, func, ys]
           ]
-unfoldAppend tenv kv e | [Prim MapConcat t, func, App (App (Prim StrAppend t1) xs) ys] <- unApp e =
-    mkApp [ Prim StrAppend t1
+unfoldAppend tenv kv e | [Prim MapConcat t, func, poss_app] <- unApp e
+                       , Just (xs, ys) <- appendedSeqs tenv kv poss_app =
+    mkApp [ Prim StrAppend TyUnknown
           , mkApp [Prim MapConcat t, func, xs]
           , mkApp [Prim MapConcat t, func, ys]
           ]
 
-unfoldAppend tenv kv e | [Prim MapConcatI t, func, App (App (Prim StrAppend t1) xs) ys] <- unApp e =
-    mkApp [ Prim StrAppend t1
+unfoldAppend tenv kv e | [Prim MapConcatI t, func, poss_app] <- unApp e
+                       , Just (xs, ys) <- appendedSeqs tenv kv poss_app =
+    mkApp [ Prim StrAppend TyUnknown
           , mkApp [Prim MapConcatI t, func, xs]
           , mkApp [Prim MapConcatI t, func, ys]
           ]
@@ -427,11 +433,25 @@ isSplittableFoldAnd = isSplittableFold And
 
 isSplittableFold :: Primitive -> Expr -> Bool
 isSplittableFold prim (Lam _ (Id col_v1 _) (Lam _ (Id _ _) e)) 
-    | [Prim prim' _, Var (Id col_v2 _), e2] <- unApp e
+    | [Prim prim' _, Var (Id col_v2 _), e2] <- unApp $ makeRightAssoc prim e
     , prim == prim'
     , col_v1 == col_v2
     , col_v1 `notElem` varNames e2 = True
 isSplittableFold _ _ = False
+
+-- Convert applications to be right associative
+makeRightAssoc :: Primitive -> Expr -> Expr
+makeRightAssoc prim
+    (App 
+        (App
+            (Prim prim1 t1)
+            (App (App (Prim prim2 _) e1) e2)
+        )
+    e3) | prim1 == prim, prim2 == prim =
+        makeRightAssoc prim $ App
+            (App (Prim prim t1) e1)
+            (App (App (Prim prim t1) e2) e3)
+makeRightAssoc _ e = e
 
 -- Looks for cases where a fold function is applied to a variable:
 --  @ fold_left f i xs @
