@@ -75,8 +75,10 @@ ranFuncEquiv io_out =
                 (f1 ++ " and " ++ f2)
                 (do
                     out <- io_out
-                    assertBool ("Not run " ++ f1 ++ " and " ++ f2)
-                               (isSubstringOf ("Equivalent: " ++ f1 ++ " and " ++ f2) out))
+                    assertBool (if checkInequiv f1 f2 out
+                                    then "Found inequivalent " ++ f1 ++ " and " ++ f2
+                                    else "Not run " ++ f1 ++ " and " ++ f2)
+                               (checkEquiv f1 f2 out))
         )
 
 ranFuncInequiv :: IO String -> [(String, String)] -> [TestTree]
@@ -85,9 +87,17 @@ ranFuncInequiv io_out =
                 (f1 ++ " and " ++ f2)
                 (do
                     out <- io_out
-                    assertBool ("Not run " ++ f1 ++ " and " ++ f2)
-                               (isSubstringOf ("Equivalence not proven: " ++ f1 ++ " and " ++ f2) out))
+                    assertBool (if checkEquiv f1 f2 out
+                                    then "Found equivalent " ++ f1 ++ " and " ++ f2
+                                    else "Not run " ++ f1 ++ " and " ++ f2)
+                               (checkInequiv f1 f2 out))
         )
+
+checkEquiv :: String -> String -> String -> Bool
+checkEquiv f1 f2 = isSubstringOf ("Equivalent: " ++ f1 ++ " and " ++ f2)
+
+checkInequiv :: String -> String -> String -> Bool
+checkInequiv f1 f2 = isSubstringOf ("Equivalence not proven: " ++ f1 ++ " and " ++ f2)
 
 -------------------------------------------------------------------------------
 -- Nebula
