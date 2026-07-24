@@ -103,7 +103,7 @@ myRev (y:ys) = myRev ys ++ [y]
 smtMyRev :: [Int] -> [Int]
 smtMyRev ys = smtFoldLeft (\acc y -> y:acc) [] ys
 
-{-# ANN myRevBad (SMTEquivIsWithConfig "smtMyRevBad" "--print-smt") #-}
+{-# ANN myRevBad (SMTEquivIsWithConfig "smtMyRevBad" "") #-}
 myRevBad :: [Int] -> [Int]
 myRevBad [] = []
 myRevBad (y:ys) = myRev ys ++ [y]

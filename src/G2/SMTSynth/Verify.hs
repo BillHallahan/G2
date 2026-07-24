@@ -30,7 +30,8 @@ checkEquiv func_config equiv_annots simp_state entry_real entry_smt
                                        , smt_prim_lists = UseSMTSeq { add_to_dcs = True, add_to_funcs = True }
                                        , smt_strings_strictness = StrictSMTStrings
                                        , search_strat = Subpath
-                                       , min_found = 1 }
+                                       , min_found = 1
+                                       , smt_discard_on_unknown = KeepUnknown }
 
         let entry_id = Id entry_real_name $ typeOf TV.empty real_e
             (init_state, bindings) = initStateFromSimpleState simp_state [nameModule entry_real] False
@@ -70,7 +71,7 @@ checkEquiv func_config equiv_annots simp_state entry_real entry_smt
                                     , curr_expr = CurrExpr Evaluate comp_expr
                                     , true_assert = False }
             config_no_output = func_config' { print_output = False }
-        (ers, _, _, time_outs, _) <- liftIO $ runG2WithConfig
+        (ers, got_unknown, _, time_outs, _) <- liftIO $ runG2WithConfig
                                                             [] [] entry_id "" []
                                                             [nameModule entry_real_name]
                                                             comp_state
@@ -99,8 +100,8 @@ checkEquiv func_config equiv_annots simp_state entry_real entry_smt
         mapM_ (\(func_n, new_s, new_b) -> do
             runG2WithConfig [] [] (Id func_n TyUnknown) "" [] [nameModule entry_real_name] new_s func_config' new_b) smt_call_xs
 
-        case ers of
-            [] | NoTimeOut <- time_outs -> putStrLn $ "Equivalent: "
+        case (ers, got_unknown) of
+            ([], NoUnknowns) | NoTimeOut <- time_outs -> putStrLn $ "Equivalent: "
                                     <> T.unpack (nameOcc entry_real_name) <> " and "
                                     <> T.unpack (nameOcc entry_smt_name)
             _ | TimedOut _ <- time_outs -> putStrLn $ "Time Out: "
@@ -109,6 +110,7 @@ checkEquiv func_config equiv_annots simp_state entry_real entry_smt
             _ -> putStrLn $ "Equivalence not proven: "
                                     <> T.unpack (nameOcc entry_real_name) <> " and "
                                     <> T.unpack (nameOcc entry_smt_name)
+                                    <> (if got_unknown == GotUnknown then ", SMT solver returned unknown" else "")
 
         return ()
     | otherwise = do
