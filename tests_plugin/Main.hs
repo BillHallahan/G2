@@ -87,9 +87,9 @@ ranFuncInequiv io_out =
                 (f1 ++ " and " ++ f2)
                 (do
                     out <- io_out
-                    assertBool (if checkEquiv f1 f2 out
+                    assertBool ((if checkEquiv f1 f2 out
                                     then "Found equivalent " ++ f1 ++ " and " ++ f2
-                                    else "Not run " ++ f1 ++ " and " ++ f2)
+                                    else "Not run " ++ f1 ++ " and " ++ f2) ++ "\n" ++ out)
                                (checkInequiv f1 f2 out))
         )
 
