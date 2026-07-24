@@ -17,15 +17,18 @@ main = do
 tests :: TestTree
 tests = testGroup "All Tests"
         [ checkG2Package "tests/G2Plugin/Simple" ["f", "g", "recCall"]
-        , checkG2PackageEquiv "tests/G2Plugin/Strings" [ ("f", "f2")
-                                                       , ("myApp", "app")
-                                                       , ("appMult", "smtAppMult")
-                                                       , ("myRev", "smtMyRev")
-                                                       ]
-                                                       [ ("corr", "smtCorr")
-                                                       , ("incorr", "smtIncorr")
-                                                       , ("addTwoAll", "smtAddTwoAll")
-                                                       , ("myRevBad", "smtMyRevBad") ]
+        , checkG2PackageEquiv "tests/G2Plugin/Strings"
+                                [ ("f", "f2")
+                                , ("myApp", "app")
+                                , ("appMult", "smtAppMult")
+                                , ("myIntersperse", "smtMyIntersperse")
+                                , ("myRev", "smtMyRev")
+                                ]
+                                [ ("corr", "smtCorr")
+                                , ("incorr", "smtIncorr")
+                                , ("addTwoAll", "smtAddTwoAll")
+                                , ("myIntersperseBad", "smtMyIntersperseBad")
+                                , ("myRevBad", "smtMyRevBad") ]
         , checkNebulaPackage "tests/RewriteVerify/PluginTests/Simple" ["add_assoc", "fg", "fg_toint"] ["f_one"]]
 
 -------------------------------------------------------------------------------

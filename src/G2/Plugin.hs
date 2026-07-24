@@ -226,6 +226,7 @@ logAcceptedStateTime entryName  = do
 
 checkEquiv :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> String -> IO ()
 checkEquiv cmd_lne equiv_annots simp_state entry_real entry_smt = do
+    T.putStrLn $ "Checking " <> nameOcc entry_real <> " and " <> TX.pack entry_smt 
     -- Get a Config to run this specific function
     homedir <- liftIO $ getHomeDirectory
     func_config <- liftIO . handleParseResult $ execParserPure defaultPrefs (pluginConfig homedir) cmd_lne
