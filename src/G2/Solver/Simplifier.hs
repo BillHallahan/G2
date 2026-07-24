@@ -381,7 +381,7 @@ unfoldAppend tenv kv e | [Prim FoldLeftI t, func, offset, accum, poss_app] <- un
 
 -- Split up folds containg ands
 unfoldAppend tenv kv e | [Prim FoldLeft t, func, accum, poss_app] <- unApp e 
-                       , isEmpty kv accum
+                       , isTrue kv accum
                        , Just (xs, ys) <- appendedSeqs tenv kv poss_app
                        , isSplittableFoldAnd func =
     mkApp [ Prim And TyUnknown
@@ -389,7 +389,7 @@ unfoldAppend tenv kv e | [Prim FoldLeft t, func, accum, poss_app] <- unApp e
           , mkApp [Prim FoldLeft t, func, accum, ys]
           ]
 unfoldAppend tenv kv e | [Prim FoldLeftI t, func, offset, accum, poss_app] <- unApp e
-                       , isEmpty kv accum
+                       , isTrue kv accum
                        , Just (xs, ys) <- appendedSeqs tenv kv poss_app
                        , isSplittableFoldAnd func =
     mkApp [ Prim And TyUnknown
@@ -422,6 +422,10 @@ unfoldAppend _ _ e = e
 isEmpty :: KnownValues -> Expr -> Bool
 isEmpty kv (App (Data dc) _) = dc_name dc == dcEmpty kv
 isEmpty _ _ = False
+
+isTrue :: KnownValues -> Expr -> Bool
+isTrue kv (Data dc) = dc_name dc == dcTrue kv
+isTrue _ _ = False
 
 appendedSeqs :: TypeEnv -> KnownValues -> Expr -> Maybe (Expr, Expr)
 appendedSeqs tenv kv (consToAppend tenv kv -> (App (App (Prim StrAppend _) xs) ys)) = Just (xs, ys)
