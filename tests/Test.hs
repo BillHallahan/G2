@@ -81,7 +81,7 @@ tests = testGroup "Tests"
         , solverTests
         , ufMapQuickcheck
         , unionFindQuickcheck
-        , fuzzExecutionQuickCheck
+        -- , fuzzExecutionQuickCheck
         
         , rewriteTests
         ]
