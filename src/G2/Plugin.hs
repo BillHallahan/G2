@@ -24,7 +24,7 @@ module G2.Plugin (SymEx (..)
                  , smtSuffixOf
                  
                  , smtMap
-                --  , smtFoldLeft
+                 , smtFoldLeft
                 --  , smtFoldLeftI
 
                  , comp
@@ -226,6 +226,7 @@ logAcceptedStateTime entryName  = do
 
 checkEquiv :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> String -> IO ()
 checkEquiv cmd_lne equiv_annots simp_state entry_real entry_smt = do
+    T.putStrLn $ "Checking " <> nameOcc entry_real <> " and " <> TX.pack entry_smt 
     -- Get a Config to run this specific function
     homedir <- liftIO $ getHomeDirectory
     func_config <- liftIO . handleParseResult $ execParserPure defaultPrefs (pluginConfig homedir) cmd_lne
@@ -484,8 +485,24 @@ smtMap' f xs =
         !pt_a = if not partial then True else pSmtFoldLeft# (\acc e -> acc $&& inLT e) True xs
     in assume pt_a $ if success then mapped else map f xs
 
--- smtFoldLeft :: (a -> b -> a) -> a -> [b] -> a
--- smtFoldLeft f !x xs = xs `evalSeq` pSmtFoldLeft# f x xs 
+-- type FuncTable a b = LitTableInfo a b
+
+-- buildFT :: (a -> b) -> FuncTable a b
+-- buildFT f = pBuildLitTable# f
+
+-- appFT :: FuncTable a b -> a -> b
+-- appFT (LTI lt success inLt partial) =
+--     let !pt_a = if not partial then True else pSmtFoldLeft# (\acc e -> acc $&& inLT e) True xs
+
+smtFoldLeft :: (a -> b -> a) -> a -> [b] -> a
+smtFoldLeft f !x xs = xs `evalSeq` smtFoldLeft' f x xs 
+
+smtFoldLeft' :: (a -> b -> a) -> a -> [b] -> a
+smtFoldLeft' f x xs =
+    let !(LTI lt success _ {- inLT -} partial) = pBuildLitTable# f
+        !folded = xs `evalSeq` pSmtFoldLeft# lt x xs
+        -- !pt_a = if not partial then True else pSmtFoldLeft# (\acc e -> acc $&& inLT e) True xs
+    in if success && not partial then folded else F.foldl' f x xs
 
 -- smtFoldLeftI :: (Int -> a -> b -> a) -> Int -> a -> [b] -> a
 -- smtFoldLeftI f (I# i) !x xs =
