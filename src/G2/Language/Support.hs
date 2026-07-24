@@ -646,7 +646,7 @@ data LitTableCond = Exploring PathConds
 
 instance Hashable LitTableCond
 
-data LitTable = LitTable { lt_arg :: Id
+data LitTable = LitTable { lt_arg :: [Id]
                          , lt_rec_funs :: HS.HashSet Expr -- | The functions we have evaluated (so we can check for recursion)
                          , lt_mapping :: HM.HashMap PathConds Expr
                          , lt_errored :: Bool -- | Whether an error was encountered during creation or not

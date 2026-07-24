@@ -477,11 +477,25 @@ evalLet s@(State { expr_env = eenv })
 popToCaseFrame :: State t -> CurrExpr -> Maybe (State t, Id, Type, [Alt])
 popToCaseFrame s ce = case S.pop (exec_stack s) of
                         Just (UpdateFrame n, stck) ->
-                            popToCaseFrame (s { expr_env = E.insert n (unwrap ce) (expr_env s), exec_stack = stck }) ce
+                            popToCaseFrame (s { expr_env = E.insert n rewrite_expr (expr_env s), exec_stack = stck }) ce
                         Just (CaseFrame bind t alts, stck) ->
                             Just (s { exec_stack = stck }, bind, t, alts)
                         _ -> Nothing
-                      where unwrap (CurrExpr _ e) = e
+                      where
+                        unwrap (CurrExpr _ e) = e
+                        -- We make use of evalApp to force evaluation of strings/sequences.
+                        -- This is essential to ensure we only send SWHNF expressions to the SMT solver.
+                        -- evalApp yields case expressions such as:
+                        --      case go xs of
+                        --          _ -> b
+                        -- which can then get rewritten by case of case.  This special case
+                        -- works to ensure that if we have an update frame:
+                        --      UpdateFrame y
+                        -- on the stack at that moment, y will still be rewritten to point to b
+                        -- (and b will be rewritten to SWHNF after case-of-case)
+                        rewrite_expr = case unwrap ce of
+                                            Case _ _ _[Alt Default v@(Var _)] -> v
+                                            e -> e
 
 -- | Create `[Alts]` for a case of case optimization
 caseOfCaseAlts :: Type -> [Alt] -> [Alt] -> Id -> [Alt]
@@ -1936,7 +1950,7 @@ retLitTableFrame :: (Solver solver, Simplifier simplifier)
                  -> S.Stack Frame
                  -> IO (Rule, [State t], NameGen)
 retLitTableFrame dus solver simplifier s ng ltc up stck = case ltc of
-    Exploring _ -> retLTExploring ng updated_state sym_id
+    Exploring _ -> return (RuleReturnLitTableExpl, [updated_state], ng)
     Diff sd conds ->
         retLTDiff dus solver simplifier s ng sd conds stck up
     StartedBuilding n ->
@@ -1954,12 +1968,8 @@ retLitTableFrame dus solver simplifier s ng ltc up stck = case ltc of
         updated_lts = if up
             then S.modifyTop (updateLiteralTable all_pcs e) $ lit_table_stack s
             else lit_table_stack s
-        sym_id = getLTArg s
         updated_state = s { exec_stack = stck, lit_table_stack = updated_lts }
 
-retLTExploring :: NameGen -> State t -> Id -> IO (Rule, [State t], NameGen)
-retLTExploring ng updated_state sym_id =
-    return (RuleReturnLitTableExpl, [updated_state { curr_expr = CurrExpr Return (Var sym_id) } ], ng)
 
 retLTDiff :: (Solver solver, Simplifier simplifier)
           => DiscardUnknownStates

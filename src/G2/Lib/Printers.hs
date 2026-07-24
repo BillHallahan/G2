@@ -868,10 +868,10 @@ prettyLitTable pg (LitTable { lt_arg = lta, lt_rec_funs = ltf, lt_mapping = ltm
                        (HM.toList ltm)))
         <> "\n-- end lit table --"
     where
-        sym_id = mkIdHaskell pg lta
+        sym_id = T.intercalate " " $ map (mkIdHaskell pg) lta
         fun_exps = map (mkDirtyExprHaskell pg) $ HS.toList ltf
         header = "-- start lit table --\n"
-                     <> "symbolic id: " <> sym_id <> "\n"
+                     <> "symbolic ids: " <> sym_id <> "\n"
                      <> "function return type: " <> mkTypeHaskellPG pg lrt <> "\n"
                      <> "evaluated recursive function expr set:\n" <> (T.pack $ show fun_exps) <> "\n"
                      <> "error found: " <> (T.pack $ show lte) <> "\n"
