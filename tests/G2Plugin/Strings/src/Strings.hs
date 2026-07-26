@@ -63,15 +63,29 @@ addTwoAll (x:xs) = x + 2:addOneAll xs -- Bug- calls addOneAll instead of addTwoA
 smtAddTwoAll :: [Int] -> [Int]
 smtAddTwoAll xs = smtMap (\x -> x + 2) xs
 
-{-
-{-# ANN sumList (SMTEquivIsWithConfig "smtSumList" "--log-pretty a_sum") #-}
+{-# ANN sumList (SMTEquivIsWithConfig "smtSumList" "") #-}
 sumList :: [Int] -> Int
 sumList [] = 0
 sumList (x:xs) = x + sumList xs
 
 smtSumList :: [Int] -> Int
 smtSumList xs = smtFoldLeft (\x y -> x + y) 0 xs
--}
+
+{-# ANN sumList2 (SMTEquivIsWithConfig "smtSumList2" "") #-}
+sumList2 :: [Int] -> Int
+sumList2 [] = 0
+sumList2 (x:xs) = x + sumList xs
+
+smtSumList2 :: [Int] -> Int
+smtSumList2 xs = smtFoldLeft (\x y -> y + x) 0 xs
+
+{-# ANN sumListBad (SMTEquivIsWithConfig "smtSumListBad" "") #-}
+sumListBad :: [Int] -> Int
+sumListBad [] = 0
+sumListBad (x:xs) = x + sumListBad xs
+
+smtSumListBad :: [Int] -> Int
+smtSumListBad xs = smtFoldLeft (\x y -> x + y + 1) 0 xs
 
 {-# ANN myIntersperse (SMTEquivIsWithConfig "smtMyIntersperse" "")
     #-}

@@ -291,7 +291,7 @@ evalApp s@(State { expr_env = eenv
     | [Prim FoldLeft t, lam, initial] <- unApp e1 =
         let lam' = simplifyExprs eenv eenv lam
             e1' = mkApp [Prim FoldLeft t, lam', initial]
-        in forceEval (App e1' e2) eenv tenv tv_env kv tc s ng
+        in forceEval (moveOutPrim $ App e1' e2) eenv tenv tv_env kv tc s ng
     | [Prim Map t, lam] <- unApp e1 =
         let lam' = simplifyExprs eenv eenv lam
             e1' = mkApp [Prim Map t, lam']
@@ -364,6 +364,15 @@ evalApp s@(State { expr_env = eenv
             ( RuleEvalForcePrimToNorm
             , newPCEmpty $ s_ { expr_env = eenv_', curr_expr = CurrExpr er exP' }
             , ng_ )
+
+        moveOutPrim e
+            | (pr:f:es) <- unApp e
+            , in_f <- inLams f
+            , Just (pr_wr, _) <- getPrimWrapperAndPrim kv in_f = App (Data pr_wr) $ mkApp (pr:insertInLams elimWrapper f:es)
+            | otherwise = e
+
+        elimWrapper _ (App _ e) = e
+        elimWrapper _ e = e
 
 evalLam :: State t -> LamUse -> Id -> Expr -> (Rule, [State t])
 evalLam = undefined

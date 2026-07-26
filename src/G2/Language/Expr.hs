@@ -45,6 +45,9 @@ module G2.Language.Expr ( module G2.Language.Casts
 
                         , mkEqPrimExpr
 
+                        , getPrimWrapperAndPrim
+                        , isPrimWrapperDC
+
                         , isData
                         , isLit
                         , isLam
@@ -320,6 +323,19 @@ mkRealExtractOrd kv = Var $ Id (KV.realExtractOrd kv) TyUnknown
 
 mkOrdExtractEq :: KnownValues -> Expr
 mkOrdExtractEq kv = Var $ Id (KV.ordExtractEq kv) TyUnknown
+
+getPrimWrapperAndPrim :: KnownValues -> Expr -> Maybe (DataCon, Expr)
+getPrimWrapperAndPrim kv (App (Data dc) lit_e) | isPrimWrapperDC kv dc = Just (dc, lit_e)
+getPrimWrapperAndPrim _ _ = Nothing
+
+isPrimWrapperDC :: KnownValues -> DataCon -> Bool
+isPrimWrapperDC kv (DataCon { dc_name = n }) =
+       n == KV.dcInt kv
+    || n == KV.dcInteger kv
+    || n == KV.dcWord kv
+    || n == KV.dcFloat kv
+    || n == KV.dcDouble kv
+    || n == KV.dcChar kv
 
 isData :: Expr -> Bool
 isData (Data _) = True
