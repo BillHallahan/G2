@@ -23,6 +23,7 @@ import G2.Language.KnownValues
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Typing as T
 import qualified Data.HashSet as HS
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 
 class Simplifier simplifier where
@@ -355,47 +356,27 @@ instance Simplifier HigherOrderSimplifier where
 unfoldAppend :: TypeEnv -> KnownValues -> Expr -> Expr
 -- Split up folds containg appends
 unfoldAppend tenv kv e | [Prim FoldLeft t, func, accum, poss_app] <- unApp e
-                       , isEmpty kv accum
                        , Just (xs, ys) <- appendedSeqs tenv kv poss_app
-                       , isSplittableFoldAppend tenv kv func =
-    mkApp [ Prim StrAppend TyUnknown
+                       , Just (pr, init_e) <- isSplittableFold tenv kv func =
+    mkApp [ pr
           , mkApp [Prim FoldLeft t, func, accum, xs]
-          , mkApp [Prim FoldLeft t, func, accum, ys]
+          , mkApp [Prim FoldLeft t, func, init_e, ys]
           ]
 unfoldAppend tenv kv e | [Prim FoldLeft t, func, accum, poss_app] <- unApp e
-                       , isEmpty kv accum
                        , Just (xs, ys) <- appendedSeqs tenv kv poss_app
-                       , isSplittableFoldAppendRev tenv kv func =
-    mkApp [ Prim StrAppend TyUnknown
-          , mkApp [Prim FoldLeft t, func, accum, ys]
+                       , Just (pr, init_e) <- isSplittableFoldRev tenv kv func =
+    mkApp [ pr
+          , mkApp [Prim FoldLeft t, func, init_e, ys]
           , mkApp [Prim FoldLeft t, func, accum, xs]
           ]
-unfoldAppend tenv kv e | [Prim FoldLeftI t, func, offset, accum, poss_app] <- unApp e
-                       , isEmpty kv accum
-                       , Just (xs, ys) <- appendedSeqs tenv kv poss_app
-                       , isSplittableFoldAppend tenv kv func =
-    mkApp [ Prim StrAppend TyUnknown
-          , mkApp [Prim FoldLeftI t, func, offset, accum, xs]
-          , mkApp [Prim FoldLeftI t, func, offset, accum, ys]
-          ]
-
--- Split up folds containg ands
-unfoldAppend tenv kv e | [Prim FoldLeft t, func, accum, poss_app] <- unApp e 
-                       , isTrue kv accum
-                       , Just (xs, ys) <- appendedSeqs tenv kv poss_app
-                       , isSplittableFoldAnd func =
-    mkApp [ Prim And TyUnknown
-          , mkApp [Prim FoldLeft t, func, accum, xs]
-          , mkApp [Prim FoldLeft t, func, accum, ys]
-          ]
-unfoldAppend tenv kv e | [Prim FoldLeftI t, func, offset, accum, poss_app] <- unApp e
-                       , isTrue kv accum
-                       , Just (xs, ys) <- appendedSeqs tenv kv poss_app
-                       , isSplittableFoldAnd func =
-    mkApp [ Prim And TyUnknown
-          , mkApp [Prim FoldLeftI t, func, offset, accum, xs]
-          , mkApp [Prim FoldLeftI t, func, offset, accum, ys]
-          ]
+-- unfoldAppend tenv kv e | [Prim FoldLeftI t, func, offset, accum, poss_app] <- unApp e
+--                        , isEmpty kv accum
+--                        , Just (xs, ys) <- appendedSeqs tenv kv poss_app
+--                        , isSplittableFoldAppend tenv kv func =
+--     mkApp [ Prim StrAppend TyUnknown
+--           , mkApp [Prim FoldLeftI t, func, offset, accum, xs]
+--           , mkApp [Prim FoldLeftI t, func, offset, accum, ys]
+--           ]
 
 -- Split up maps
 unfoldAppend tenv kv e | [Prim Map t, func, poss_app] <- unApp e
@@ -419,14 +400,6 @@ unfoldAppend tenv kv e | [Prim MapConcatI t, func, poss_app] <- unApp e
           ]
 unfoldAppend _ _ e = e
 
-isEmpty :: KnownValues -> Expr -> Bool
-isEmpty kv (App (Data dc) _) = dc_name dc == dcEmpty kv
-isEmpty _ _ = False
-
-isTrue :: KnownValues -> Expr -> Bool
-isTrue kv (Data dc) = dc_name dc == dcTrue kv
-isTrue _ _ = False
-
 appendedSeqs :: TypeEnv -> KnownValues -> Expr -> Maybe (Expr, Expr)
 appendedSeqs tenv kv (consToAppend tenv kv -> (App (App (Prim StrAppend _) xs) ys)) = Just (xs, ys)
 appendedSeqs _ _ _ = Nothing
@@ -444,47 +417,69 @@ consToAppend _ _ e = e
 -- foldl' (\zs x -> zs ++ f x) [] (xs ++ ys)
 -- ==
 -- foldl' (\zs x -> zs ++ f x) [] xs ++ foldl' (\zs x -> zs ++ f x) [] ys
-isSplittableFoldAppend :: TypeEnv -> KnownValues -> Expr -> Bool
-isSplittableFoldAppend tenv kv = isSplittableFold StrAppend . modifyASTs (consToAppend tenv kv)
+isSplittableFold :: TypeEnv -> KnownValues -> Expr -> Maybe (Expr, Expr)
+isSplittableFold tenv kv f = isSplittableFold' tenv kv (modifyASTs (consToAppend tenv kv) f)
 
--- foldl' (\zs x -> f x:zs) [] (xs ++ ys)
--- ==
--- foldl' (\zs x -> f x:zs) [] ys ++ foldl' (\zs x -> f x:zs) [] xs
-isSplittableFoldAppendRev :: TypeEnv -> KnownValues ->  Expr -> Bool
-isSplittableFoldAppendRev tenv kv = isSplittableFoldRev StrAppend . modifyASTs (consToAppend tenv kv)
-
-isSplittableFoldAnd :: Expr -> Bool
-isSplittableFoldAnd = isSplittableFold And
-
-isSplittableFold :: Primitive -> Expr -> Bool
-isSplittableFold prim (Lam _ (Id col_v1 _) (Lam _ (Id _ _) e)) 
-    | [Prim prim' _, Var (Id col_v2 _), e2] <- unApp $ makeRightAssoc prim e
-    , prim == prim'
+isSplittableFold' :: TypeEnv
+                  -> KnownValues
+                  -> Expr -- ^ Function being folded over
+                  -> Maybe (Expr, Expr)
+isSplittableFold' tenv kv (Lam _ (Id col_v1 _) (Lam _ (Id _ _) e))
+    | [pr@(Prim prim _), Var (Id col_v2 t), e2] <- unApp $ makeRightAssoc e
+    , Just ident_e <- HM.lookup prim (assocPrimToIdent tenv kv t)
     , col_v1 == col_v2
-    , col_v1 `notElem` varNames e2 = True
-isSplittableFold _ _ = False
+    , col_v1 `notElem` varNames e2 = Just (pr, ident_e)
+isSplittableFold' _ _ _ = Nothing
+
+assocPrimToIdent :: TypeEnv -> KnownValues -> Type -> HM.HashMap Primitive Expr
+assocPrimToIdent tenv kv t =
+    let t' = case t of TyApp _ t_ -> t_; _ -> t in
+    HM.fromList [ (StrAppend, App (mkEmpty kv tenv) (Type t'))
+                , (And, mkTrue kv)
+                , (Or, mkFalse kv)
+    
+                , (Plus, Lit $ LitInt 0)
+                , (Mult, Lit $ LitInt 1) ]
+
+isEmpty :: KnownValues -> Expr -> Bool
+isEmpty kv (App (Data dc) _) = dc_name dc == dcEmpty kv
+isEmpty _ _ = False
 
 -- | Convert applications to be right associative
-makeRightAssoc :: Primitive -> Expr -> Expr
-makeRightAssoc prim
+makeRightAssoc :: Expr -> Expr
+makeRightAssoc
     (App 
         (App
             (Prim prim1 t1)
             (App (App (Prim prim2 _) e1) e2)
         )
-    e3) | prim1 == prim, prim2 == prim =
-        makeRightAssoc prim $ App
-            (App (Prim prim t1) e1)
-            (App (App (Prim prim t1) e2) e3)
-makeRightAssoc _ e = e
+    e3) | isAssoc prim1 , prim1 == prim2 =
+        makeRightAssoc $ App
+            (App (Prim prim1 t1) e1)
+            (App (App (Prim prim1 t1) e2) e3)
+makeRightAssoc e = e
 
-isSplittableFoldRev :: Primitive -> Expr -> Bool
-isSplittableFoldRev prim (Lam _ (Id col_v1 _) (Lam _ (Id _ _) e)) 
-    | [Prim prim' _, e1, Var (Id col_v2 _)] <- unApp e
-    , prim == prim'
+isAssoc :: Primitive -> Bool
+isAssoc StrAppend = True
+isAssoc And = True
+isAssoc Or = True
+isAssoc Plus = True
+isAssoc Mult = True
+isAssoc _ = False -- Conservative assumption
+
+-- foldl' (\zs x -> f x:zs) [] (xs ++ ys)
+-- ==
+-- foldl' (\zs x -> f x:zs) [] ys ++ foldl' (\zs x -> f x:zs) [] xs
+isSplittableFoldRev :: TypeEnv -> KnownValues -> Expr -> Maybe (Expr, Expr)
+isSplittableFoldRev tenv kv f = isSplittableFoldRev' tenv kv (modifyASTs (consToAppend tenv kv) f)
+
+isSplittableFoldRev' :: TypeEnv -> KnownValues -> Expr -> Maybe (Expr, Expr)
+isSplittableFoldRev' tenv kv (Lam _ (Id col_v1 _) (Lam _ (Id _ _) e))
+    | [pr@(Prim prim _), e1, Var (Id col_v2 t)] <- unApp e
+    , Just ident_e <- HM.lookup prim (assocPrimToIdent tenv kv t)
     , col_v1 == col_v2
-    , col_v1 `notElem` varNames e1 = True
-isSplittableFoldRev _ _ = False
+    , col_v1 `notElem` varNames e1 = Just (pr, ident_e)
+isSplittableFoldRev' _ _ _ = Nothing
 
 -- Looks for cases where a fold function is applied to a variable:
 --  @ fold_left f i xs @

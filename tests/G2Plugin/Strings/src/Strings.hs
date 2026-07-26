@@ -63,15 +63,39 @@ addTwoAll (x:xs) = x + 2:addOneAll xs -- Bug- calls addOneAll instead of addTwoA
 smtAddTwoAll :: [Int] -> [Int]
 smtAddTwoAll xs = smtMap (\x -> x + 2) xs
 
-{-
-{-# ANN sumList (SMTEquivIsWithConfig "smtSumList" "--log-pretty a_sum") #-}
+{-# ANN sumList (SMTEquivIsWithConfig "smtSumList" "") #-}
 sumList :: [Int] -> Int
 sumList [] = 0
 sumList (x:xs) = x + sumList xs
 
 smtSumList :: [Int] -> Int
 smtSumList xs = smtFoldLeft (\x y -> x + y) 0 xs
+
+{-# ANN sumList2 (SMTEquivIsWithConfig "smtSumList2" "") #-}
+sumList2 :: [Int] -> Int
+sumList2 [] = 0
+sumList2 (x:xs) = x + sumList xs
+
+smtSumList2 :: [Int] -> Int
+smtSumList2 xs = smtFoldLeft (\x y -> y + x) 0 xs
+
+{-
+{-# ANN sumListInit9 (SMTEquivIsWithConfig "smtSumListInit9" "") #-}
+sumListInit9 :: [Int] -> Int
+sumListInit9 [] = 9
+sumListInit9 (x:xs) = x + sumListInit9 xs
+
+smtSumListInit9 :: [Int] -> Int
+smtSumListInit9 xs = smtFoldLeft (\x y -> x + y) 9 xs
 -}
+
+{-# ANN sumListBad (SMTEquivIsWithConfig "smtSumListBad" "") #-}
+sumListBad :: [Int] -> Int
+sumListBad [] = 0
+sumListBad (x:xs) = x + sumListBad xs
+
+smtSumListBad :: [Int] -> Int
+smtSumListBad xs = smtFoldLeft (\x y -> x + y + 1) 0 xs
 
 {-# ANN myIntersperse (SMTEquivIsWithConfig "smtMyIntersperse" "")
     #-}
@@ -108,6 +132,52 @@ smtMyIntersperseBad _ [] = []
 smtMyIntersperseBad _ [x] = [x]
 smtMyIntersperseBad x (i:ys) = i:smtFoldLeft (\acc y -> acc $++ [x] $++ [y]) [] ys
 
+{-# ANN myIntersperseBegin (SMTEquivIs "smtMyIntersperseBegin")
+    #-}
+myIntersperseBegin :: Int -> [Int] -> [Int]
+myIntersperseBegin x [] = [x]
+myIntersperseBegin x [y] = [x, y]
+myIntersperseBegin x (y:ys) = x:y:myIntersperseBegin x ys
+
+smtMyIntersperseBegin :: Int -> [Int] -> [Int]
+smtMyIntersperseBegin x [] = [x]
+smtMyIntersperseBegin x [y] = [x, y]
+smtMyIntersperseBegin x ys = smtFoldLeft (\acc y -> acc $++ ([x, y])) [] ys
+
+{-# ANN myIntersperseBegin2 (SMTEquivIs "smtMyIntersperseBegin2")
+    #-}
+myIntersperseBegin2 :: Int -> [Int] -> [Int]
+myIntersperseBegin2 x [] = [x]
+myIntersperseBegin2 x [y] = [x, y]
+myIntersperseBegin2 x (y:ys) = x:y:myIntersperseBegin2 x ys
+
+smtMyIntersperseBegin2 :: Int -> [Int] -> [Int]
+smtMyIntersperseBegin2 x [] = [x]
+smtMyIntersperseBegin2 x [y] = [x, y]
+smtMyIntersperseBegin2 x (y:ys) = smtFoldLeft (\acc y' -> acc $++ ([x, y'])) [x, y] ys
+
+{-# ANN myIntersperseBeginBad (SMTEquivIs "smtMyIntersperseBeginBad")
+    #-}
+myIntersperseBeginBad :: Int -> [Int] -> [Int]
+myIntersperseBeginBad x [] = [x]
+myIntersperseBeginBad x [y] = [x, y]
+myIntersperseBeginBad x (y:ys) = x:y:myIntersperseBeginBad x ys
+
+smtMyIntersperseBeginBad :: Int -> [Int] -> [Int]
+smtMyIntersperseBeginBad x [] = [x]
+smtMyIntersperseBeginBad x [y] = [x, y]
+smtMyIntersperseBeginBad x (y:ys) = smtFoldLeft (\acc _ -> acc $++ ([x, y])) [x, y] ys
+
+{-# ANN myIntersperseApp1 (SMTEquivIsWithConfig "smtMyIntersperseApp1" "")
+    #-}
+myIntersperseApp1 :: Int -> [Int] -> [Int]
+myIntersperseApp1 x xs = [1] ++ myIntersperse x xs
+
+smtMyIntersperseApp1 :: Int -> [Int] -> [Int]
+smtMyIntersperseApp1 _ [] = [1]
+smtMyIntersperseApp1 _ [x] = [1, x]
+smtMyIntersperseApp1 x (i:ys) = smtFoldLeft (\acc y -> acc $++ ([x] $++ [y])) [1, i] ys
+
 {-# ANN myRev (SMTEquivIsWithConfig "smtMyRev" "") #-}
 myRev :: [Int] -> [Int]
 myRev [] = []
@@ -123,3 +193,18 @@ myRevBad (y:ys) = myRev ys ++ [y]
 
 smtMyRevBad :: [Int] -> [Int]
 smtMyRevBad ys = smtFoldLeft (\acc y -> acc $++ [y]) [] ys
+
+{-
+{-# ANN myRevApp1 (SMTEquivIsWithConfig "smtMyRevApp1" "") #-}
+myRevApp1 :: [Int] -> [Int]
+myRevApp1 xs = myRev xs ++ [1]
+
+smtMyRevApp1 :: [Int] -> [Int]
+smtMyRevApp1 ys = smtFoldLeft (\acc y -> y:acc) [1] ys
+-}
+{-# ANN myRevApp1Bad (SMTEquivIsWithConfig "smtMyRevApp1Bad" "") #-}
+myRevApp1Bad :: [Int] -> [Int]
+myRevApp1Bad xs = myRev xs ++ [1]
+
+smtMyRevApp1Bad :: [Int] -> [Int]
+smtMyRevApp1Bad ys = smtFoldLeft (\acc y -> y:y:acc) [1] ys
