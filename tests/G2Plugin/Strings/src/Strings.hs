@@ -79,6 +79,7 @@ sumList2 (x:xs) = x + sumList xs
 smtSumList2 :: [Int] -> Int
 smtSumList2 xs = smtFoldLeft (\x y -> y + x) 0 xs
 
+{-
 {-# ANN sumListInit9 (SMTEquivIsWithConfig "smtSumListInit9" "") #-}
 sumListInit9 :: [Int] -> Int
 sumListInit9 [] = 9
@@ -86,6 +87,7 @@ sumListInit9 (x:xs) = x + sumListInit9 xs
 
 smtSumListInit9 :: [Int] -> Int
 smtSumListInit9 xs = smtFoldLeft (\x y -> x + y) 9 xs
+-}
 
 {-# ANN sumListBad (SMTEquivIsWithConfig "smtSumListBad" "") #-}
 sumListBad :: [Int] -> Int
@@ -142,6 +144,18 @@ smtMyIntersperseBegin x [] = [x]
 smtMyIntersperseBegin x [y] = [x, y]
 smtMyIntersperseBegin x ys = smtFoldLeft (\acc y -> acc $++ ([x, y])) [] ys
 
+{-# ANN myIntersperseBegin2 (SMTEquivIs "smtMyIntersperseBegin2")
+    #-}
+myIntersperseBegin2 :: Int -> [Int] -> [Int]
+myIntersperseBegin2 x [] = [x]
+myIntersperseBegin2 x [y] = [x, y]
+myIntersperseBegin2 x (y:ys) = x:y:myIntersperseBegin2 x ys
+
+smtMyIntersperseBegin2 :: Int -> [Int] -> [Int]
+smtMyIntersperseBegin2 x [] = [x]
+smtMyIntersperseBegin2 x [y] = [x, y]
+smtMyIntersperseBegin2 x (y:ys) = smtFoldLeft (\acc y' -> acc $++ ([x, y'])) [x, y] ys
+
 {-# ANN myIntersperseBeginBad (SMTEquivIs "smtMyIntersperseBeginBad")
     #-}
 myIntersperseBeginBad :: Int -> [Int] -> [Int]
@@ -152,7 +166,7 @@ myIntersperseBeginBad x (y:ys) = x:y:myIntersperseBeginBad x ys
 smtMyIntersperseBeginBad :: Int -> [Int] -> [Int]
 smtMyIntersperseBeginBad x [] = [x]
 smtMyIntersperseBeginBad x [y] = [x, y]
-smtMyIntersperseBeginBad x (y:ys) = smtFoldLeft (\acc y' -> acc $++ ([x, y'])) [x, y] ys
+smtMyIntersperseBeginBad x (y:ys) = smtFoldLeft (\acc y' -> acc $++ ([x, y])) [x, y] ys
 
 {-# ANN myIntersperseApp1 (SMTEquivIsWithConfig "smtMyIntersperseApp1" "")
     #-}

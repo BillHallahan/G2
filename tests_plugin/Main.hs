@@ -24,9 +24,14 @@ tests = testGroup "All Tests"
 
                                 , ("sumList", "smtSumList")
                                 , ("sumList2", "smtSumList2")
+                                , ("sumListInit9", "smtSumListInit9")
 
                                 , ("myIntersperse", "smtMyIntersperse")
                                 , ("myIntersperse2", "smtMyIntersperse2")
+
+                                , ("myIntersperseBegin", "smtMyIntersperseBegin")
+                                , ("myIntersperseBegin2", "smtMyIntersperseBegin2")
+
                                 , ("myRev", "smtMyRev")
                                 ]
                                 [ ("corr", "smtCorr")
@@ -34,6 +39,7 @@ tests = testGroup "All Tests"
                                 , ("addTwoAll", "smtAddTwoAll")
                                 , ("sumListBad", "smtSumListBad")
                                 , ("myIntersperseBad", "smtMyIntersperseBad")
+                                , ("myIntersperseBeginBad", "smtMyIntersperseBeginBad")
                                 , ("myRevBad", "smtMyRevBad") ]
         , checkNebulaPackage "tests/RewriteVerify/PluginTests/Simple" ["add_assoc", "fg", "fg_toint"] ["f_one"]]
 
