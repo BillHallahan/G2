@@ -40,7 +40,8 @@ tests = testGroup "All Tests"
                                 , ("sumListBad", "smtSumListBad")
                                 , ("myIntersperseBad", "smtMyIntersperseBad")
                                 , ("myIntersperseBeginBad", "smtMyIntersperseBeginBad")
-                                , ("myRevBad", "smtMyRevBad") ]
+                                , ("myRevBad", "smtMyRevBad")
+                                , ("myRevApp1Bad", "smtMyRevApp1Bad") ]
         , checkNebulaPackage "tests/RewriteVerify/PluginTests/Simple" ["add_assoc", "fg", "fg_toint"] ["f_one"]]
 
 -------------------------------------------------------------------------------

@@ -366,8 +366,8 @@ unfoldAppend tenv kv e | [Prim FoldLeft t, func, accum, poss_app] <- unApp e
                        , Just (xs, ys) <- appendedSeqs tenv kv poss_app
                        , Just (pr, init_e) <- isSplittableFoldRev tenv kv func =
     mkApp [ pr
-          , mkApp [Prim FoldLeft t, func, accum, ys]
-          , mkApp [Prim FoldLeft t, func, init_e, xs]
+          , mkApp [Prim FoldLeft t, func, init_e, ys]
+          , mkApp [Prim FoldLeft t, func, accum, xs]
           ]
 -- unfoldAppend tenv kv e | [Prim FoldLeftI t, func, offset, accum, poss_app] <- unApp e
 --                        , isEmpty kv accum

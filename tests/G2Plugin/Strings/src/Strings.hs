@@ -166,7 +166,7 @@ myIntersperseBeginBad x (y:ys) = x:y:myIntersperseBeginBad x ys
 smtMyIntersperseBeginBad :: Int -> [Int] -> [Int]
 smtMyIntersperseBeginBad x [] = [x]
 smtMyIntersperseBeginBad x [y] = [x, y]
-smtMyIntersperseBeginBad x (y:ys) = smtFoldLeft (\acc y' -> acc $++ ([x, y])) [x, y] ys
+smtMyIntersperseBeginBad x (y:ys) = smtFoldLeft (\acc _ -> acc $++ ([x, y])) [x, y] ys
 
 {-# ANN myIntersperseApp1 (SMTEquivIsWithConfig "smtMyIntersperseApp1" "")
     #-}
@@ -193,3 +193,18 @@ myRevBad (y:ys) = myRev ys ++ [y]
 
 smtMyRevBad :: [Int] -> [Int]
 smtMyRevBad ys = smtFoldLeft (\acc y -> acc $++ [y]) [] ys
+
+{-
+{-# ANN myRevApp1 (SMTEquivIsWithConfig "smtMyRevApp1" "") #-}
+myRevApp1 :: [Int] -> [Int]
+myRevApp1 xs = myRev xs ++ [1]
+
+smtMyRevApp1 :: [Int] -> [Int]
+smtMyRevApp1 ys = smtFoldLeft (\acc y -> y:acc) [1] ys
+-}
+{-# ANN myRevApp1Bad (SMTEquivIsWithConfig "smtMyRevApp1Bad" "") #-}
+myRevApp1Bad :: [Int] -> [Int]
+myRevApp1Bad xs = myRev xs ++ [1]
+
+smtMyRevApp1Bad :: [Int] -> [Int]
+smtMyRevApp1Bad ys = smtFoldLeft (\acc y -> y:y:acc) [1] ys
