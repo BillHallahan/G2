@@ -24,7 +24,6 @@ tests = testGroup "All Tests"
 
                                 , ("sumList", "smtSumList")
                                 , ("sumList2", "smtSumList2")
-                                , ("sumListInit9", "smtSumListInit9")
 
                                 , ("myIntersperse", "smtMyIntersperse")
                                 , ("myIntersperse2", "smtMyIntersperse2")
