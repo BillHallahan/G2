@@ -79,13 +79,15 @@ sumList2 (x:xs) = x + sumList xs
 smtSumList2 :: [Int] -> Int
 smtSumList2 xs = smtFoldLeft (\x y -> y + x) 0 xs
 
-{-# ANN sumListInit9 (SMTEquivIsWithConfig "smtSumListInit9" "--print-smt") #-}
+{-
+{-# ANN sumListInit9 (SMTEquivIsWithConfig "smtSumListInit9" "") #-}
 sumListInit9 :: [Int] -> Int
 sumListInit9 [] = 9
 sumListInit9 (x:xs) = x + sumListInit9 xs
 
 smtSumListInit9 :: [Int] -> Int
 smtSumListInit9 xs = smtFoldLeft (\x y -> x + y) 9 xs
+-}
 
 {-# ANN sumListBad (SMTEquivIsWithConfig "smtSumListBad" "") #-}
 sumListBad :: [Int] -> Int

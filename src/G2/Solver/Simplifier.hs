@@ -445,24 +445,6 @@ isEmpty :: KnownValues -> Expr -> Bool
 isEmpty kv (App (Data dc) _) = dc_name dc == dcEmpty kv
 isEmpty _ _ = False
 
-isDCWithName :: Name -> Expr -> Bool
-isDCWithName n (Data dc) = dc_name dc == n
-isDCWithName _ _ = False
-
-isSpecLitExpr :: Integer -> Expr -> Bool
-isSpecLitExpr i (App (Data _) (Lit l)) = isSpecLit i l
-isSpecLitExpr i (Lit l) = isSpecLit i l
-isSpecLitExpr _ _ = False
-
-isSpecLit :: Integer -> Lit -> Bool
-isSpecLit i (LitInt j) = i == j
-isSpecLit i (LitWord j) = fromInteger i == j
-isSpecLit i (LitFloat j) = fromInteger i == j
-isSpecLit i (LitDouble j) = fromInteger i == j
-isSpecLit i (LitRational j) = fromInteger i == j
-isSpecLit i (LitInteger j) = fromInteger i == j
-isSpecLit _ _ = False
-
 -- | Convert applications to be right associative
 makeRightAssoc :: Expr -> Expr
 makeRightAssoc
