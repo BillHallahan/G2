@@ -79,6 +79,14 @@ sumList2 (x:xs) = x + sumList xs
 smtSumList2 :: [Int] -> Int
 smtSumList2 xs = smtFoldLeft (\x y -> y + x) 0 xs
 
+{-# ANN sumListInit9 (SMTEquivIsWithConfig "smtSumListInit9" "") #-}
+sumListInit9 :: [Int] -> Int
+sumListInit9 [] = 9
+sumListInit9 (x:xs) = x + sumListInit9 xs
+
+smtSumListInit9 :: [Int] -> Int
+smtSumListInit9 xs = smtFoldLeft (\x y -> x + y) 9 xs
+
 {-# ANN sumListBad (SMTEquivIsWithConfig "smtSumListBad" "") #-}
 sumListBad :: [Int] -> Int
 sumListBad [] = 0
@@ -121,6 +129,40 @@ smtMyIntersperseBad :: Int -> [Int] -> [Int]
 smtMyIntersperseBad _ [] = []
 smtMyIntersperseBad _ [x] = [x]
 smtMyIntersperseBad x (i:ys) = i:smtFoldLeft (\acc y -> acc $++ [x] $++ [y]) [] ys
+
+{-# ANN myIntersperseBegin (SMTEquivIs "smtMyIntersperseBegin")
+    #-}
+myIntersperseBegin :: Int -> [Int] -> [Int]
+myIntersperseBegin x [] = [x]
+myIntersperseBegin x [y] = [x, y]
+myIntersperseBegin x (y:ys) = x:y:myIntersperseBegin x ys
+
+smtMyIntersperseBegin :: Int -> [Int] -> [Int]
+smtMyIntersperseBegin x [] = [x]
+smtMyIntersperseBegin x [y] = [x, y]
+smtMyIntersperseBegin x ys = smtFoldLeft (\acc y -> acc $++ ([x, y])) [] ys
+
+{-# ANN myIntersperseBeginBad (SMTEquivIs "smtMyIntersperseBeginBad")
+    #-}
+myIntersperseBeginBad :: Int -> [Int] -> [Int]
+myIntersperseBeginBad x [] = [x]
+myIntersperseBeginBad x [y] = [x, y]
+myIntersperseBeginBad x (y:ys) = x:y:myIntersperseBeginBad x ys
+
+smtMyIntersperseBeginBad :: Int -> [Int] -> [Int]
+smtMyIntersperseBeginBad x [] = [x]
+smtMyIntersperseBeginBad x [y] = [x, y]
+smtMyIntersperseBeginBad x (y:ys) = smtFoldLeft (\acc y' -> acc $++ ([x, y'])) [x, y] ys
+
+{-# ANN myIntersperseApp1 (SMTEquivIsWithConfig "smtMyIntersperseApp1" "")
+    #-}
+myIntersperseApp1 :: Int -> [Int] -> [Int]
+myIntersperseApp1 x xs = [1] ++ myIntersperse x xs
+
+smtMyIntersperseApp1 :: Int -> [Int] -> [Int]
+smtMyIntersperseApp1 _ [] = [1]
+smtMyIntersperseApp1 _ [x] = [1, x]
+smtMyIntersperseApp1 x (i:ys) = smtFoldLeft (\acc y -> acc $++ ([x] $++ [y])) [1, i] ys
 
 {-# ANN myRev (SMTEquivIsWithConfig "smtMyRev" "") #-}
 myRev :: [Int] -> [Int]
