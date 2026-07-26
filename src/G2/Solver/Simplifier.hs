@@ -420,14 +420,6 @@ consToAppend _ _ e = e
 isSplittableFold :: TypeEnv -> KnownValues -> Expr -> Expr -> Maybe Expr
 isSplittableFold tenv kv f = isSplittableFold' kv (modifyASTs (consToAppend tenv kv) f)
 
--- isSplittableFold :: Primitive -> Expr -> Bool
--- isSplittableFold prim (Lam _ (Id col_v1 _) (Lam _ (Id _ _) e)) 
---     | [Prim prim' _, Var (Id col_v2 _), e2] <- unApp $ makeRightAssoc e
---     , prim == prim'
---     , col_v1 == col_v2
---     , col_v1 `notElem` varNames e2 = True
--- isSplittableFold _ _ = False
-
 isSplittableFold' :: KnownValues
                   -> Expr -- ^ Function being folded over
                   -> Expr -- ^ Initial value
