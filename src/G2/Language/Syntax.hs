@@ -318,7 +318,8 @@ data Primitive = -- Mathematical and logical operators
                | WriteMutVar -- ^ `forall d a. MutVar# d a -> a -> State# d -> State# d`.
 
                -- ADTs
-               | IsConstructor DataCon -- ^ HasConstructor dc :: a -> Bool, the value of type `a` has the constructor `dc`
+               | IsConstructor DataCon -- ^ IsConstructor dc :: a -> Bool, the value of type `a` has the constructor `dc`
+               | Selector DataCon Int -- ^ Selector dc i :: a, the i^th field of the constructor-- should only be used if we are SURE we have the given constructor
 
                -- True if passed an expression that can be converted into an SMT formula, false otherwise
                | IsSMTRep

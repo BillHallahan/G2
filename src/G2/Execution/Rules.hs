@@ -1136,6 +1136,10 @@ liftSymDefAltPCs kv tv_env mexpr (DataAlt dc _)
          Just $ ExtCond (mkApp [Prim Eq TyUnknown, App (Prim StrLen TyUnknown) mexpr, Lit (LitInt 0)]) True
     | dc_name dc == KV.dcEmpty kv =
          Just $ ExtCond (mkApp [Prim Neq TyUnknown, App (Prim StrLen TyUnknown) mexpr, Lit (LitInt 0)]) True
+    | dc_name dc == KV.dcTrue kv =
+         Just $ ExtCond (mkApp [Prim Eq TyUnknown, mexpr, mkFalse kv]) True
+    | dc_name dc == KV.dcFalse kv =
+         Just $ ExtCond (mkApp [Prim Eq TyUnknown, mexpr, mkTrue kv]) True
     | otherwise = Just $ ExtCond (App (Prim Not TyUnknown) (App (Prim (IsConstructor dc) TyUnknown) mexpr)) True
 liftSymDefAltPCs _ _ mexpr (LitAlt lit) = Just $ AltCond lit mexpr False
 liftSymDefAltPCs _ _ _ Default = Nothing

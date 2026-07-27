@@ -4,7 +4,7 @@ module Tuples where
 
 import G2.Plugin
 
-{-# ANN module ("--smt-tuples")
+{-# ANN module ("--smt-tuples --smt-adts A")
     #-}
 
 {-# ANN appTuple (SMTEquivIs "smtAppTuple")
@@ -26,15 +26,23 @@ smtAppTupleBad :: Int -> Int -> [(Int, Int)] -> [(Int, Int)]
 smtAppTupleBad x y ts = ts $++ ts $++ [(x, y)]
 
 {-
+data A = A
+
+instance Eq A where
+    A == A = True
+
 {-# ANN pairZero (SMTEquivIsWithConfig "smtPairZero" "--print-smt")
     #-}
-pairZero :: [Int] -> [(Int, Int)]
+pairZero :: [A] -> [(A, A)]
 pairZero [] = []
-pairZero (x:xs) = (x, 0):pairZero xs
+pairZero (x:xs) = (x, A):pairZero xs
 
-smtPairZero :: [Int] -> [(Int, Int)]
-smtPairZero xs = smtFoldLeftI (\i ts _ -> let !x = xs `smtNth` i in ts $++ [(x, 0)]) 0 [] xs
+smtPairZero :: [A] -> [(A, A)]
+smtPairZero xs = genVal (\ys -> xs `smtEq` smtMap fst ys
+                             && smtFoldLeft (\acc y -> acc && y == A) True (smtMap snd ys))
+-}
 
+{-
 {-# ANN myZip (SMTEquivIsWithConfig "smtMyZip" "--print-smt")
     #-}
 myZip :: [Int] -> [Int] -> [(Int, Int)]

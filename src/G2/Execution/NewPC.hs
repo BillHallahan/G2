@@ -105,15 +105,16 @@ reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state 
         -- To avoid this, we introduce constraints that:
         --   is-Just x ==> x == Just y
         -- i.e. if x is a `Just` constructor, its argument MUST be equal to y.
-        force_specific_cons_args = map (uncurry consImpliesEq) (concatMap new_conc_entries state_diffs)
+        force_specific_cons_args = mapMaybe (uncurry consImpliesEq) (concatMap new_conc_entries state_diffs)
         consImpliesEq n e
+            | typeOf tv_env e == tyBool kv = Nothing
             | Data dc <- appCenter e =
                 let
                     v = Var (Id n $ typeOf tv_env e)
                     has_cons = App (Prim (IsConstructor dc) TyUnknown) v
                     eq_dc = mkApp [ Prim Eq TyUnknown, v, e]
                 in
-                ExtCond ( mkApp [Prim Implies TyUnknown, has_cons, eq_dc]) True 
+                Just $ ExtCond ( mkApp [Prim Implies TyUnknown, has_cons, eq_dc]) True 
             | otherwise = error "Expected constructor"
 
         wrap diff = LitTableFrame (Diff diff (path_conds state)) True

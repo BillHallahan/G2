@@ -8,6 +8,7 @@ module G2.Translation.Interface ( translateBase
                                 
                                 , adjustAssume
                                 , adjustAssert
+                                , adjustMkSymbolicPrim
                                 , adjustFunction) where
 
 import Control.Monad.Extra

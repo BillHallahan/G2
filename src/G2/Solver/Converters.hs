@@ -776,7 +776,7 @@ datatypeDecls tv_env n (DataTyCon { bound_ids = is, data_cons = dcs }) =
         dts = map (\dc ->
                         let
                             dc_n = nameToStr $ dc_name dc
-                            dc_a = zipWith (\i d -> ("extract" ++ show i, d)) [1 :: Integer ..] . map (typeToSMT tv_env) . anonArgumentTypes $ dc_type dc
+                            dc_a = zipWith (\i d -> (selectorName dc_n i, d)) [1 :: Int ..] . map (typeToSMT tv_env) . anonArgumentTypes $ dc_type dc
                         in
                         (dc_n, dc_a)
                   ) dcs
@@ -784,6 +784,11 @@ datatypeDecls tv_env n (DataTyCon { bound_ids = is, data_cons = dcs }) =
     in
     DeclareDatatypes [ smt_dt ]
 datatypeDecls _ _ _ = error "datatypeDecls: unsupported"
+
+selectorName :: String -> Int -> String
+selectorName n i 
+    | '|':ns <- n = "|select_" ++ show i ++ "_" ++ ns
+    | otherwise = n ++ "_select_" ++ show i
 
 pcVarDecls :: TV.TyVarEnv -> PathConds -> [SMTHeader]
 pcVarDecls tv = createUniqVarDecls . HS.toList . pcVars tv
@@ -1026,7 +1031,9 @@ toSolverAST str_seq = go
         go (V n _) = TB.string n
         go (DataSMT n []) = TB.string n
         go (DataSMT n as) = "(" <> TB.string n <> " " <> TB.intercalate " " (map go as) <> ")"
-        go (IsConstructorSMT n e) = "(is-" <> TB.string n <> " " <> go e <> ")"
+        go (IsConstructorSMT n e) | '|':ns <- n = "(|is-" <> TB.string ns <> " " <> go e <> ")"
+                                  | otherwise = "(is-" <> TB.string n <> " " <> go e <> ")"
+        go (SelectorSMT n i e) = "(" <> TB.string (selectorName n i) <> go e <> ""
 
 
         go (Named x n) = "(! " <> go x <> " :named " <> TB.string n <> ")"

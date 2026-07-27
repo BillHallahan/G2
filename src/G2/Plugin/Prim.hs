@@ -16,6 +16,10 @@ import GHC.Prim2
 -- pSMTUnit
 -- Just use [x]
 
+{-# NOINLINE pSmtEq# #-}
+pSmtEq# :: [a] -> [a] -> Bool
+pSmtEq# _ _ = True
+
 {-# NOINLINE pSmtLen# #-}
 pSmtLen# :: [a] -> Int#
 pSmtLen# _ = 0#
@@ -87,6 +91,10 @@ pIsSMTRep# _ = error "pIsSMTRep#"
 {-# NOINLINE pBuildLitTable# #-}
 pBuildLitTable# :: (a -> b) -> LitTableInfo a b
 pBuildLitTable# _ = error "pBuildLitTable#"
+
+{-# NOINLINE pSymGen# #-}
+pSymGen# :: a
+pSymGen# = error "pSymGen#"
 
 ------------------------------------------------------------------------------
 -- Other
