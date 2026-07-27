@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns, CPP, DeriveDataTypeable, DeriveGeneric,
-             FlexibleContexts, LambdaCase, MagicHash, OverloadedStrings, ScopedTypeVariables, TupleSections #-}
+             FlexibleContexts, LambdaCase, MagicHash, OverloadedStrings,
+             ScopedTypeVariables, TypeApplications, TupleSections #-}
 
 module G2.Plugin (SymEx (..)
                  , plugin
@@ -530,8 +531,8 @@ smtFoldLeft' f x xs =
 --     let f' j = f (I# j) in
 --     xs `evalSeq` pSmtFoldLeftI# f' i x xs 
 
-genVal :: (a -> Bool) -> a
-genVal p = let !x = pSymGen# in assume (p x) x
+genVal :: forall a . (a -> Bool) -> a
+genVal p = let !x = pSymGen# @a in assume (p x) x
 
 {-# NOINLINE evalSeq #-}
 evalSeq :: [a] -> b -> b

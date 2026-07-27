@@ -592,6 +592,7 @@ funcToSMT1Prim tv ReStar e = ReStarSMT (exprToSMT tv e)
 funcToSMT1Prim tv ReComp e = ReCompSMT (exprToSMT tv e)
 
 funcToSMT1Prim tv (IsConstructor dc) e = IsConstructorSMT (nameToStr $ dc_name dc) (exprToSMT tv e)
+funcToSMT1Prim tv (Selector dc i) e = SelectorSMT (nameToStr $ dc_name dc) i (exprToSMT tv e)
 
 funcToSMT1Prim _ err _ = error $ "funcToSMT1Prim: invalid Primitive " ++ show err
 
@@ -1033,7 +1034,7 @@ toSolverAST str_seq = go
         go (DataSMT n as) = "(" <> TB.string n <> " " <> TB.intercalate " " (map go as) <> ")"
         go (IsConstructorSMT n e) | '|':ns <- n = "(|is-" <> TB.string ns <> " " <> go e <> ")"
                                   | otherwise = "(is-" <> TB.string n <> " " <> go e <> ")"
-        go (SelectorSMT n i e) = "(" <> TB.string (selectorName n i) <> go e <> ""
+        go (SelectorSMT n i e) = "(" <> TB.string (selectorName n i) <> " " <> go e <> ")"
 
 
         go (Named x n) = "(! " <> go x <> " :named " <> TB.string n <> ")"

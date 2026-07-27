@@ -25,22 +25,23 @@ appTupleBad x y (t:ts) = t:appTupleBad x y ts
 smtAppTupleBad :: Int -> Int -> [(Int, Int)] -> [(Int, Int)]
 smtAppTupleBad x y ts = ts $++ ts $++ [(x, y)]
 
-{-
-data A = A
+
+data A = A | B
 
 instance Eq A where
     A == A = True
+    B == B = True
+    _ == _ = False
 
-{-# ANN pairZero (SMTEquivIsWithConfig "smtPairZero" "--print-smt")
+{-# ANN pairA (SMTEquivIsWithConfig "smtPairA" "--log-pretty a_pair4 --log-after-n 999999999 --print-smt")
     #-}
-pairZero :: [A] -> [(A, A)]
-pairZero [] = []
-pairZero (x:xs) = (x, A):pairZero xs
+pairA :: [A] -> [(A, A)]
+pairA [] = []
+pairA (x:xs) = (x, A):pairA xs
 
-smtPairZero :: [A] -> [(A, A)]
-smtPairZero xs = genVal (\ys -> xs `smtEq` smtMap fst ys
-                             && smtFoldLeft (\acc y -> acc && y == A) True (smtMap snd ys))
--}
+smtPairA :: [A] -> [(A, A)]
+smtPairA xs = genVal (\ys -> xs `smtEq` smtMap fst ys
+                          && smtFoldLeft (\acc y -> acc && snd y == A) True ys)
 
 {-
 {-# ANN myZip (SMTEquivIsWithConfig "smtMyZip" "--print-smt")

@@ -62,6 +62,7 @@ reduceNewPC _ _ _ ng (SingleState state) = return (ng, [state])
 reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state state_diffs)
     | inLitTableMode state
     , scrut_smt_rep || all (null . new_conc_entries) state_diffs = do
+        putStrLn "Lit Table handling"
         let state_diffs' = map elim_conc_entries state_diffs
         res <- reduceToFirstDiff discard_unknown_states solver simplifier ng state state_diffs'
         case res of
@@ -82,19 +83,31 @@ reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state 
         tenv = type_env state
         tv_env = tyvar_env state
         ce = curr_expr state
-        unwrapped_ce = getCurrExpr ce
+        unwrapped_ce = (\(CurrExpr _ e) -> e) ce
 
         scrut_smt_rep = case unwrapped_ce of
                             Case e _ _ _ 
                                 | DCPC.allInDCPC tenv $ typeOf tv_env e -> True
                                 | TyCon n _ <- typeOf tv_env e -> n == KV.tyBool kv
                             _ -> False
+        
+        conc_entry_to_selector n e
+            | Data dc:es <- unApp e =
+                let
+                    i = Id n $ typeOf tv_env e
+                    es' = filter (not . isType) es
+                in
+                zipWith (\v j -> case v of
+                                    (Var (Id vn _)) -> (vn, mkApp [Prim (Selector dc j) TyUnknown, Var i])
+                                    _ -> error "reduceNewPC: expected var") es' [1 :: Int ..]
+            | otherwise = []
 
-        getCurrExpr (CurrExpr _ e) = e
+        isType (Type _) = True
+        isType _ = False
 
         -- For types being branched on in literal tables, we want to avoid concretization,
         -- only using the path conds
-        elim_conc_entries d = d { new_conc_entries = []}
+        elim_conc_entries d = d { new_conc_entries = concatMap (uncurry conc_entry_to_selector) $ new_conc_entries d}
 
         -- Suppose we have:
         --   x == Just y
