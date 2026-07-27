@@ -105,7 +105,7 @@ infixr 0 ==>
 -- from previously compiled modules.  We also need to avoid reusing the same
 -- names.  We use `compiledModules` to store both previously compiled modules
 -- and existing Expression/Type Name maps.
-compiledModules :: IORef (Maybe (ExtractedG2, NameMap, TypeNameMap, S.Set L.Name))
+compiledModules :: IORef (Maybe ([CommandLineOption], ExtractedG2, NameMap, TypeNameMap, S.Set L.Name))
 compiledModules = unsafePerformIO $ newIORef Nothing
 {-# NOINLINE compiledModules #-}
 
@@ -122,19 +122,23 @@ pluginConfig homedir =
 
 install :: [CommandLineOption] -> [CoreToDo] -> CoreM [CoreToDo]
 install cmd_lne todo = do
+    return $ CoreDoPluginPass "G2" (g2PluginPass cmd_lne):todo
+
+g2PluginPass :: [CommandLineOption] -> ModGuts -> CoreM ModGuts
+g2PluginPass cmd_lne modguts = do
+    glob_cmd_lne <- getModuleAnnot modguts
+    let cmd_lne' = cmd_lne ++ concatMap words glob_cmd_lne
+
     env <- getHscEnv
     homedir <- liftIO $ getHomeDirectory
-    config <- liftIO . handleParseResult $ execParserPure defaultPrefs (pluginConfig homedir) cmd_lne
-    return $ CoreDoPluginPass "G2" (g2PluginPass cmd_lne config env):todo
+    config <- liftIO . handleParseResult $ execParserPure defaultPrefs (pluginConfig homedir) cmd_lne'
 
-g2PluginPass :: [CommandLineOption] -> Config -> HscEnv -> ModGuts -> CoreM ModGuts
-g2PluginPass cmd_lne config env modguts = do
-    _ <- g2PluginPass' cmd_lne config env modguts
+    _ <- g2PluginPass' cmd_lne' config env modguts
     return modguts
 
 g2PluginPass' :: [CommandLineOption] -> Config -> HscEnv -> ModGuts -> CoreM ()
 g2PluginPass' cmd_lne config env modguts = do
-    (new_nm, new_tm, ex_g2, prev_explored) <- loadExtractedG2 config env modguts
+    (new_nm, new_tm, ex_g2, prev_explored) <- loadExtractedG2 cmd_lne config env modguts
     let very_simp_state = initSimpleState ex_g2 new_nm new_tm
 
     -- Get the names of functions we are going to be symbolically executing
@@ -156,7 +160,7 @@ g2PluginPass' cmd_lne config env modguts = do
         -- we add it to rel_names here to make sure it is loaded
         (comp_name, comp_nm) = addName "comp" (Just "G2.Plugin") new_nm
 
-    (imports_nm, import_tnm, injected_exg2) <- setUpImports comp_nm new_tm env ex_g2 prev_explored (comp_name Seq.:<| rel_names)
+    (imports_nm, import_tnm, injected_exg2) <- setUpImports cmd_lne comp_nm new_tm env ex_g2 prev_explored (comp_name Seq.:<| rel_names)
     let simp_state = initSimpleState injected_exg2 imports_nm import_tnm
 
     liftIO $ mapM_ (uncurry (runSymexAnnots cmd_lne equiv_annots simp_state)) ann_fs_g2
@@ -237,8 +241,8 @@ checkEquiv cmd_lne equiv_annots simp_state entry_real entry_smt = do
 ------------------------------------------------------------------------------
 
 -- | Set up an initial extracted G2 with the base library and the functions from the module currently being compiled.
-loadExtractedG2 :: Config -> HscEnv -> ModGuts -> CoreM (NameMap, TypeNameMap, ExtractedG2, S.Set L.Name)
-loadExtractedG2 config env modguts = do
+loadExtractedG2 :: [CommandLineOption] -> Config -> HscEnv -> ModGuts -> CoreM (NameMap, TypeNameMap, ExtractedG2, S.Set L.Name)
+loadExtractedG2 cmd_lne config env modguts = do
     -- We want simpl to be False so the simplifier does not run, because
     -- this plugin gets inserted into the simplifier.  Thus, running the simplifier
     -- results in an infinite loop.
@@ -248,12 +252,12 @@ loadExtractedG2 config env modguts = do
         ems = EnvModSumModGuts env [] [modguts]
 
     prev_comp <- liftIO $ readIORef compiledModules
-    (base_exg2, base_nm, base_tnm, prev_explored) <- case prev_comp of
-                                        Just prev -> return prev
-                                        Nothing -> do
+    (_, base_exg2, base_nm, base_tnm, prev_explored) <- case prev_comp of
+                                        Just prev@(prev_cmd_lne, _, _, _, _) | prev_cmd_lne == cmd_lne -> return prev
+                                        _ -> do
                                             (b_exg2, b_nm, b_tnm) <- liftIO $ translateBase tconfig config [] Nothing
                                             let expl = S.fromList . map fst . HM.toList $ exg2_binds b_exg2
-                                            return (b_exg2, b_nm, b_tnm, expl)
+                                            return (cmd_lne, b_exg2, b_nm, b_tnm, expl)
 
     (new_nm, new_tm, exg2) <- liftIO $ hskToG2ViaEMS tconfig ems base_nm base_tnm
     let merged_exg2 = mergeExtractedG2s [exg2, base_exg2]
@@ -272,14 +276,14 @@ getBinderAnnotations nm tm modguts = do
     return $ deepseq anns anns
 
 -- | Add relevant functions from the imports into the ExtractedG2.
-setUpImports :: SM.MonadIO m => NameMap -> TypeNameMap -> HscEnv -> ExtractedG2 -> S.Set L.Name -> Seq.Seq L.Name -> m (NameMap, TypeNameMap, ExtractedG2)
-setUpImports nm tm env ex_g2 prev_explored rel_names = do
+setUpImports :: SM.MonadIO m => [CommandLineOption] -> NameMap -> TypeNameMap -> HscEnv -> ExtractedG2 -> S.Set L.Name -> Seq.Seq L.Name -> m (NameMap, TypeNameMap, ExtractedG2)
+setUpImports cmd_lne nm tm env ex_g2 prev_explored rel_names = do
     (imports_exg2, (imports_nm, import_tnm)) <- SM.runStateT (loadImports env (exg2_binds ex_g2) prev_explored rel_names) (nm, tm)
     let adj_funcs_exg2 = adjustFunctions imports_nm imports_exg2
 
     let merged_exg2 = mergeExtractedG2s [ex_g2, adj_funcs_exg2]
         injected_exg2 = specialInject merged_exg2
-    liftIO $ writeIORef compiledModules $ Just (merged_exg2, imports_nm, import_tnm, prev_explored)
+    liftIO $ writeIORef compiledModules $ Just (cmd_lne, merged_exg2, imports_nm, import_tnm, prev_explored)
     return (imports_nm, import_tnm, injected_exg2)
 
 -- Based on https://dl.acm.org/doi/pdf/10.1145/3495272
@@ -398,6 +402,13 @@ annotationsOn :: Data a => ModGuts -> CoreBndr -> CoreM [a]
 annotationsOn guts bndr = do
   (_, anns) <- getAnnotations deserializeWithData guts
   return $ lookupWithDefaultUFM anns [] (varName bndr)
+
+getModuleAnnot :: ModGuts -> CoreM [String]
+getModuleAnnot modguts = do
+    (mod_anns, _) <- getAnnotations deserializeWithData modguts
+    case lookupModuleEnv mod_anns (mg_module modguts) of
+            Just anns -> return anns
+            Nothing   -> return []
 
 adjustFunctions :: NameMap -> ExtractedG2 -> ExtractedG2
 adjustFunctions nm ex_g2 = do
