@@ -18,7 +18,9 @@ tests :: TestTree
 tests = testGroup "All Tests"
         [ checkG2Package "tests/G2Plugin/Simple" ["f", "g", "recCall"]
         , checkG2PackageEquiv "tests/G2Plugin/Strings"
-                                [ ("f", "f2")
+                                [ 
+                                  -- Strings  
+                                  ("f", "f2")
                                 , ("myApp", "app")
                                 , ("appMult", "smtAppMult")
 
@@ -32,15 +34,24 @@ tests = testGroup "All Tests"
                                 , ("myIntersperseBegin2", "smtMyIntersperseBegin2")
 
                                 , ("myRev", "smtMyRev")
+
+                                -- Tuples
+                                , ("appTuple", "smtAppTuple")
                                 ]
-                                [ ("corr", "smtCorr")
+                                [ 
+                                  -- Strings  
+                                  ("corr", "smtCorr")
                                 , ("incorr", "smtIncorr")
                                 , ("addTwoAll", "smtAddTwoAll")
                                 , ("sumListBad", "smtSumListBad")
                                 , ("myIntersperseBad", "smtMyIntersperseBad")
                                 , ("myIntersperseBeginBad", "smtMyIntersperseBeginBad")
                                 , ("myRevBad", "smtMyRevBad")
-                                , ("myRevApp1Bad", "smtMyRevApp1Bad") ]
+                                , ("myRevApp1Bad", "smtMyRevApp1Bad")
+                                
+                                -- Tuples
+                                , ("appTupleBad", "smtAppTupleBad")
+                                ]
         , checkNebulaPackage "tests/RewriteVerify/PluginTests/Simple" ["add_assoc", "fg", "fg_toint"] ["f_one"]]
 
 -------------------------------------------------------------------------------

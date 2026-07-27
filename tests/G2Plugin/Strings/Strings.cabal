@@ -18,7 +18,8 @@ common warnings
 
 library
     import:           warnings
-    exposed-modules:  Strings
+    exposed-modules:    Strings
+                      , Tuples
     -- other-modules:
     -- other-extensions:
     build-depends:    base >=4.14
