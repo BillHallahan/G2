@@ -8,6 +8,8 @@ import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.PathConds as PC
 import G2.Solver
 
+import Control.Applicative
+import Data.Maybe
 import Data.Monoid
 
 newtype CheckUnsatSeq solver = CheckUnsatSeq solver
@@ -39,10 +41,14 @@ instance Solver solver => Solver (CheckUnsatSeq solver) where
 checkUnsat :: Solver solver => solver -> State t -> PathConds -> IO (Result () () ())
 checkUnsat solver s@(State { known_values = kv, tyvar_env = tv_env }) pcs
     | Just (pc, e1, e2) <- PC.firstJust (getListInequality kv tv_env) pcs = do
-        putStrLn "GOT e1 e2"
         len_res <- checkLengths solver s e1 e2 pc pcs
-        elem_res <- checkElems solver s e1 e2 pc pcs
-        return $ Unknown "CheckUnsatSeq Solver" ()
+        case len_res of
+            UNSAT _ -> do
+                elem_res <- checkElems solver s e1 e2 pc pcs
+                case elem_res of
+                    UNSAT _ -> return $ UNSAT ()
+                    _ -> return $ Unknown "CheckUnsatSeq Solver" ()
+            _ -> return $ Unknown "CheckUnsatSeq Solver" ()
 checkUnsat _ _ _ = return $ Unknown "CheckUnsatSeq Solver" ()
 
 getListInequality :: KnownValues -> TyVarEnv -> PathCond -> Maybe (PathCond, Expr, Expr)
@@ -120,9 +126,10 @@ checkElems solver s@(State { expr_env = eenv, known_values = kv }) e1 e2 pc pcs 
                 ++ computeIndIntos kv elem_ind e2
                 ++ [ (e1, Var elem_ind)
                    , (e2, Var elem_ind) ]
+        prop_ind_into = ind_into ++ mapMaybe (propagateIndInto ind_into) (PC.toList pcs_with_diff_elem)
         
-        pcs_adj = convertAllToSeqNth kv ind_into
-                $ convertMapWithSeqNth ind_into pcs_with_diff_elem
+        pcs_adj = convertAllToSeqNth kv prop_ind_into
+                $ convertMapWithSeqNth prop_ind_into pcs_with_diff_elem
 
     check solver s' pcs_adj
 
@@ -138,18 +145,30 @@ consToSeqUnit kv (App (App (App (Data dc) _) x) ys) | dc_name dc == KV.dcCons kv
     mkApp [Prim StrAppend TyUnknown, xs, ys]
 consToSeqUnit _ e = e
 
+propagateIndInto :: [(Expr, Expr)] -> PathCond -> Maybe (Expr, Expr)
+propagateIndInto ind_intos (ExtCond e True)
+    | [Prim Eq _, eq_e1, eq_e2] <- unApp e
+    , [Prim Map _, f, lst ] <- unApp eq_e2 =
+        case (lookup eq_e1 ind_intos, lookup lst ind_intos) of
+            (Just ind_into, Nothing) -> Just (lst, ind_into)
+            (Nothing, Just ind_into) -> Just (eq_e1, ind_into)
+            _ -> Nothing
+propagateIndInto _ _ = Nothing
+
 convertMapWithSeqNth :: [(Expr, Expr)] -> PathConds -> PathConds
 convertMapWithSeqNth ind_intos = PC.map go
     where
         go (ExtCond e True)
             | [Prim Eq _, eq_e1, eq_e2] <- unApp e
             , [Prim Map _, f, lst ] <- unApp eq_e2
-            , Just ind_into_lst <- lookup lst ind_intos
+            , m_ind_into_eq_e1 <- lookup eq_e1 ind_intos
+            , m_ind_into_lst <- lookup lst ind_intos
+            , Just ind_into <- m_ind_into_eq_e1 <|> m_ind_into_lst
              =
                 let
                     nth_eq = mkApp [ Prim Eq TyUnknown
-                                   , mkApp [Prim SeqNth TyUnknown, eq_e1, ind_into_lst]
-                                   , App f $ mkApp [Prim SeqNth TyUnknown, lst, ind_into_lst ]
+                                   , mkApp [Prim SeqNth TyUnknown, eq_e1, ind_into]
+                                   , App f $ mkApp [Prim SeqNth TyUnknown, lst, ind_into ]
                                    ]
                     same_len = mkApp [ Prim Eq TyUnknown
                                      , App (Prim StrLen TyUnknown) eq_e1
