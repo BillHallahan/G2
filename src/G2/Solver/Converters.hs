@@ -503,6 +503,7 @@ exprToSMT tv a@(App _ _) =
         getFunc p@(Prim _ _) = p
         getFunc (App a' _) = getFunc a'
         getFunc d@(Data _) = d 
+        getFunc l@(Lam _ _ _) = l 
         getFunc err = error $ "getFunc: invalid Expr: " ++ show err
 
         getArgs :: Expr -> [Expr]
@@ -543,6 +544,8 @@ funcToSMT tv (Data dc) es =
     DataSMT (nameToStr $ dc_name dc) . map (exprToSMT tv) $ filter (not . isType) es
 funcToSMT tv (Var (Id n _)) es = -- Uninterpreted function
     Func (nameToStr n) $ map (exprToSMT tv) es
+funcToSMT tv (Lam _ (Id n t) e) [e'] =
+    AppLam (LambdaSMT [(nameToStr n, typeToSMT tv t)] (exprToSMT tv e)) (exprToSMT tv e')
 funcToSMT _ e l = error ("Unrecognized " ++ show e ++ " with args " ++ show l ++ " in funcToSMT")
 
 funcToSMT1Prim :: TV.TyVarEnv -> Primitive -> Expr -> SMTAST
@@ -1036,7 +1039,6 @@ toSolverAST str_seq = go
                                   | otherwise = "(is-" <> TB.string n <> " " <> go e <> ")"
         go (SelectorSMT n i e) = "(" <> TB.string (selectorName n i) <> " " <> go e <> ")"
 
-
         go (Named x n) = "(! " <> go x <> " :named " <> TB.string n <> ")"
 
         go (ForAll n srt smt) = "(forall ((" <> TB.string n <> " " <> sortName srt <> "))" <> go smt <> ")"
@@ -1061,6 +1063,10 @@ toSolverASTString = go
         go (StrPrefixOfSMT x y) = function2 "str.prefixof" (goBack x) (goBack y)
         go (StrSuffixOfSMT x y) = function2 "str.suffixof" (goBack x) (goBack y)
         go (StrReverseSMT x) = function1 "str.rev" (goBack x)
+        go (SeqNthSMT x y) = function2 "seq.nth" (goBack x) (goBack y)
+        go (LambdaSMT [(n, s)] e) =
+            "(lambda ((" <> TB.string n <> sortNameLam s <>  "))" <> go e <> ")"
+        go (AppLam e1 e2) = "(" <> go e1 <> " " <> go e2 <> ")"
         go c = toSolverASTRe goBack c
 
         goBack = toSolverAST toSolverASTString
@@ -1105,6 +1111,9 @@ toSolverASTSeq = go
                     <> " (" <> TB.string n1 <> " " <> sortNameLam s1 <> ")"
                     <> " (" <> TB.string n2 <> " " <> sortNameLam s2 <> ")) "
                     <> goBack w <> ") " <> goBack x <> " " <> goBack y <> " " <> goBack z <> ")"
+        go (LambdaSMT [(n, s)] e) =
+            "(lambda ((" <> TB.string n <> sortNameLam s <>  "))" <> go e <> ")"
+        go (AppLam e1 e2) = "(" <> go e1 <> " " <> go e2 <> ")"
         go c = toSolverASTRe goBack c
 
         goBack = toSolverAST toSolverASTSeq
@@ -1123,7 +1132,7 @@ toSolverASTRe goBack = go
         go (ReStarSMT r) = function1 "re.*" $ goBack r
         go (ReRangeSMT s1 s2) = function2 "re.range" (goBack s1) (goBack s2)
         go (ReCompSMT r) = function1 "re.comp" $ goBack r
-        go _ = error "toSolverASTRe: primitive not handled"
+        go pr = goBack pr
 
 -- | Converts a bit vector to a signed Int.
 -- Z3 has a bv2int function, but uses unsigned integers.

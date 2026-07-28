@@ -149,6 +149,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | FoldLeftSMT SMTName Sort SMTName Sort !SMTAST !SMTAST !SMTAST
             | FoldLeftISMT SMTName Sort SMTName Sort SMTName Sort !SMTAST !SMTAST !SMTAST !SMTAST
             | LambdaSMT [(SMTName, Sort)] SMTAST
+            | AppLam SMTAST SMTAST
 
             | InReSMT !SMTAST !SMTAST
             | ToReSMT !SMTAST
