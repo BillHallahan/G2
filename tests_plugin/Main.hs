@@ -38,6 +38,7 @@ tests = testGroup "All Tests"
                                 -- Tuples
                                 , ("appTuple", "smtAppTuple")
                                 , ("pairA", "smtPairA")
+                                , ("myZip", "smtMyZip")
                                 ]
                                 [ 
                                   -- Strings  
@@ -52,6 +53,8 @@ tests = testGroup "All Tests"
                                 
                                 -- Tuples
                                 , ("appTupleBad", "smtAppTupleBad")
+                                , ("pairABad", "smtPairA")
+                                , ("myZipBad", "smtMyZip")
                                 ]
         , checkNebulaPackage "tests/RewriteVerify/PluginTests/Simple" ["add_assoc", "fg", "fg_toint"] ["f_one"]]
 
