@@ -62,7 +62,6 @@ reduceNewPC _ _ _ ng (SingleState state) = return (ng, [state])
 reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state state_diffs)
     | inLitTableMode state
     , scrut_smt_rep || all (null . new_conc_entries) state_diffs = do
-        putStrLn $ "Lit Table handling = " ++ show (map new_conc_entries state_diffs)
         let state_diffs' = map elim_conc_entries state_diffs
         res <- reduceToFirstDiff discard_unknown_states solver simplifier ng state state_diffs'
         case res of

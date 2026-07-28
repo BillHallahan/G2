@@ -25,7 +25,6 @@ appTupleBad x y (t:ts) = t:appTupleBad x y ts
 smtAppTupleBad :: Int -> Int -> [(Int, Int)] -> [(Int, Int)]
 smtAppTupleBad x y ts = ts $++ ts $++ [(x, y)]
 
-
 data A = A | B
 
 instance Eq A where
@@ -33,7 +32,7 @@ instance Eq A where
     B == B = True
     _ == _ = False
 
-{-# ANN pairA (SMTEquivIsWithConfig "smtPairA" "--log-pretty a_pair5 --no-log-files --print-smt --time 9999999999999")
+{-# ANN pairA (SMTEquivIsWithConfig "smtPairA" "")
     #-}
 pairA :: [A] -> [(A, A)]
 pairA [] = []
