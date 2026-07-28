@@ -196,6 +196,7 @@ toSMTHeaders' tv tenv pc =
     where
         getADTTypes (TyCon n _) = HS.singleton n
         getADTTypes (TyVar (Id n _)) | Just (TV.TyConc t) <- TV.lookupConcOrSym n tv = getADTTypes t
+        getADTTypes (TyApp t1 t2) = getADTTypes t1 `HS.union` getADTTypes t2
         getADTTypes _ = HS.empty
 
 -- |  Determines an appropriate SetLogic command, and adds it to the headers
