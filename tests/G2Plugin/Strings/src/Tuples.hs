@@ -33,7 +33,7 @@ instance Eq A where
     B == B = True
     _ == _ = False
 
-{-# ANN pairA (SMTEquivIsWithConfig "smtPairA" "--log-pretty a_pair4 --log-after-n 999999999 --print-smt")
+{-# ANN pairA (SMTEquivIsWithConfig "smtPairA" "--log-pretty a_pair5 --no-log-files --print-smt --time 9999999999999")
     #-}
 pairA :: [A] -> [(A, A)]
 pairA [] = []

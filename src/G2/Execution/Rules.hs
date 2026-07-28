@@ -716,7 +716,7 @@ concretizeVarExpr' s@(State { type_env = tenv
             binds = [(cvar, (Var mexpr_id))]
             aexpr'' = liftCaseBinds binds aexpr'
 
-            (pcs, ngen'', concs, syms) = adjustExprEnvAndPathConds tenv tvnv ngen' dcpm dcon dcon'' mexpr_id params' news
+            (pcs, ngen'', concs, syms) = adjustExprEnvAndPathConds kv tenv tvnv ngen' dcpm dcon dcon'' mexpr_id params' news
         in
             Just (SD { new_conc_entries = concs, new_sym_entries = syms
                      , new_path_conds = pcs, concretized = [mexpr_id]
@@ -808,7 +808,8 @@ cleanParamsAndMakeDcon tv kv params ngen dcon aexpr mexpr_t m_coercion tenv =
 -- | Determines an ExprEnv and Path Constraints from following a particular branch of symbolic execution.
 -- Has special handling for Strings- see [String Concretizations and Constraints]
 adjustExprEnvAndPathConds ::
-                     TypeEnv
+                     KnownValues
+                  -> TypeEnv
                   -> TV.TyVarEnv
                   -> NameGen
                   -> DataConPCMap
@@ -818,10 +819,12 @@ adjustExprEnvAndPathConds ::
                   -> [Id] -- ^ Constructor Argument Ids
                   -> [Name]
                   -> ([PathCond], NameGen, EEDiff, EESymDiff)
-adjustExprEnvAndPathConds tenv tv ng dcpm dc dc_e mexpr params dcargs
+adjustExprEnvAndPathConds kv tenv tv ng dcpm dc dc_e mexpr params dcargs
     | Just dcpc <- getDCPCInfo dc (typeOf tv mexpr) tenv tv dcpm =
         let (pcs, ng', _, concs, syms) = applyDCPC ng new_ids (Var mexpr) dcpc
         in (pcs, ng', mexpr_dc:concs, syms)
+    | typeOf tv mexpr == tyBool kv =
+        ([ExtCond (mkApp [Prim Eq TyUnknown, Var mexpr, Data dc]) True], ng, [mexpr_dc], new_ids)
     | otherwise = ([], ng, [mexpr_dc], new_ids)
     where
         mexpr_n = idName mexpr

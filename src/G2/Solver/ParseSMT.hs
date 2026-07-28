@@ -175,7 +175,10 @@ funcExpr =
 varExpr :: Parser SMTAST
 varExpr = do
     v <- identifier
-    return . V v $ ParSort "UNKNOWN"
+    case v of
+        c:_ | isUpper c -> return $ DataSMT v []
+        _ -> return . V v $ ParSort "UNKNOWN"
+
 
 dcExpr :: Parser SMTAST
 dcExpr = parens $ do
