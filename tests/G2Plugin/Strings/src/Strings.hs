@@ -1,7 +1,7 @@
 module Strings where
 
 import G2.Plugin
-{-
+
 {-# ANN f (SMTEquivIs "f2" )
     #-}
 f :: [Int] -> [Int]
@@ -96,7 +96,6 @@ sumListBad (x:xs) = x + sumListBad xs
 
 smtSumListBad :: [Int] -> Int
 smtSumListBad xs = smtFoldLeft (\x y -> x + y + 1) 0 xs
-
 {-# ANN myIntersperse (SMTEquivIsWithConfig "smtMyIntersperse" "")
     #-}
 myIntersperse :: Int -> [Int] -> [Int]
@@ -120,6 +119,7 @@ smtMyIntersperse2 :: Int -> [Int] -> [Int]
 smtMyIntersperse2 _ [] = []
 smtMyIntersperse2 _ [x] = [x]
 smtMyIntersperse2 x (i:ys) = i:smtFoldLeft (\acc y -> ((acc $++ [x]) $++ [x]) $++ [y]) [] ys
+{-
 
 {-# ANN myIntersperseBad (SMTEquivIsWithConfig "smtMyIntersperseBad" "") #-}
 myIntersperseBad :: Int -> [Int] -> [Int]
@@ -131,7 +131,7 @@ smtMyIntersperseBad :: Int -> [Int] -> [Int]
 smtMyIntersperseBad _ [] = []
 smtMyIntersperseBad _ [x] = [x]
 smtMyIntersperseBad x (i:ys) = i:smtFoldLeft (\acc y -> acc $++ [x] $++ [y]) [] ys
-
+-}
 {-# ANN myIntersperseBegin (SMTEquivIs "smtMyIntersperseBegin")
     #-}
 myIntersperseBegin :: Int -> [Int] -> [Int]
@@ -208,4 +208,3 @@ myRevApp1Bad xs = myRev xs ++ [1]
 
 smtMyRevApp1Bad :: [Int] -> [Int]
 smtMyRevApp1Bad ys = smtFoldLeft (\acc y -> y:y:acc) [1] ys
--}
