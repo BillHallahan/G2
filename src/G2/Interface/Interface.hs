@@ -81,6 +81,7 @@ import G2.Lib.Printers
 import G2.Translation
 
 import G2.Solver
+import G2.Solver.SeqSolver
 
 import G2.Postprocessing.Interface
 
@@ -517,8 +518,12 @@ initSolver' avf config = do
                             UseQuantifiers -> some_adt_solver''
                             UnrollQuant n -> case some_adt_solver'' of
                                                 SomeSolver adt_solver -> SomeSolver (UnrollBoundedQuant n adt_solver)
+    
+    let unsat_seq_solver = case using_smt_lams config of
+                                UseSMTLams | SomeSolver quant_solver' <- quant_solver -> SomeSolver (CheckUnsatSeq quant_solver')
+                                NoSMTLams -> quant_solver
 
-    let con' = case quant_solver of
+    let con' = case unsat_seq_solver of
                     SomeSolver adt_solver ->
                         SomeSolver -- . CommonSubExpElim
                                    $ GroupRelated avf
