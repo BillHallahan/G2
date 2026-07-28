@@ -9,6 +9,7 @@ import qualified G2.Language.PathConds as PC
 import G2.Solver
 
 import Control.Applicative
+import Data.List
 import Data.Maybe
 import Data.Monoid
 
@@ -76,6 +77,7 @@ isListTy kv tv_env e =
         TyApp (TyCon n _) _ -> n == KV.tyList kv
         _ -> False
 
+-- | Check unsatisfiability when just asserting that the lengths of sequences are the same
 checkLengths :: Solver solver => solver -> State t -> Expr -> Expr -> PathCond -> PathConds -> IO (Result () () ())
 checkLengths solver s e1 e2 pc pcs = do
     let diff_length = mkApp [ Prim Neq TyUnknown
@@ -86,6 +88,10 @@ checkLengths solver s e1 e2 pc pcs = do
         pcs_adj = convertMapEqsToLenEqs pcs_with_diff_length
     check solver s pcs_adj
 
+-- | Simplify
+--     xs == map f ys
+-- to
+--     seq.len xs == seq.len ys
 convertMapEqsToLenEqs :: PathConds -> PathConds
 convertMapEqsToLenEqs = PC.map go
     where
@@ -99,11 +105,14 @@ convertMapEqsToLenEqs = PC.map go
                 True
         go pc = pc
 
+-- | Given that two lists `xs` and `ys` must be the same length (a condition we check via `checkLengths`),
+-- check if there is some index `i` such that `xs !! i /= ys !! i`
 checkElems :: Solver solver => solver -> State t -> Expr -> Expr -> PathCond -> PathConds -> IO (Result () () ())
 checkElems solver s@(State { expr_env = eenv, known_values = kv }) e1 e2 pc pcs = do
     let elem_ind = Id (Name "ELEM_IND_!!_G2_!!" Nothing 0 Nothing) TyLitInt
         s' = s { expr_env = E.insertSymbolic elem_ind eenv }
 
+        -- i must be between the beginning and end of the list
         gt_0 = ExtCond (mkApp [Prim Le TyUnknown, Lit (LitInt 0), Var elem_ind]) True
         lt_len = ExtCond (mkApp [Prim Lt TyUnknown, Var elem_ind, App (Prim StrLen TyUnknown) e1]) True
         same_len = ExtCond
@@ -133,7 +142,11 @@ checkElems solver s@(State { expr_env = eenv, known_values = kv }) e1 e2 pc pcs 
 
     check solver s' pcs_adj
 
-computeIndIntos :: KnownValues -> Id -> Expr -> [(Expr, Expr)]
+-- | If we have, for instance, `xs == x ++ xs'`, this figures out that `xs !! i` is the same as `xs' !! (i - 1)`
+computeIndIntos :: KnownValues
+                -> Id
+                -> Expr
+                -> [(Expr, Expr)] -- ^ maps list expressions to the relevant index of that list, i.e. xs -> i, xs' -> (i - 1)
 computeIndIntos kv elem_ind e
     | [ Prim StrAppend _, App (Prim SeqUnit _) _, e2 ] <- unApp $ consToSeqUnit kv e =
         [(e2, mkApp [Prim Minus TyUnknown, Var elem_ind, Lit (LitInt 1)])]
@@ -155,6 +168,7 @@ propagateIndInto ind_intos (ExtCond e True)
             _ -> Nothing
 propagateIndInto _ _ = Nothing
 
+-- | Converting map equality checks into checks on a specific element.
 convertMapWithSeqNth :: [(Expr, Expr)] -> PathConds -> PathConds
 convertMapWithSeqNth ind_intos = PC.map go
     where
@@ -179,6 +193,8 @@ convertMapWithSeqNth ind_intos = PC.map go
 
         go pc = pc
 
+-- | If we have fold corresponding to the `all` function, then the condition that the require
+-- must hold for the i^th element
 convertAllToSeqNth :: KnownValues -> [(Expr, Expr)] -> PathConds -> PathConds
 convertAllToSeqNth kv ind_intos = PC.map go
     where
@@ -201,9 +217,9 @@ getBodyAll :: KnownValues
            -> Expr -- ^ Function being folded over
            -> Maybe Expr
 getBodyAll kv (Lam _ (Id col_v1 _) inner_l@(Lam _ (Id _ _) e))
-    | [Prim And _, e1, e2] <- unApp $ makeAndRightAssoc e
-    , accumTrue kv col_v1 e1
-    , col_v1 `notElem` varNames e2 = Just $ replaceVar col_v1 (mkTrue kv) inner_l
+    | es <- getConjoined e
+    , Just accum_e <- find (accumTrue kv col_v1) es
+    , col_v1 `notElem` varNames (delete accum_e es) = Just $ replaceVar col_v1 (mkTrue kv) inner_l
 getBodyAll _ _ = Nothing
 
 accumTrue :: KnownValues -> Name -> Expr -> Bool
@@ -213,15 +229,7 @@ accumTrue kv n e | [Prim Eq _, Var (Id n1 _), Data dc] <- unApp e
                  , dc_name dc == KV.dcTrue kv = True
 accumTrue _ _ _ = False
 
-makeAndRightAssoc :: Expr -> Expr
-makeAndRightAssoc
-    (App 
-        (App
-            (Prim prim1 t1)
-            (App (App (Prim prim2 _) e1) e2)
-        )
-    e3) | prim1 == And, prim2 == And =
-        makeAndRightAssoc $ App
-            (App (Prim prim1 t1) e1)
-            (App (App (Prim prim1 t1) e2) e3)
-makeAndRightAssoc e = e
+getConjoined :: Expr -> [Expr]
+getConjoined e
+    | [Prim And _, e1, e2] <- unApp e = getConjoined e1 ++ getConjoined e2
+    | otherwise = [e]

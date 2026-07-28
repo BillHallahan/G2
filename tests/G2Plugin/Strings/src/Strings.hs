@@ -119,7 +119,6 @@ smtMyIntersperse2 :: Int -> [Int] -> [Int]
 smtMyIntersperse2 _ [] = []
 smtMyIntersperse2 _ [x] = [x]
 smtMyIntersperse2 x (i:ys) = i:smtFoldLeft (\acc y -> ((acc $++ [x]) $++ [x]) $++ [y]) [] ys
-{-
 
 {-# ANN myIntersperseBad (SMTEquivIsWithConfig "smtMyIntersperseBad" "") #-}
 myIntersperseBad :: Int -> [Int] -> [Int]
@@ -131,7 +130,7 @@ smtMyIntersperseBad :: Int -> [Int] -> [Int]
 smtMyIntersperseBad _ [] = []
 smtMyIntersperseBad _ [x] = [x]
 smtMyIntersperseBad x (i:ys) = i:smtFoldLeft (\acc y -> acc $++ [x] $++ [y]) [] ys
--}
+
 {-# ANN myIntersperseBegin (SMTEquivIs "smtMyIntersperseBegin")
     #-}
 myIntersperseBegin :: Int -> [Int] -> [Int]
