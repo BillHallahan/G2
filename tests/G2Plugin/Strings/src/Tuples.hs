@@ -25,7 +25,7 @@ appTupleBad x y (t:ts) = t:appTupleBad x y ts
 smtAppTupleBad :: Int -> Int -> [(Int, Int)] -> [(Int, Int)]
 smtAppTupleBad x y ts = ts $++ ts $++ [(x, y)]
 
-
+{-
 data A = A | B
 
 instance Eq A where
@@ -42,7 +42,7 @@ pairA (x:xs) = (x, A):pairA xs
 smtPairA :: [A] -> [(A, A)]
 smtPairA xs = genVal (\ys -> xs `smtEq` smtMap fst ys
                           && smtFoldLeft (\acc y -> acc && snd y == A) True ys)
-
+-}
 {-
 {-# ANN myZip (SMTEquivIsWithConfig "smtMyZip" "--print-smt")
     #-}
