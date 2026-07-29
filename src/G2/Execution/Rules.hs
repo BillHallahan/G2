@@ -1089,30 +1089,10 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
 
                     binds = [(cvar, Var cvar')]
                     aexpr' = liftCaseBinds binds aexpr
-
-                    not_dc_pcs_exps = 
-                        case mapMaybe (\dc -> getDCPCInfo dc (typeOf tvnv mexpr) tenv tvnv dcpm) dcs' of
-                                [] -> []
-                                _ | TyCon n _ <- typeOf tvnv mexpr
-                                  , n == KV.tyBool kv ->
-                                    map (\dc_ -> if dc_name dc_ == KV.dcTrue kv
-                                                            then App (Prim Not TyUnknown) mexpr
-                                                            else mexpr) badDCs
-                                _ | TyApp (TyCon n _) _ <- typeOf tvnv mexpr
-                                  , n == KV.tyList kv ->
-                                    map (\dc_ -> mkApp [ if dc_name dc_ == KV.dcCons kv then Prim Eq TyUnknown else Prim Neq TyUnknown
-                                                       , App (Prim StrLen TyUnknown) mexpr
-                                                       , Lit (LitInt 0)
-                                                       ]) badDCs
-                                _ -> map (\dc -> App 
-                                                    (Prim Not TyUnknown)
-                                                    (App (Prim (IsConstructor dc) TyUnknown) mexpr)) badDCs
-                    not_dc_pcs = map (flip ExtCond True) not_dc_pcs_exps
-
                 in
                 ([SD { new_conc_entries = concs ++ [(idName i, mexpr'), (idName cvar', mexpr')]
                      , new_sym_entries = syms
-                     , new_path_conds = assume_pc ++ not_dc_pcs, concretized = []
+                     , new_path_conds = assume_pc, concretized = []
                      , new_true_assert = true_assert s, new_assert_ids = assert_ids s
                      , new_curr_expr = CurrExpr Evaluate aexpr'
                      , new_conc_types = [], new_sym_types = []
