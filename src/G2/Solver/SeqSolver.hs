@@ -2,7 +2,7 @@
 
 module G2.Solver.SeqSolver (CheckUnsatSeq (..)) where
 
-import G2.Language
+import G2.Language hiding (mkSeqLen)
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.PathConds as PC
@@ -90,51 +90,51 @@ isListTy kv tv_env e =
 
 -- | Check unsatisfiability when just asserting that the lengths of sequences are the same
 checkLengths :: Solver solver => solver -> State t -> Expr -> Expr -> PathCond -> PathConds -> IO (Result () () ())
-checkLengths solver s e1 e2 pc pcs = do
+checkLengths solver s@(State { known_values = kv, tyvar_env = tv_env }) e1 e2 pc pcs = do
     let diff_length = mkApp [ Prim Neq TyUnknown
-                            , App (Prim StrLen TyUnknown) e1 
-                            , App (Prim StrLen TyUnknown) e2]
+                            , mkSeqLen kv tv_env e1 
+                            , mkSeqLen kv tv_env e2]
         diff_length_pc = ExtCond diff_length True
         pcs_with_diff_length = PC.insert diff_length_pc $ PC.filter (/= pc) pcs
-        pcs_adj = convertMapEqsToLenEqs pcs_with_diff_length
+        pcs_adj = convertMapEqsToLenEqs s pcs_with_diff_length
     check solver s pcs_adj
 
 -- | Simplify
 --     xs == map f ys
 -- to
 --     seq.len xs == seq.len ys
-convertMapEqsToLenEqs :: PathConds -> PathConds
-convertMapEqsToLenEqs = PC.map go
+convertMapEqsToLenEqs :: State t -> PathConds -> PathConds
+convertMapEqsToLenEqs (State { known_values = kv, tyvar_env = tv_env }) = PC.map go
     where
         go (ExtCond e True)
             | [Prim Eq _, eq_e1, eq_e2] <- unApp e
             , [Prim Map _, _, _ ] <- unApp eq_e2 =
                 ExtCond
                 (mkApp [ Prim Eq TyUnknown
-                      , App (Prim StrLen TyUnknown) eq_e1
-                      , App (Prim StrLen TyUnknown) eq_e2 ])
+                       , mkSeqLen kv tv_env eq_e1
+                       , mkSeqLen kv tv_env eq_e2 ])
                 True
         go pc = pc
 
 -- | Given that two lists `xs` and `ys` must be the same length (a condition we check via `checkLengths`),
 -- check if there is some index `i` such that `xs !! i /= ys !! i`
 checkElems :: Solver solver => solver -> State t -> Expr -> Expr -> PathCond -> PathConds -> IO (Result () () ())
-checkElems solver s@(State { expr_env = eenv, known_values = kv }) e1 e2 pc pcs = do
+checkElems solver s@(State { expr_env = eenv, known_values = kv, tyvar_env = tv_env }) e1 e2 pc pcs = do
     let elem_ind = Id (Name "ELEM_IND_!!_G2_!!" Nothing 0 Nothing) TyLitInt
         s' = s { expr_env = E.insertSymbolic elem_ind eenv }
 
         -- i must be between the beginning and end of the list
         gt_0 = ExtCond (mkApp [Prim Le TyUnknown, Lit (LitInt 0), Var elem_ind]) True
-        lt_len = ExtCond (mkApp [Prim Lt TyUnknown, Var elem_ind, App (Prim StrLen TyUnknown) e1]) True
+        lt_len = ExtCond (mkApp [Prim Lt TyUnknown, Var elem_ind, mkSeqLen kv tv_env e1]) True
         same_len = ExtCond
                     (mkApp [ Prim Eq TyUnknown
-                          , App (Prim StrLen TyUnknown) e1
-                          , App (Prim StrLen TyUnknown) e2])
+                          , mkSeqLen kv tv_env e1
+                          , mkSeqLen kv tv_env e2])
                     True
         diff_elem = ExtCond
                     (mkApp [ Prim Neq TyUnknown
-                          , mkApp [Prim SeqNth TyUnknown, e1, Var elem_ind]
-                          , mkApp [Prim SeqNth TyUnknown, e2, Var elem_ind]])
+                          , mkSeqNth kv tv_env e1 (Var elem_ind)
+                          , mkSeqNth kv tv_env e2 (Var elem_ind)])
                     True
         pcs_with_diff_elem = PC.insert gt_0
                            . PC.insert lt_len
@@ -148,8 +148,8 @@ checkElems solver s@(State { expr_env = eenv, known_values = kv }) e1 e2 pc pcs 
                    , (e2, Var elem_ind) ]
         prop_ind_into = ind_into ++ mapMaybe (propagateIndInto ind_into) (PC.toList pcs_with_diff_elem)
         
-        pcs_adj = convertAllToSeqNth kv prop_ind_into
-                $ convertMapWithSeqNth prop_ind_into pcs_with_diff_elem
+        pcs_adj = convertAllToSeqNth s prop_ind_into
+                $ convertMapWithSeqNth s prop_ind_into pcs_with_diff_elem
 
     check solver s' pcs_adj
 
@@ -179,8 +179,8 @@ propagateIndInto ind_intos (ExtCond e True)
 propagateIndInto _ _ = Nothing
 
 -- | Converting map equality checks into checks on a specific element.
-convertMapWithSeqNth :: [(Expr, Expr)] -> PathConds -> PathConds
-convertMapWithSeqNth ind_intos = PC.map go
+convertMapWithSeqNth :: State t -> [(Expr, Expr)] -> PathConds -> PathConds
+convertMapWithSeqNth (State { known_values = kv, tyvar_env = tv_env }) ind_intos = PC.map go
     where
         go (ExtCond e True)
             | Just (f, lst, eq_e1) <- eqToMap e
@@ -190,12 +190,12 @@ convertMapWithSeqNth ind_intos = PC.map go
              =
                 let
                     nth_eq = mkApp [ Prim Eq TyUnknown
-                                   , mkApp [Prim SeqNth TyUnknown, eq_e1, ind_into]
-                                   , App f $ mkApp [Prim SeqNth TyUnknown, lst, ind_into ]
+                                   , mkSeqNth kv tv_env eq_e1 ind_into
+                                   , App f $ mkSeqNth kv tv_env lst ind_into
                                    ]
                     same_len = mkApp [ Prim Eq TyUnknown
-                                     , App (Prim StrLen TyUnknown) eq_e1
-                                     , App (Prim StrLen TyUnknown) lst]
+                                     , mkSeqLen kv tv_env eq_e1
+                                     , mkSeqLen kv tv_env lst]
                     anded = mkApp [Prim And TyUnknown, nth_eq, same_len]
                 in
                 ExtCond anded True
@@ -204,12 +204,12 @@ convertMapWithSeqNth ind_intos = PC.map go
             , Just ind_into <- lookup lst ind_intos =
                 let
                     nth_eq = mkApp [ Prim Eq TyUnknown
-                                   , mkApp [Prim SeqNth TyUnknown, eq_e2, ind_into]
-                                   , App f $ mkApp [Prim SeqNth TyUnknown, lst, ind_into ]
+                                   , mkSeqNth kv tv_env eq_e2 ind_into
+                                   , App f $ mkSeqNth kv tv_env lst ind_into
                                    ]
                     ge_len = mkApp [ Prim Ge TyUnknown
-                                     , App (Prim StrLen TyUnknown) eq_e2
-                                     , App (Prim StrLen TyUnknown) lst]
+                                     , mkSeqLen kv tv_env eq_e2
+                                     , mkSeqLen kv tv_env lst]
                     anded = mkApp [Prim And TyUnknown, nth_eq, ge_len]
                 in
                 ExtCond anded True
@@ -226,8 +226,8 @@ eqToMap e
     
 -- | If we have fold corresponding to the `all` function, then the condition that the require
 -- must hold for the i^th element
-convertAllToSeqNth :: KnownValues -> [(Expr, Expr)] -> PathConds -> PathConds
-convertAllToSeqNth kv ind_intos = PC.map go
+convertAllToSeqNth :: State t -> [(Expr, Expr)] -> PathConds -> PathConds
+convertAllToSeqNth (State { known_values = kv, tyvar_env = tv_env }) ind_intos = PC.map go
     where
         go (ExtCond e True)
             | [Prim FoldLeft _, f, Data dc, lst] <- unApp e
@@ -237,7 +237,7 @@ convertAllToSeqNth kv ind_intos = PC.map go
              =
                 ExtCond
                 (mkApp [ f'
-                       , mkApp [Prim SeqNth TyUnknown, lst, ind_into ]
+                       , mkSeqNth kv tv_env lst ind_into
                        ])
                 True
 
@@ -264,3 +264,17 @@ getConjoined :: Expr -> [Expr]
 getConjoined e
     | [Prim And _, e1, e2] <- unApp e = getConjoined e1 ++ getConjoined e2
     | otherwise = [e]
+
+------------------------------------------------------------------------------
+-- Constructing primitives
+------------------------------------------------------------------------------
+
+mkSeqLen :: KnownValues -> TyVarEnv -> Expr -> Expr
+mkSeqLen kv tv_env e =
+    let t = TyFun (typeOf tv_env e) (tyBool kv) in
+    App (Prim StrLen t) e
+
+mkSeqNth :: KnownValues -> TyVarEnv -> Expr -> Expr -> Expr
+mkSeqNth kv tv_env lst ind =
+    let t = TyFun (typeOf tv_env lst) (TyFun TyLitInt (tyBool kv)) in
+    mkApp [Prim SeqNth t, lst, ind]

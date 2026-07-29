@@ -26,6 +26,8 @@ import Data.List
 import Data.Maybe
 import qualified Data.Sequence as Seq
 
+import qualified Data.Text as T
+
 data NewPC t = NoState
              | SingleState (State t)
              | SplitStatePieces (State t) [StateDiff]
@@ -93,11 +95,16 @@ reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state 
         conc_entry_to_selector n e
             | Data dc:es <- unApp e =
                 let
-                    i = Id n $ typeOf tv_env e
+                    dc_t = typeOf tv_env e
+                    i = Id n dc_t
                     es' = filter (not . isType) es
                 in
                 zipWith (\v j -> case v of
-                                    (Var (Id vn _)) -> (vn, mkApp [Prim (Selector dc j) TyUnknown, Var i])
+                                    (Var (Id vn vt)) -> 
+                                        let
+                                            t = TyFun dc_t vt
+                                        in
+                                        (vn, mkApp [Prim (Selector dc j) t, Var i])
                                     _ -> error "reduceNewPC: expected var") es' [1 :: Int ..]
             | otherwise = []
 

@@ -1273,7 +1273,7 @@ smtastToExpr kv tenv tv_env arg_tys t (StrAppendSMT xs) =
 smtastToExpr kv tenv tv_env arg_tys t (DataSMT dc_smt_n as)
     | let dc_n = certainStrToName dc_smt_n
     
-    , TyCon tycon_n _:ts <- unTyApp t
+    , TyCon tycon_n _:ts <- unTyApp $ tyVarSubst tv_env t
     , Just dc <- getDataCon tenv tycon_n dc_n =
     let
         named_ty = map idName . leadingTyForAllBindings $ dc_type dc
