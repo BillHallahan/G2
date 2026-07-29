@@ -12,6 +12,7 @@ module G2.Execution.PrimitiveEval ( evalPrimsSharing
                                   , toString
                                   , toExprList) where
 
+import G2.Execution.DataConPCMap
 import G2.Execution.LiteralTable
 import G2.Execution.NewPC
 import G2.Execution.MutVar
@@ -1019,8 +1020,8 @@ evalPrim3 kv Ite (Data (DataCon { dc_name = b })) e1 e2 | b == KV.dcTrue kv = Ju
 evalPrim3 _ _ _ _ _ = Nothing
 
 -- | Evaluate certain primitives applied to symbolic expressions, when possible
-evalPrimSymbolic ::  TV.TyVarEnv -> ExprEnv -> TypeEnv -> NameGen -> KnownValues -> Expr -> Maybe (Expr, ExprEnv, [PathCond], NameGen)
-evalPrimSymbolic tv eenv tenv ng kv e
+evalPrimSymbolic ::  TV.TyVarEnv -> ExprEnv -> TypeEnv -> NameGen -> KnownValues -> DataConPCMap -> Expr -> Maybe (Expr, ExprEnv, [PathCond], NameGen)
+evalPrimSymbolic tv eenv tenv ng kv dcpm e
     | [Prim DataToTag _, type_t, (Var (Id n _))] <- unApp e
     , Just t <- TV.deepLookup tv type_t
     , Just sym_n <- deepLookupVar n eenv
@@ -1034,7 +1035,7 @@ evalPrimSymbolic tv eenv tenv ng kv e
 
             (cvar, ng') = freshId t ng
 
-            (ret, cse, assume_pc, ng'', concs, syms) = createCaseExpr tv bi Nothing cvar t kv tenv ng' dcs
+            (ret, cse, assume_pc, ng'', concs, syms) = createCaseExpr e tv bi Nothing cvar t kv dcpm ng' dcs
 
             eenv' = E.insertSymbolic ret . E.insert sym_n cse . E.insertExprs concs
                         $ L.foldl' (flip E.insertSymbolic) eenv syms

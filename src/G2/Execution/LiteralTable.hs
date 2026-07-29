@@ -263,9 +263,15 @@ mkDisjunction kv conds =
         [] -> mkFalse kv
         (hd:tl) ->
             L.foldl'
-                (\prev_exp pcs -> mkApp [Prim Or (tripleBoolTy kv), prev_exp, pcsToExprBool kv pcs])
+                (\prev_exp pcs -> mkOrSmart kv prev_exp $ pcsToExprBool kv pcs)
                 (pcsToExprBool kv hd)
                 tl
+
+mkOrSmart :: KnownValues -> Expr -> Expr -> Expr
+mkOrSmart kv e1 e2
+    | e1 == mkFalse kv = e2
+    | e2 == mkFalse kv = e1
+    | otherwise = mkApp [Prim Or (tripleBoolTy kv), e1, e2]
 
 -- Turn the conjunction of these path conditions into an expression
 pcsToExprBool :: KnownValues -> [PathCond] -> Expr
@@ -273,7 +279,13 @@ pcsToExprBool kv pcs =
     case pcs of
         [] -> mkTrue kv
         (hd:tl) ->
-            L.foldl' (\prev_exp pc -> mkApp [Prim And (tripleBoolTy kv), prev_exp, pcToExprBool kv pc]) (pcToExprBool kv hd) tl
+            L.foldl' (\prev_exp pc -> mkAndSmart kv prev_exp $ pcToExprBool kv pc) (pcToExprBool kv hd) tl
+
+mkAndSmart :: KnownValues -> Expr -> Expr -> Expr
+mkAndSmart kv e1 e2
+    | e1 == mkFalse kv = mkFalse kv
+    | e2 == mkFalse kv = mkFalse kv
+    | otherwise = mkApp [Prim And (tripleBoolTy kv), e1, e2]
 
 -- Turn one path condition into an expression, with equality
 pcToExprBool :: KnownValues -> PathCond -> Expr

@@ -6,13 +6,13 @@ import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 
 -- | Creates and applies new symbolic variables for arguments of Data Constructor
-concretizeSym :: TyVarEnv -> [(Id, Type)] -> Maybe Coercion -> Id -> KnownValues -> TypeEnv
-              -> ([(Name, Expr)], [Id], NameGen) -> DataCon -> (([(Name, Expr)], [Id], NameGen), ([PathCond], Expr))
-concretizeSym tv bi maybeC binder kv tenv (concs, syms, ng) dc@(DataCon _ ts _ _)
-    | Just dcpcs <- HM.lookup (dcName dc) (dcpcMap tv kv tenv)
+concretizeSym :: Expr -> TyVarEnv -> [(Id, Type)] -> Maybe Coercion -> Id
+              -> DataConPCMap -> ([(Name, Expr)], [Id], NameGen) -> DataCon -> (([(Name, Expr)], [Id], NameGen), ([PathCond], Expr))
+concretizeSym mexpr tv bi maybeC binder dcpcm (concs, syms, ng) dc@(DataCon _ ts _ _)
+    | Just dcpcs <- HM.lookup (dcName dc) dcpcm
     , _:ty_args <- unTyApp $ typeOf tv binder
     , Just dcpc <- L.lookup ty_args dcpcs =
-        let (pcs, ng'', _, dcpc_concs, dcpc_syms) = applyDCPC ng' new_params (Var binder) dcpc
+        let (pcs, ng'', _, dcpc_concs, dcpc_syms) = applyDCPC ng' new_params mexpr dcpc
         in ((concs ++ dcpc_concs, syms ++ new_params ++ dcpc_syms, ng''), (pcs, dc''))
 
     | otherwise = ((concs, syms ++ new_params, ng'), ([], dc''))
@@ -43,20 +43,21 @@ createCaseExpr' kv new_id t es@(_:_) =
 createCaseExpr' kv _ _ [] = (Prim Undefined TyBottom, [ExtCond (mkFalse kv) True])
 
 -- Make a case expression, returning lists of what to insert instead of inserting
-createCaseExpr :: TyVarEnv
+createCaseExpr :: Expr
+               -> TyVarEnv
                -> [(Id, Type)]
                -> Maybe Coercion
                -> Id
                -> Type -- ^ Return type of case expression
                -> KnownValues
-               -> TypeEnv
+               -> DataConPCMap
                -> NameGen
                -> [DataCon]
                -> (Id, Expr, [PathCond], NameGen, [(Name, Expr)], [Id])
-createCaseExpr tv bi maybeC binder ti kv tenv ng dcs =
+createCaseExpr mexpr tv bi maybeC binder ti kv dcpcm ng dcs =
     let
         (new_id, ng') = freshId TyLitInt ng
-        ((concs, syms, ng''), dcs') = L.mapAccumL (concretizeSym tv bi maybeC binder kv tenv) ([], [], ng') dcs
+        ((concs, syms, ng''), dcs') = L.mapAccumL (concretizeSym mexpr tv bi maybeC binder dcpcm) ([], [], ng') dcs
 
         -- Create a case expression to choose on of viable DCs
         (mexpr', assume_pc) = createCaseExpr' kv new_id ti dcs'

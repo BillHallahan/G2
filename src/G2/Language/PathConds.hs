@@ -25,6 +25,7 @@ module G2.Language.PathConds ( PathConds
                              , mapMaybePathCondsSCC
                              , map'
                              , filter
+                             , firstJust
                              , alter
                              , alterHashed
                              , unionAlterHashed
@@ -51,6 +52,7 @@ module G2.Language.PathConds ( PathConds
                              , mapHashedPC) where
 
 import qualified G2.Data.UFMap as UF
+import qualified G2.Data.Utils as U
 import G2.Language.AST
 import G2.Language.Ids
 import G2.Language.Naming
@@ -59,7 +61,7 @@ import G2.Language.Syntax
 import Data.Coerce
 import Data.Data (Data)
 import qualified Data.Foldable as F
-import GHC.Generics (Generic)
+import GHC.Generics
 import Data.Hashable
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
@@ -185,6 +187,9 @@ filter :: (PathCond -> Bool) -> PathConds -> PathConds
 filter f = fromHashedList 
          . L.filter (f . unhashedPC)
          . toHashedList
+
+firstJust :: (PathCond -> Maybe a) -> PathConds -> Maybe a
+firstJust f = U.firstJust f . toList
 
 alter :: (PathCond -> Maybe PathCond) -> PathConds -> PathConds
 alter f = fromList . mapMaybe f . toList

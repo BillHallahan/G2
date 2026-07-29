@@ -69,13 +69,13 @@ stdReduce config no_inline symb_func_eval solver simplifier s b = do
     return (r, zip s'' (repeat ()), b { name_gen = ng'})
 
 stdReduce' :: (Solver solver, Simplifier simplifier, ASTContainer t Expr) => Config -> HS.HashSet Name -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [State t], NameGen)
-stdReduce' config no_inline _ solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce }) b@(Bindings { name_gen = ng })
+stdReduce' config no_inline _ solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce }) b@(Bindings { name_gen = ng, data_con_pc_map = dcpm })
     | Var i  <- ce
     , sharing config == Sharing = return $ evalVarSharing s ng i
     | Var i <- ce
     , sharing config == NoSharing = return $ evalVarNoSharing s ng i
     | App e1 e2 <- ce = do
-        let (r, new_pc, ng') = evalApp s ng e1 e2
+        let (r, new_pc, ng') = evalApp s dcpm ng e1 e2
         (ng'', states) <- reduceNewPC (smt_discard_on_unknown config) solver simplifier ng' new_pc
         return (r, states, ng'')
     | Let b_ e <- ce = return $ evalLet s ng b_ e
@@ -273,14 +273,14 @@ makeAltsForPMRet ns tyVarId = go ns tyVarId 1
 --    (2) We have a symbolic value, and no evaluation is possible, so we return
 -- If we do not have a primitive operator, we go into the center of the apps,
 -- to evaluate the function call
-evalApp :: State t -> NameGen -> Expr -> Expr -> (Rule, NewPC t, NameGen)
+evalApp :: State t -> DataConPCMap -> NameGen -> Expr -> Expr -> (Rule, NewPC t, NameGen)
 evalApp s@(State { expr_env = eenv
                  , type_env = tenv
                  , known_values = kv
                  , exec_stack = stck
                  , tyvar_env = tv_env
                  , type_classes = tc })
-        ng e1 e2
+        dcpm ng e1 e2
     | (Prim Error _) <- appCenter e1 =
         (RuleError, newPCEmpty $ s { curr_expr = CurrExpr Return (App e1 e2) }, ng)
     -- Force evaluation of the expression being quantified over
@@ -315,7 +315,7 @@ evalApp s@(State { expr_env = eenv
         let e = foldr Tick (stripAllTicks (App e1 e2)) ts in
         (RuleEvalPrimFloatTicks, (newPCEmpty $ s { curr_expr = CurrExpr Evaluate e }), ng)
     | Just (new_pc, ng') <- evalPrimWithState s ng (stripAllTicks $ App e1 e2) = (RuleEvalPrimToNormWithState, new_pc, ng')
-    | Just (e, eenv', pc, ng') <- evalPrimSymbolic tv_env eenv tenv ng kv (App e1 e2) =
+    | Just (e, eenv', pc, ng') <- evalPrimSymbolic tv_env eenv tenv ng kv dcpm (App e1 e2) =
         ( RuleEvalPrimToNormSymbolic
         , (SplitStatePieces
             (s { expr_env = eenv' })
@@ -609,7 +609,7 @@ evalCase s@(State { expr_env = eenv
             _ -> error $ "unmatched expr" ++ show (unApp $ unsafeElimOuterCast mexpr)
 
         lsts_cs = liftSymLitAlt s mexpr bind lalts
-        (def_sts, ng'') = liftSymDefAlt s ng' mexpr bind alts
+        (def_sts, ng'') = liftSymDefAlt s ng' dcpm mexpr bind alts
 
         alt_res = dsts_cs ++ lsts_cs ++ def_sts
       in
@@ -716,7 +716,7 @@ concretizeVarExpr' s@(State { type_env = tenv
             binds = [(cvar, (Var mexpr_id))]
             aexpr'' = liftCaseBinds binds aexpr'
 
-            (pcs, ngen'', concs, syms) = adjustExprEnvAndPathConds tenv tvnv ngen' dcpm dcon dcon'' mexpr_id params' news
+            (pcs, ngen'', concs, syms) = adjustExprEnvAndPathConds kv tenv tvnv ngen' dcpm dcon dcon'' mexpr_id params' news
         in
             Just (SD { new_conc_entries = concs, new_sym_entries = syms
                      , new_path_conds = pcs, concretized = [mexpr_id]
@@ -808,7 +808,8 @@ cleanParamsAndMakeDcon tv kv params ngen dcon aexpr mexpr_t m_coercion tenv =
 -- | Determines an ExprEnv and Path Constraints from following a particular branch of symbolic execution.
 -- Has special handling for Strings- see [String Concretizations and Constraints]
 adjustExprEnvAndPathConds ::
-                     TypeEnv
+                     KnownValues
+                  -> TypeEnv
                   -> TV.TyVarEnv
                   -> NameGen
                   -> DataConPCMap
@@ -818,10 +819,12 @@ adjustExprEnvAndPathConds ::
                   -> [Id] -- ^ Constructor Argument Ids
                   -> [Name]
                   -> ([PathCond], NameGen, EEDiff, EESymDiff)
-adjustExprEnvAndPathConds tenv tv ng dcpm dc dc_e mexpr params dcargs
+adjustExprEnvAndPathConds kv tenv tv ng dcpm dc dc_e mexpr params dcargs
     | Just dcpc <- getDCPCInfo dc (typeOf tv mexpr) tenv tv dcpm =
         let (pcs, ng', _, concs, syms) = applyDCPC ng new_ids (Var mexpr) dcpc
         in (pcs, ng', mexpr_dc:concs, syms)
+    | typeOf tv mexpr == tyBool kv =
+        ([ExtCond (mkApp [Prim Eq TyUnknown, Var mexpr, Data dc]) True], ng, [mexpr_dc], new_ids)
     | otherwise = ([], ng, [mexpr_dc], new_ids)
     where
         mexpr_n = idName mexpr
@@ -954,13 +957,13 @@ liftSymLitAlt' s mexpr cvar (lit, aexpr) =
 ----------------------------------------------------
 -- Default Alternatives
 
-liftSymDefAlt :: State t -> NameGen -> Expr ->  Id -> [Alt] -> ([StateDiff], NameGen)
-liftSymDefAlt s ng mexpr cvar as =
+liftSymDefAlt :: State t -> NameGen -> DataConPCMap -> Expr ->  Id -> [Alt] -> ([StateDiff], NameGen)
+liftSymDefAlt s ng dcpm mexpr cvar as =
     let
         match = defAltExpr as
     in
     case match of
-        Just aexpr -> liftSymDefAlt' s ng mexpr aexpr cvar as -- (liftSymDefAlt'' s mexpr aexpr cvar as, ng)
+        Just aexpr -> liftSymDefAlt' s ng dcpm mexpr aexpr cvar as -- (liftSymDefAlt'' s mexpr aexpr cvar as, ng)
         _ -> ([], ng)
 
 -- Note [MutVar Copy Concretization]
@@ -996,8 +999,8 @@ liftSymDefAlt s ng mexpr cvar as =
 -- came from concretization or newMutVar#.
 
 -- | Concretize Symbolic variable to Case Expr on its possible Data Constructors
-liftSymDefAlt' :: State t -> NameGen -> Expr -> Expr -> Id -> [Alt] -> ([StateDiff], NameGen)
-liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }) ng mexpr aexpr cvar alts
+liftSymDefAlt' :: State t -> NameGen -> DataConPCMap -> Expr -> Expr -> Id -> [Alt] -> ([StateDiff], NameGen)
+liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }) ng dcpm mexpr aexpr cvar alts
     | Var i:_ <- unApp mexpr
     , TyApp (TyApp mvt realworld_ty) stored_ty <- typeOf tvnv i
     , TyCon n _ <- tyAppCenter mvt
@@ -1053,8 +1056,9 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
 
             -- Find DCs already accounted for by other case alts
             badDCs = mapMaybe (\alt -> case alt of
-                (Alt (DataAlt (DataCon dcn _ _ _) _) _) -> Just dcn
+                (Alt (DataAlt dc _) _) -> Just dc
                 _ -> Nothing) alts
+            badDCNames = map dc_name badDCs
         in
         case null badDCs of
             True ->
@@ -1075,13 +1079,13 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
                 let
                     -- Find DCs NOT accounted for by other case alts, i.e. that would go
                     -- down the default path
-                    dcs' = filter (\(DataCon dcn _ _ _) -> dcn `notElem` badDCs) dcs
+                    dcs' = filter (\(DataCon dcn _ _ _) -> dcn `notElem` badDCNames) dcs
 
                     (cvar', ng') = freshSeededId cvar (typeOf tvnv cvar) ng
 
                     -- -- Create a case expression to choose on of viable DCs
                     (_, mexpr', assume_pc, ng'', concs, syms) =
-                        createCaseExpr tvnv bi maybeC cvar' (typeOf tvnv i) kv tenv ng' dcs'
+                        createCaseExpr mexpr tvnv bi maybeC cvar' (typeOf tvnv i) kv dcpm ng' dcs'
 
                     binds = [(cvar, Var cvar')]
                     aexpr' = liftCaseBinds binds aexpr
@@ -1136,6 +1140,10 @@ liftSymDefAltPCs kv tv_env mexpr (DataAlt dc _)
          Just $ ExtCond (mkApp [Prim Eq TyUnknown, App (Prim StrLen TyUnknown) mexpr, Lit (LitInt 0)]) True
     | dc_name dc == KV.dcEmpty kv =
          Just $ ExtCond (mkApp [Prim Neq TyUnknown, App (Prim StrLen TyUnknown) mexpr, Lit (LitInt 0)]) True
+    | dc_name dc == KV.dcTrue kv =
+         Just $ ExtCond (mkApp [Prim Eq TyUnknown, mexpr, mkFalse kv]) True
+    | dc_name dc == KV.dcFalse kv =
+         Just $ ExtCond (mkApp [Prim Eq TyUnknown, mexpr, mkTrue kv]) True
     | otherwise = Just $ ExtCond (App (Prim Not TyUnknown) (App (Prim (IsConstructor dc) TyUnknown) mexpr)) True
 liftSymDefAltPCs _ _ mexpr (LitAlt lit) = Just $ AltCond lit mexpr False
 liftSymDefAltPCs _ _ _ Default = Nothing

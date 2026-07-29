@@ -583,6 +583,7 @@ mkPrimHaskell pg = pr
         pr WriteMutVar = "writeMutVar##"
 
         pr (IsConstructor dc) = "isConstructor-" <> mkDataConHaskell pg dc
+        pr (Selector dc i) = "Selector-" <> mkDataConHaskell pg dc <> "-" <> T.pack (show i)
 
         pr ToInt = "toInt"
 

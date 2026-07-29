@@ -96,7 +96,6 @@ sumListBad (x:xs) = x + sumListBad xs
 
 smtSumListBad :: [Int] -> Int
 smtSumListBad xs = smtFoldLeft (\x y -> x + y + 1) 0 xs
-
 {-# ANN myIntersperse (SMTEquivIsWithConfig "smtMyIntersperse" "")
     #-}
 myIntersperse :: Int -> [Int] -> [Int]

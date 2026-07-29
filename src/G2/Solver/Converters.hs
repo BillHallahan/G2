@@ -196,6 +196,7 @@ toSMTHeaders' tv tenv pc =
     where
         getADTTypes (TyCon n _) = HS.singleton n
         getADTTypes (TyVar (Id n _)) | Just (TV.TyConc t) <- TV.lookupConcOrSym n tv = getADTTypes t
+        getADTTypes (TyApp t1 t2) = getADTTypes t1 `HS.union` getADTTypes t2
         getADTTypes _ = HS.empty
 
 -- |  Determines an appropriate SetLogic command, and adds it to the headers
@@ -503,6 +504,7 @@ exprToSMT tv a@(App _ _) =
         getFunc p@(Prim _ _) = p
         getFunc (App a' _) = getFunc a'
         getFunc d@(Data _) = d 
+        getFunc l@(Lam _ _ _) = l 
         getFunc err = error $ "getFunc: invalid Expr: " ++ show err
 
         getArgs :: Expr -> [Expr]
@@ -543,6 +545,8 @@ funcToSMT tv (Data dc) es =
     DataSMT (nameToStr $ dc_name dc) . map (exprToSMT tv) $ filter (not . isType) es
 funcToSMT tv (Var (Id n _)) es = -- Uninterpreted function
     Func (nameToStr n) $ map (exprToSMT tv) es
+funcToSMT tv (Lam _ (Id n t) e) [e'] =
+    AppLam (LambdaSMT [(nameToStr n, typeToSMT tv t)] (exprToSMT tv e)) (exprToSMT tv e')
 funcToSMT _ e l = error ("Unrecognized " ++ show e ++ " with args " ++ show l ++ " in funcToSMT")
 
 funcToSMT1Prim :: TV.TyVarEnv -> Primitive -> Expr -> SMTAST
@@ -592,6 +596,7 @@ funcToSMT1Prim tv ReStar e = ReStarSMT (exprToSMT tv e)
 funcToSMT1Prim tv ReComp e = ReCompSMT (exprToSMT tv e)
 
 funcToSMT1Prim tv (IsConstructor dc) e = IsConstructorSMT (nameToStr $ dc_name dc) (exprToSMT tv e)
+funcToSMT1Prim tv (Selector dc i) e = SelectorSMT (nameToStr $ dc_name dc) i (exprToSMT tv e)
 
 funcToSMT1Prim _ err _ = error $ "funcToSMT1Prim: invalid Primitive " ++ show err
 
@@ -776,7 +781,7 @@ datatypeDecls tv_env n (DataTyCon { bound_ids = is, data_cons = dcs }) =
         dts = map (\dc ->
                         let
                             dc_n = nameToStr $ dc_name dc
-                            dc_a = zipWith (\i d -> ("extract" ++ show i, d)) [1 :: Integer ..] . map (typeToSMT tv_env) . anonArgumentTypes $ dc_type dc
+                            dc_a = zipWith (\i d -> (selectorName dc_n i, d)) [1 :: Int ..] . map (typeToSMT tv_env) . anonArgumentTypes $ dc_type dc
                         in
                         (dc_n, dc_a)
                   ) dcs
@@ -784,6 +789,11 @@ datatypeDecls tv_env n (DataTyCon { bound_ids = is, data_cons = dcs }) =
     in
     DeclareDatatypes [ smt_dt ]
 datatypeDecls _ _ _ = error "datatypeDecls: unsupported"
+
+selectorName :: String -> Int -> String
+selectorName n i 
+    | '|':ns <- n = "|select_" ++ show i ++ "_" ++ ns
+    | otherwise = n ++ "_select_" ++ show i
 
 pcVarDecls :: TV.TyVarEnv -> PathConds -> [SMTHeader]
 pcVarDecls tv = createUniqVarDecls . HS.toList . pcVars tv
@@ -1026,8 +1036,9 @@ toSolverAST str_seq = go
         go (V n _) = TB.string n
         go (DataSMT n []) = TB.string n
         go (DataSMT n as) = "(" <> TB.string n <> " " <> TB.intercalate " " (map go as) <> ")"
-        go (IsConstructorSMT n e) = "(is-" <> TB.string n <> " " <> go e <> ")"
-
+        go (IsConstructorSMT n e) | '|':ns <- n = "(|is-" <> TB.string ns <> " " <> go e <> ")"
+                                  | otherwise = "(is-" <> TB.string n <> " " <> go e <> ")"
+        go (SelectorSMT n i e) = "(" <> TB.string (selectorName n i) <> " " <> go e <> ")"
 
         go (Named x n) = "(! " <> go x <> " :named " <> TB.string n <> ")"
 
@@ -1053,6 +1064,10 @@ toSolverASTString = go
         go (StrPrefixOfSMT x y) = function2 "str.prefixof" (goBack x) (goBack y)
         go (StrSuffixOfSMT x y) = function2 "str.suffixof" (goBack x) (goBack y)
         go (StrReverseSMT x) = function1 "str.rev" (goBack x)
+        go (SeqNthSMT x y) = function2 "seq.nth" (goBack x) (goBack y)
+        go (LambdaSMT [(n, s)] e) =
+            "(lambda ((" <> TB.string n <> sortNameLam s <>  "))" <> go e <> ")"
+        go (AppLam e1 e2) = "(" <> go e1 <> " " <> go e2 <> ")"
         go c = toSolverASTRe goBack c
 
         goBack = toSolverAST toSolverASTString
@@ -1097,6 +1112,9 @@ toSolverASTSeq = go
                     <> " (" <> TB.string n1 <> " " <> sortNameLam s1 <> ")"
                     <> " (" <> TB.string n2 <> " " <> sortNameLam s2 <> ")) "
                     <> goBack w <> ") " <> goBack x <> " " <> goBack y <> " " <> goBack z <> ")"
+        go (LambdaSMT [(n, s)] e) =
+            "(lambda ((" <> TB.string n <> sortNameLam s <>  "))" <> go e <> ")"
+        go (AppLam e1 e2) = "(" <> go e1 <> " " <> go e2 <> ")"
         go c = toSolverASTRe goBack c
 
         goBack = toSolverAST toSolverASTSeq
@@ -1115,7 +1133,7 @@ toSolverASTRe goBack = go
         go (ReStarSMT r) = function1 "re.*" $ goBack r
         go (ReRangeSMT s1 s2) = function2 "re.range" (goBack s1) (goBack s2)
         go (ReCompSMT r) = function1 "re.comp" $ goBack r
-        go _ = error "toSolverASTRe: primitive not handled"
+        go pr = goBack pr
 
 -- | Converts a bit vector to a signed Int.
 -- Z3 has a bv2int function, but uses unsigned integers.

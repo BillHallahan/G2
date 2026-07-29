@@ -1,5 +1,6 @@
 {-# LANGUAGE BangPatterns, CPP, DeriveDataTypeable, DeriveGeneric,
-             FlexibleContexts, LambdaCase, MagicHash, OverloadedStrings, ScopedTypeVariables, TupleSections #-}
+             FlexibleContexts, LambdaCase, MagicHash, OverloadedStrings,
+             ScopedTypeVariables, TypeApplications, TupleSections #-}
 
 module G2.Plugin (SymEx (..)
                  , plugin
@@ -9,6 +10,7 @@ module G2.Plugin (SymEx (..)
                  , G2.Plugin.assert
                  , (==>)
 
+                 , smtEq
                  , smtLen
                  , smtNth
                  , smtExtract
@@ -26,6 +28,8 @@ module G2.Plugin (SymEx (..)
                  , smtMap
                  , smtFoldLeft
                 --  , smtFoldLeftI
+
+                , genVal
 
                  , comp
                 ) where
@@ -88,6 +92,7 @@ assume :: Bool -- ^ Condition to assume
        -> a -- ^ 
        -> a
 assume _ x = x
+{-# NOINLINE assume #-}
 
 {-# NOINLINE assert #-}
 -- | Assert that a condition is true
@@ -412,7 +417,8 @@ getModuleAnnot modguts = do
 
 adjustFunctions :: NameMap -> ExtractedG2 -> ExtractedG2
 adjustFunctions nm ex_g2 = do
-      adjustFunction ("pSmtLen#", Just "G2.Plugin.Prim") nm (callPrim nm "strLen#")
+      adjustFunction ("pSmtEq#", Just "G2.Plugin.Prim") nm (callPrim nm "strEq#")
+    . adjustFunction ("pSmtLen#", Just "G2.Plugin.Prim") nm (callPrim nm "strLen#")
     . adjustFunction ("pSmtNth#", Just "G2.Plugin.Prim") nm (callPrim nm "seqNthInt#")
     -- . adjustFunction ("pSmtUpdate#", Just "G2.Plugin.Prim") nm (callPrim nm "strUpdate#")
     . adjustFunction ("pSmtExtract#", Just "G2.Plugin.Prim") nm (callPrim nm "strSubstr#")
@@ -433,6 +439,8 @@ adjustFunctions nm ex_g2 = do
 
     . adjustFunction ("pIsSMTRep#", Just "G2.Plugin.Prim") nm (callPrim nm "isSMTRep#")
 
+    . adjustMkSymbolicPrim SNoLog "pSymGen#" (Just "G2.Plugin.Prim") nm
+
     . adjustFunction ("$&&#", Just "G2.Plugin.Prim") nm (callPrim nm "&&#")
 
     . adjustAssert "assert" "G2.Plugin" nm
@@ -447,6 +455,9 @@ callPrim nm n =
 ------------------------------------------------------------------------------
 -- Functions for use in plugins
 ------------------------------------------------------------------------------
+smtEq :: [a] -> [a] -> Bool
+smtEq xs ys = xs `evalSeq` ys `evalSeq` pSmtEq# xs ys
+
 smtLen :: [a] -> Int
 smtLen xs = xs `evalSeq` I# (pSmtLen# xs)
 
@@ -520,6 +531,9 @@ smtFoldLeft' f x xs =
 --     let f' j = f (I# j) in
 --     xs `evalSeq` pSmtFoldLeftI# f' i x xs 
 
+genVal :: forall a . (a -> Bool) -> a
+genVal p = let !x = pSymGen# @a in assume (p x) x
+
 {-# NOINLINE evalSeq #-}
 evalSeq :: [a] -> b -> b
 evalSeq xs b = evalSeq' xs `seq` b
@@ -530,7 +544,7 @@ evalSeq' xs = go xs
     go ys | pIsSMTRep# ys = ys
     go !ys | pIsSMTRep# ys = ys
     go [] = []
-    go ((!y):ys) = y:go ys
+    go ((!y):ys) = let !ys' = go ys in y:ys'
 
 -- Equivalence Checking
 tryMaybe :: IO a -> IO (Maybe a)

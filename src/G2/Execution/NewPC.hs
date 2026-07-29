@@ -82,19 +82,31 @@ reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state 
         tenv = type_env state
         tv_env = tyvar_env state
         ce = curr_expr state
-        unwrapped_ce = getCurrExpr ce
+        unwrapped_ce = (\(CurrExpr _ e) -> e) ce
 
         scrut_smt_rep = case unwrapped_ce of
                             Case e _ _ _ 
                                 | DCPC.allInDCPC tenv $ typeOf tv_env e -> True
                                 | TyCon n _ <- typeOf tv_env e -> n == KV.tyBool kv
                             _ -> False
+        
+        conc_entry_to_selector n e
+            | Data dc:es <- unApp e =
+                let
+                    i = Id n $ typeOf tv_env e
+                    es' = filter (not . isType) es
+                in
+                zipWith (\v j -> case v of
+                                    (Var (Id vn _)) -> (vn, mkApp [Prim (Selector dc j) TyUnknown, Var i])
+                                    _ -> error "reduceNewPC: expected var") es' [1 :: Int ..]
+            | otherwise = []
 
-        getCurrExpr (CurrExpr _ e) = e
+        isType (Type _) = True
+        isType _ = False
 
         -- For types being branched on in literal tables, we want to avoid concretization,
         -- only using the path conds
-        elim_conc_entries d = d { new_conc_entries = []}
+        elim_conc_entries d = d { new_conc_entries = concatMap (uncurry conc_entry_to_selector) $ new_conc_entries d}
 
         -- Suppose we have:
         --   x == Just y
@@ -105,15 +117,16 @@ reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state 
         -- To avoid this, we introduce constraints that:
         --   is-Just x ==> x == Just y
         -- i.e. if x is a `Just` constructor, its argument MUST be equal to y.
-        force_specific_cons_args = map (uncurry consImpliesEq) (concatMap new_conc_entries state_diffs)
+        force_specific_cons_args = mapMaybe (uncurry consImpliesEq) (concatMap new_conc_entries state_diffs)
         consImpliesEq n e
+            | typeOf tv_env e == tyBool kv = Nothing
             | Data dc <- appCenter e =
                 let
                     v = Var (Id n $ typeOf tv_env e)
                     has_cons = App (Prim (IsConstructor dc) TyUnknown) v
                     eq_dc = mkApp [ Prim Eq TyUnknown, v, e]
                 in
-                ExtCond ( mkApp [Prim Implies TyUnknown, has_cons, eq_dc]) True 
+                Just $ ExtCond ( mkApp [Prim Implies TyUnknown, has_cons, eq_dc]) True 
             | otherwise = error "Expected constructor"
 
         wrap diff = LitTableFrame (Diff diff (path_conds state)) True

@@ -149,6 +149,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | FoldLeftSMT SMTName Sort SMTName Sort !SMTAST !SMTAST !SMTAST
             | FoldLeftISMT SMTName Sort SMTName Sort SMTName Sort !SMTAST !SMTAST !SMTAST !SMTAST
             | LambdaSMT [(SMTName, Sort)] SMTAST
+            | AppLam SMTAST SMTAST
 
             | InReSMT !SMTAST !SMTAST
             | ToReSMT !SMTAST
@@ -184,6 +185,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | V SMTName Sort
             | DataSMT SMTName [SMTAST]
             | IsConstructorSMT SMTName SMTAST
+            | SelectorSMT SMTName Int SMTAST
 
             | FloatToIntSMT !SMTAST -- ^ Float to Integer conversion
             | DoubleToIntSMT !SMTAST -- ^ Double to Integer conversion
