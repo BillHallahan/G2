@@ -69,13 +69,13 @@ stdReduce config no_inline symb_func_eval solver simplifier s b = do
     return (r, zip s'' (repeat ()), b { name_gen = ng'})
 
 stdReduce' :: (Solver solver, Simplifier simplifier, ASTContainer t Expr) => Config -> HS.HashSet Name -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [State t], NameGen)
-stdReduce' config no_inline _ solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce }) b@(Bindings { name_gen = ng })
+stdReduce' config no_inline _ solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce }) b@(Bindings { name_gen = ng, data_con_pc_map = dcpm })
     | Var i  <- ce
     , sharing config == Sharing = return $ evalVarSharing s ng i
     | Var i <- ce
     , sharing config == NoSharing = return $ evalVarNoSharing s ng i
     | App e1 e2 <- ce = do
-        let (r, new_pc, ng') = evalApp s ng e1 e2
+        let (r, new_pc, ng') = evalApp s dcpm ng e1 e2
         (ng'', states) <- reduceNewPC (smt_discard_on_unknown config) solver simplifier ng' new_pc
         return (r, states, ng'')
     | Let b_ e <- ce = return $ evalLet s ng b_ e
@@ -273,14 +273,14 @@ makeAltsForPMRet ns tyVarId = go ns tyVarId 1
 --    (2) We have a symbolic value, and no evaluation is possible, so we return
 -- If we do not have a primitive operator, we go into the center of the apps,
 -- to evaluate the function call
-evalApp :: State t -> NameGen -> Expr -> Expr -> (Rule, NewPC t, NameGen)
+evalApp :: State t -> DataConPCMap -> NameGen -> Expr -> Expr -> (Rule, NewPC t, NameGen)
 evalApp s@(State { expr_env = eenv
                  , type_env = tenv
                  , known_values = kv
                  , exec_stack = stck
                  , tyvar_env = tv_env
                  , type_classes = tc })
-        ng e1 e2
+        dcpm ng e1 e2
     | (Prim Error _) <- appCenter e1 =
         (RuleError, newPCEmpty $ s { curr_expr = CurrExpr Return (App e1 e2) }, ng)
     -- Force evaluation of the expression being quantified over
@@ -315,7 +315,7 @@ evalApp s@(State { expr_env = eenv
         let e = foldr Tick (stripAllTicks (App e1 e2)) ts in
         (RuleEvalPrimFloatTicks, (newPCEmpty $ s { curr_expr = CurrExpr Evaluate e }), ng)
     | Just (new_pc, ng') <- evalPrimWithState s ng (stripAllTicks $ App e1 e2) = (RuleEvalPrimToNormWithState, new_pc, ng')
-    | Just (e, eenv', pc, ng') <- evalPrimSymbolic tv_env eenv tenv ng kv (App e1 e2) =
+    | Just (e, eenv', pc, ng') <- evalPrimSymbolic tv_env eenv tenv ng kv dcpm (App e1 e2) =
         ( RuleEvalPrimToNormSymbolic
         , (SplitStatePieces
             (s { expr_env = eenv' })
@@ -1085,7 +1085,7 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
 
                     -- -- Create a case expression to choose on of viable DCs
                     (_, mexpr', assume_pc, ng'', concs, syms) =
-                        createCaseExpr tvnv bi maybeC cvar' (typeOf tvnv i) kv tenv ng' dcs'
+                        createCaseExpr mexpr tvnv bi maybeC cvar' (typeOf tvnv i) kv dcpm ng' dcs'
 
                     binds = [(cvar, Var cvar')]
                     aexpr' = liftCaseBinds binds aexpr

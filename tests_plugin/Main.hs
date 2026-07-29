@@ -38,7 +38,7 @@ tests = testGroup "All Tests"
                                 -- Tuples
                                 , ("appTuple", "smtAppTuple")
                                 , ("pairA", "smtPairA")
-                                , ("myZip", "smtMyZip")
+                                , ("myA", "smtMyA")
                                 ]
                                 [ 
                                   -- Strings  

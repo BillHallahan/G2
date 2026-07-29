@@ -42,12 +42,17 @@ smtPairA :: [A] -> [(A, A)]
 smtPairA xs = genVal (\ys -> xs `smtEq` smtMap fst ys
                           && smtFoldLeft (\acc y -> acc && snd y == A) True ys)
 
-{-# ANN pairABad (SMTEquivIsWithConfig "smtPairA" "")
+{-# ANN pairABad (SMTEquivIsWithConfig "smtPairABad" "")
     #-}
 pairABad :: [A] -> [(A, A)]
 pairABad [] = []
 pairABad (x:xs) = (x, B):pairA xs
 
+smtPairABad :: [A] -> [(A, A)]
+smtPairABad xs = genVal (\ys -> xs `smtEq` smtMap fst ys
+                             && smtFoldLeft (\acc y -> acc && snd y == A) True ys)
+
+{-
 {-# ANN myZip (SMTEquivIsWithConfig "smtMyZip" "")
     #-}
 myZip :: [A] -> [A] -> [(A, A)]
@@ -60,6 +65,7 @@ smtMyZip xs ys | smtLen xs < smtLen ys = genVal (\zs -> xs `smtEq` smtMap fst zs
                                                      && smtMap snd zs `smtPrefixOf` ys)
                | otherwise = genVal (\zs -> smtMap fst zs `smtPrefixOf` xs 
                                          && ys `smtEq` smtMap snd zs)
+-}
 
 {-# ANN myZipBad (SMTEquivIsWithConfig "smtMyZipBad" "")
     #-}
@@ -74,7 +80,7 @@ smtMyZipBad xs ys | smtLen xs < smtLen ys = genVal (\zs -> xs `smtEq` smtMap fst
                   | otherwise = genVal (\zs -> smtMap fst zs `smtPrefixOf` xs 
                                             && ys `smtEq` smtMap snd zs)
 
-{-# ANN myA (SMTEquivIsWithConfig "smtMyA" "--print-smt")
+{-# ANN myA (SMTEquivIsWithConfig "smtMyA" "")
     #-}
 myA :: [A] -> [A] -> [A]
 myA [] _ = []
