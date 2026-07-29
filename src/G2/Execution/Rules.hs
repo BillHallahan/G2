@@ -609,7 +609,7 @@ evalCase s@(State { expr_env = eenv
             _ -> error $ "unmatched expr" ++ show (unApp $ unsafeElimOuterCast mexpr)
 
         lsts_cs = liftSymLitAlt s mexpr bind lalts
-        (def_sts, ng'') = liftSymDefAlt s ng' mexpr bind alts
+        (def_sts, ng'') = liftSymDefAlt s ng' dcpm mexpr bind alts
 
         alt_res = dsts_cs ++ lsts_cs ++ def_sts
       in
@@ -957,13 +957,13 @@ liftSymLitAlt' s mexpr cvar (lit, aexpr) =
 ----------------------------------------------------
 -- Default Alternatives
 
-liftSymDefAlt :: State t -> NameGen -> Expr ->  Id -> [Alt] -> ([StateDiff], NameGen)
-liftSymDefAlt s ng mexpr cvar as =
+liftSymDefAlt :: State t -> NameGen -> DataConPCMap -> Expr ->  Id -> [Alt] -> ([StateDiff], NameGen)
+liftSymDefAlt s ng dcpm mexpr cvar as =
     let
         match = defAltExpr as
     in
     case match of
-        Just aexpr -> liftSymDefAlt' s ng mexpr aexpr cvar as -- (liftSymDefAlt'' s mexpr aexpr cvar as, ng)
+        Just aexpr -> liftSymDefAlt' s ng dcpm mexpr aexpr cvar as -- (liftSymDefAlt'' s mexpr aexpr cvar as, ng)
         _ -> ([], ng)
 
 -- Note [MutVar Copy Concretization]
@@ -999,8 +999,8 @@ liftSymDefAlt s ng mexpr cvar as =
 -- came from concretization or newMutVar#.
 
 -- | Concretize Symbolic variable to Case Expr on its possible Data Constructors
-liftSymDefAlt' :: State t -> NameGen -> Expr -> Expr -> Id -> [Alt] -> ([StateDiff], NameGen)
-liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }) ng mexpr aexpr cvar alts
+liftSymDefAlt' :: State t -> NameGen -> DataConPCMap -> Expr -> Expr -> Id -> [Alt] -> ([StateDiff], NameGen)
+liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }) ng dcpm mexpr aexpr cvar alts
     | Var i:_ <- unApp mexpr
     , TyApp (TyApp mvt realworld_ty) stored_ty <- typeOf tvnv i
     , TyCon n _ <- tyAppCenter mvt
@@ -1056,8 +1056,9 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
 
             -- Find DCs already accounted for by other case alts
             badDCs = mapMaybe (\alt -> case alt of
-                (Alt (DataAlt (DataCon dcn _ _ _) _) _) -> Just dcn
+                (Alt (DataAlt dc _) _) -> Just dc
                 _ -> Nothing) alts
+            badDCNames = map dc_name badDCs
         in
         case null badDCs of
             True ->
@@ -1078,7 +1079,7 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
                 let
                     -- Find DCs NOT accounted for by other case alts, i.e. that would go
                     -- down the default path
-                    dcs' = filter (\(DataCon dcn _ _ _) -> dcn `notElem` badDCs) dcs
+                    dcs' = filter (\(DataCon dcn _ _ _) -> dcn `notElem` badDCNames) dcs
 
                     (cvar', ng') = freshSeededId cvar (typeOf tvnv cvar) ng
 
@@ -1088,10 +1089,30 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
 
                     binds = [(cvar, Var cvar')]
                     aexpr' = liftCaseBinds binds aexpr
+
+                    not_dc_pcs_exps = 
+                        case mapMaybe (\dc -> getDCPCInfo dc (typeOf tvnv mexpr) tenv tvnv dcpm) dcs' of
+                                [] -> []
+                                _ | TyCon n _ <- typeOf tvnv mexpr
+                                  , n == KV.tyBool kv ->
+                                    map (\dc_ -> if dc_name dc_ == KV.dcTrue kv
+                                                            then App (Prim Not TyUnknown) mexpr
+                                                            else mexpr) badDCs
+                                _ | TyApp (TyCon n _) _ <- typeOf tvnv mexpr
+                                  , n == KV.tyList kv ->
+                                    map (\dc_ -> mkApp [ if dc_name dc_ == KV.dcCons kv then Prim Eq TyUnknown else Prim Neq TyUnknown
+                                                       , App (Prim StrLen TyUnknown) mexpr
+                                                       , Lit (LitInt 0)
+                                                       ]) badDCs
+                                _ -> map (\dc -> App 
+                                                    (Prim Not TyUnknown)
+                                                    (App (Prim (IsConstructor dc) TyUnknown) mexpr)) badDCs
+                    not_dc_pcs = map (flip ExtCond True) not_dc_pcs_exps
+
                 in
                 ([SD { new_conc_entries = concs ++ [(idName i, mexpr'), (idName cvar', mexpr')]
                      , new_sym_entries = syms
-                     , new_path_conds = assume_pc, concretized = []
+                     , new_path_conds = assume_pc ++ not_dc_pcs, concretized = []
                      , new_true_assert = true_assert s, new_assert_ids = assert_ids s
                      , new_curr_expr = CurrExpr Evaluate aexpr'
                      , new_conc_types = [], new_sym_types = []

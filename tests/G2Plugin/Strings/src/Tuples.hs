@@ -42,15 +42,13 @@ smtPairA :: [A] -> [(A, A)]
 smtPairA xs = genVal (\ys -> xs `smtEq` smtMap fst ys
                           && smtFoldLeft (\acc y -> acc && snd y == A) True ys)
 
-{-
 {-# ANN pairABad (SMTEquivIsWithConfig "smtPairA" "")
     #-}
 pairABad :: [A] -> [(A, A)]
 pairABad [] = []
 pairABad (x:xs) = (x, B):pairA xs
--}
 
-{-# ANN myZip (SMTEquivIsWithConfig "smtMyZip" "--log-pretty a_zip --no-log-files")
+{-# ANN myZip (SMTEquivIsWithConfig "smtMyZip" "")
     #-}
 myZip :: [A] -> [A] -> [(A, A)]
 myZip [] _ = []
@@ -63,9 +61,26 @@ smtMyZip xs ys | smtLen xs < smtLen ys = genVal (\zs -> xs `smtEq` smtMap fst zs
                | otherwise = genVal (\zs -> smtMap fst zs `smtPrefixOf` xs 
                                          && ys `smtEq` smtMap snd zs)
 
-{-# ANN myZipBad (SMTEquivIsWithConfig "smtMyZip" "")
+{-# ANN myZipBad (SMTEquivIsWithConfig "smtMyZipBad" "")
     #-}
 myZipBad :: [A] -> [A] -> [(A, A)]
 myZipBad [] _ = []
 myZipBad _ [] = []
 myZipBad (x:xs) (_:ys) = (x, x):myZipBad xs ys
+
+smtMyZipBad :: [A] -> [A] -> [(A, A)]
+smtMyZipBad xs ys | smtLen xs < smtLen ys = genVal (\zs -> xs `smtEq` smtMap fst zs 
+                                                        && smtMap snd zs `smtPrefixOf` ys)
+                  | otherwise = genVal (\zs -> smtMap fst zs `smtPrefixOf` xs 
+                                            && ys `smtEq` smtMap snd zs)
+
+{-# ANN myA (SMTEquivIsWithConfig "smtMyA" "--print-smt")
+    #-}
+myA :: [A] -> [A] -> [A]
+myA [] _ = []
+myA _ [] = []
+myA (x:xs) ys = x:myA xs ys
+
+smtMyA :: [A] -> [A] -> [A]
+smtMyA _ [] = []
+smtMyA xs _ = genVal (\zs -> zs `smtEq` xs)
