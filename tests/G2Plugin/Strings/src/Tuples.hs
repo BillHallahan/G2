@@ -53,7 +53,7 @@ smtPairABad xs = genVal (\ys -> xs `smtEq` smtMap fst ys
                              && smtFoldLeft (\acc y -> acc && snd y == A) True ys)
 
 
-{-# ANN myZip (SMTEquivIsWithConfig "smtMyZip" "--print-smt")
+{-# ANN myZip (SMTEquivIsWithConfig "smtMyZip" "g")
     #-}
 myZip :: [A] -> [A] -> [(A, A)]
 myZip [] _ = []
