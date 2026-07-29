@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE LambdaCase, OverloadedStrings #-}
 
 module G2.Solver.SeqSolver (CheckUnsatSeq (..)) where
 
@@ -42,15 +42,26 @@ instance Solver solver => Solver (CheckUnsatSeq solver) where
 checkUnsat :: Solver solver => solver -> State t -> PathConds -> IO (Result () () ())
 checkUnsat solver s@(State { known_values = kv, tyvar_env = tv_env }) pcs
     | Just (pc, e1, e2) <- PC.firstJust (getListInequality kv tv_env) pcs = do
-        len_res <- checkLengths solver s e1 e2 pc pcs
-        case len_res of
-            UNSAT _ -> do
-                elem_res <- checkElems solver s e1 e2 pc pcs
-                case elem_res of
-                    UNSAT _ -> return $ UNSAT ()
+        let pcs' = PC.filter (\case (ExtCond e _) -> noMaps e; _ -> True) pcs
+        res_no_maps <- check solver s pcs'
+    
+        case res_no_maps of
+            UNSAT _ -> return $ UNSAT ()
+            _ -> do
+                len_res <- checkLengths solver s e1 e2 pc pcs
+                case len_res of
+                    UNSAT _ -> do
+                        elem_res <- checkElems solver s e1 e2 pc pcs
+                        case elem_res of
+                            UNSAT _ -> return $ UNSAT ()
+                            _ -> return $ Unknown "CheckUnsatSeq Solver" ()
                     _ -> return $ Unknown "CheckUnsatSeq Solver" ()
-            _ -> return $ Unknown "CheckUnsatSeq Solver" ()
-checkUnsat _ _ _ = return $ Unknown "CheckUnsatSeq Solver" ()
+checkUnsat solver s pcs = do
+    let pcs' = PC.filter (\case (ExtCond e _) -> noMaps e; _ -> True) pcs
+    res <- check solver s pcs'
+    case res of
+        UNSAT _ -> return $ UNSAT ()
+        _ -> return $ Unknown "CheckUnsatSeq Solver" ()
 
 getListInequality :: KnownValues -> TyVarEnv -> PathCond -> Maybe (PathCond, Expr, Expr)
 getListInequality kv tv_env pc@(ExtCond (App (Prim Not _) e) True)
@@ -160,8 +171,7 @@ consToSeqUnit _ e = e
 
 propagateIndInto :: [(Expr, Expr)] -> PathCond -> Maybe (Expr, Expr)
 propagateIndInto ind_intos (ExtCond e True)
-    | [Prim Eq _, eq_e1, eq_e2] <- unApp e
-    , [Prim Map _, f, lst ] <- unApp eq_e2 =
+    | Just (_, lst, eq_e1) <- eqToMap e =
         case (lookup eq_e1 ind_intos, lookup lst ind_intos) of
             (Just ind_into, Nothing) -> Just (lst, ind_into)
             (Nothing, Just ind_into) -> Just (eq_e1, ind_into)
@@ -173,8 +183,7 @@ convertMapWithSeqNth :: [(Expr, Expr)] -> PathConds -> PathConds
 convertMapWithSeqNth ind_intos = PC.map go
     where
         go (ExtCond e True)
-            | [Prim Eq _, eq_e1, eq_e2] <- unApp e
-            , [Prim Map _, f, lst ] <- unApp eq_e2
+            | Just (f, lst, eq_e1) <- eqToMap e
             , m_ind_into_eq_e1 <- lookup eq_e1 ind_intos
             , m_ind_into_lst <- lookup lst ind_intos
             , Just ind_into <- m_ind_into_eq_e1 <|> m_ind_into_lst
@@ -190,9 +199,31 @@ convertMapWithSeqNth ind_intos = PC.map go
                     anded = mkApp [Prim And TyUnknown, nth_eq, same_len]
                 in
                 ExtCond anded True
-
+            | [Prim StrPrefixOf _, eq_e1, eq_e2] <- unApp e
+            , [Prim Map _, f, lst ] <- unApp eq_e1
+            , Just ind_into <- lookup lst ind_intos =
+                let
+                    nth_eq = mkApp [ Prim Eq TyUnknown
+                                   , mkApp [Prim SeqNth TyUnknown, eq_e2, ind_into]
+                                   , App f $ mkApp [Prim SeqNth TyUnknown, lst, ind_into ]
+                                   ]
+                    ge_len = mkApp [ Prim Ge TyUnknown
+                                     , App (Prim StrLen TyUnknown) eq_e2
+                                     , App (Prim StrLen TyUnknown) lst]
+                    anded = mkApp [Prim And TyUnknown, nth_eq, ge_len]
+                in
+                ExtCond anded True
         go pc = pc
 
+-- Given (map f ys == xs) returns (f, ys, xs)
+eqToMap :: Expr -> Maybe (Expr, Expr, Expr)
+eqToMap e
+    | [Prim Eq _, eq_e1, eq_e2] <- unApp e
+    , [Prim Map _, f, lst ] <- unApp eq_e2 = Just (f, lst, eq_e1)
+    | [Prim Eq _, eq_e1, eq_e2] <- unApp e
+    , [Prim Map _, f, lst ] <- unApp eq_e1 = Just (f, lst, eq_e2)
+    | otherwise = Nothing
+    
 -- | If we have fold corresponding to the `all` function, then the condition that the require
 -- must hold for the i^th element
 convertAllToSeqNth :: KnownValues -> [(Expr, Expr)] -> PathConds -> PathConds
