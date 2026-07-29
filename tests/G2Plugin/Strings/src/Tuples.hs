@@ -3,9 +3,9 @@
 module Tuples where
 
 import G2.Plugin
-
 {-# ANN module ("--smt-tuples --smt-adts A")
     #-}
+
 {-
 {-# ANN appTuple (SMTEquivIs "smtAppTuple")
     #-}
@@ -91,7 +91,7 @@ smtMyA :: [A] -> [A] -> [A]
 smtMyA _ [] = []
 smtMyA xs _ = genPred (\zs -> zs `smtEq` xs)
 -}
-{-# ANN myLookup (SMTEquivIsWithConfig "smtMyLookup" "")
+{-# ANN myLookup (SMTEquivIsWithConfig "smtMyLookup" "--print-smt")
     #-}
 myLookup :: A -> [(A, A)] -> Maybe A
 myLookup _ [] = Nothing
@@ -100,14 +100,14 @@ myLookup x ((y, z):ys) | x == y = Just z
 
 smtMyLookup :: A -> [(A, A)] -> Maybe A
 smtMyLookup x xs
-    | smtIndexOf [x] fst_xs 0 == -1 = Nothing
+    | not (smtContains fst_xs [x]) = Nothing
     | otherwise =
         let
-            zs' = genPred (\zs -> smtIndexOf [x] zs 0 == -1
-                               && zs `smtPrefixOf` fst_xs
-                               && smtIndexOf [x] fst_xs 0 == smtLen zs)
+            zs' = genPred (\zs -> zs `smtPrefixOf` fst_xs
+                               && smtIndexOf fst_xs [x] 0 == smtLen zs)
         in
         Just $ smtNth snd_xs (smtLen zs')
         where
             fst_xs = smtMap fst xs
             snd_xs = smtMap snd xs
+
