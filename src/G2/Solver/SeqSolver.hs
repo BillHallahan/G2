@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase, OverloadedStrings #-}
+{-# LANGUAGE LambdaCase, MultiWayIf, OverloadedStrings #-}
 
 module G2.Solver.SeqSolver (CheckUnsatSeq (..)) where
 
@@ -13,19 +13,29 @@ import Data.List
 import Data.Maybe
 import Data.Monoid
 
+import Debug.Trace
+
 newtype CheckUnsatSeq solver = CheckUnsatSeq solver
 
 -- | Attempt to prove that an inequality between two sequences is unsatisfiable
 instance Solver solver => Solver (CheckUnsatSeq solver) where
     check (CheckUnsatSeq solver) s pc = do
-        r <- checkUnsat solver s pc
-        case r of
-            UNSAT _ -> return r
-            _ -> check solver s pc
+        r1 <- foldExcludedUnsat solver s pc
+        case r1 of
+            UNSAT _ -> return r1
+            _ -> do
+                r2 <- checkUnsat solver s pc
+                case r2 of
+                    UNSAT _ -> return r2
+                    _ -> check solver s pc
 
     solve (CheckUnsatSeq solver) = solve solver
     
     close (CheckUnsatSeq solver) = close solver
+
+------------------------------------------------------------------------------
+-- Length and different element
+------------------------------------------------------------------------------
 
 -- The key idea is that, given two sequences xs and ys, the formula:
 --     xs /= ys
@@ -42,6 +52,7 @@ instance Solver solver => Solver (CheckUnsatSeq solver) where
 checkUnsat :: Solver solver => solver -> State t -> PathConds -> IO (Result () () ())
 checkUnsat solver s@(State { known_values = kv, tyvar_env = tv_env }) pcs
     | Just (pc, e1, e2) <- PC.firstJust (getListInequality kv tv_env) pcs = do
+        putStrLn "CHECKING UNSAT"
         let pcs' = PC.filter (\case (ExtCond e _) -> noMaps e; _ -> True) pcs
         res_no_maps <- check solver s pcs'
     
@@ -146,8 +157,8 @@ checkElems solver s@(State { expr_env = eenv, known_values = kv, tyvar_env = tv_
                 ++ computeIndIntos kv elem_ind e2
                 ++ [ (e1, Var elem_ind)
                    , (e2, Var elem_ind) ]
-        prop_ind_into = ind_into ++ mapMaybe (propagateIndInto ind_into) (PC.toList pcs_with_diff_elem)
-        
+        prop_ind_into = ind_into ++ propagateIndInto kv ind_into pcs_with_diff_elem
+
         pcs_adj = convertAllToSeqNth s prop_ind_into
                 $ convertMapWithSeqNth s prop_ind_into pcs_with_diff_elem
 
@@ -169,14 +180,21 @@ consToSeqUnit kv (App (App (App (Data dc) _) x) ys) | dc_name dc == KV.dcCons kv
     mkApp [Prim StrAppend TyUnknown, xs, ys]
 consToSeqUnit _ e = e
 
-propagateIndInto :: [(Expr, Expr)] -> PathCond -> Maybe (Expr, Expr)
-propagateIndInto ind_intos (ExtCond e True)
+propagateIndInto :: KnownValues -> [(Expr, Expr)] -> PathConds -> [(Expr, Expr)]
+propagateIndInto kv ind_into = mapMaybe (propagateIndInto' kv ind_into) . PC.toList
+
+propagateIndInto' :: KnownValues -> [(Expr, Expr)] -> PathCond -> Maybe (Expr, Expr)
+propagateIndInto' kv ind_intos (ExtCond e True)
     | Just (_, lst, eq_e1) <- eqToMap e =
         case (lookup eq_e1 ind_intos, lookup lst ind_intos) of
             (Just ind_into, Nothing) -> Just (lst, ind_into)
             (Nothing, Just ind_into) -> Just (eq_e1, ind_into)
             _ -> Nothing
-propagateIndInto _ _ = Nothing
+    | [ Prim Eq _, lst_app, v ] <- unApp $ consToSeqUnit kv e
+    , [ Prim StrAppend _, App (Prim SeqUnit _) _, e2 ] <- unApp lst_app
+    , Just ind_into <- lookup v ind_intos =
+        Just (e2, mkApp [Prim Minus TyUnknown, ind_into, Lit (LitInt 1)])
+propagateIndInto' _ _ _ = Nothing
 
 -- | Converting map equality checks into checks on a specific element.
 convertMapWithSeqNth :: State t -> [(Expr, Expr)] -> PathConds -> PathConds
@@ -264,6 +282,48 @@ getConjoined :: Expr -> [Expr]
 getConjoined e
     | [Prim And _, e1, e2] <- unApp e = getConjoined e1 ++ getConjoined e2
     | otherwise = [e]
+
+------------------------------------------------------------------------------
+-- Fold excluded element
+------------------------------------------------------------------------------
+
+-- Rewrite folds enforcing that a specific elements cannot be in a list to check
+-- the list at specific elements from other constraints.
+
+foldExcludedUnsat :: Solver solver => solver -> State t -> PathConds -> IO (Result () () ())
+foldExcludedUnsat solver s@(State { known_values = kv }) pcs
+    | Just (pc, lst, check_f) <- PC.firstJust (getFoldExcluding kv) pcs = do
+        putStrLn "CHECKING UNSAT foldExcludedUnsat"
+        let nth_inds = nthFrom pcs
+            prop_nth_inds = nth_inds ++ propagateIndInto kv nth_inds pcs
+        putStrLn $ "prop_nth_inds = " ++ show prop_nth_inds
+
+        let pcs_adj = convertAllToSeqNth s prop_nth_inds pcs
+
+        check solver s pcs_adj
+    | otherwise = return $ SAT ()
+
+getFoldExcluding :: KnownValues -> PathCond -> Maybe (PathCond, Expr, Expr)
+getFoldExcluding kv pc@(ExtCond e True)
+    | [ Prim FoldLeft _, f@(Lam _ _ (Lam _ val_i f_body)), init_e, lst] <- unApp e
+    , Data dc <- init_e, dc_name dc == KV.dcTrue kv
+    , Just _ <- getBodyAll kv f -- Make sure we have an "all"
+    , conj <- getConjoined f_body
+    , neq_chck:_ <- filter isNeq conj = Just (pc, lst, Lam TermL val_i neq_chck)
+getFoldExcluding _ _ = Nothing
+
+nthFrom :: PathConds
+        -> [(Expr, Expr)] -- ^ (List, Index)
+nthFrom = evalASTs go
+    where
+        go e 
+            | [Prim SeqNth _, xs, i] <- unApp e = [(xs, i)]
+            | otherwise = []
+
+isNeq :: Expr -> Bool
+isNeq e
+    | [Prim Neq _, _, _] <- unApp e = True
+    | otherwise= False
 
 ------------------------------------------------------------------------------
 -- Constructing primitives

@@ -5,6 +5,7 @@ module G2.Language.Monad.AST where
 
 import G2.Language.AST
 import G2.Language.Syntax
+import G2.Language.PathConds
 
 import qualified Data.Text as T
 
@@ -214,3 +215,14 @@ instance ASTContainerM T.Text Expr where
 
 instance ASTContainerM T.Text Type where
     modifyContainedASTsM _ = return
+
+instance ASTContainerM PathCond Expr where
+    modifyContainedASTsM f (AltCond l e b) = do
+        e' <- modifyContainedASTsM f e
+        return $ AltCond l e' b
+    modifyContainedASTsM f (ExtCond e b) = do
+        e' <- modifyContainedASTsM f e
+        return $ ExtCond e' b
+    modifyContainedASTsM f (SoftPC pc) = SoftPC <$> modifyContainedASTsM f pc
+    modifyContainedASTsM f (MinimizePC e) = MinimizePC <$> f e
+    modifyContainedASTsM _ (AssumePC i j _) = AssumePC i j <$> error "UNSUPPORTED" -- modifyContainedASTsM f pc

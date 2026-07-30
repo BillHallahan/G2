@@ -31,7 +31,7 @@ instance Eq A where
     A == A = True
     B == B = True
     _ == _ = False
-{-
+
 {-# ANN pairA (SMTEquivIsWithConfig "smtPairA" "")
     #-}
 pairA :: [A] -> [(A, A)]
@@ -90,7 +90,9 @@ myA (x:xs) ys = x:myA xs ys
 smtMyA :: [A] -> [A] -> [A]
 smtMyA _ [] = []
 smtMyA xs _ = genPred (\zs -> zs `smtEq` xs)
--}
+
+{-
+
 {-# ANN myLookup (SMTEquivIsWithConfig "smtMyLookup" "--print-smt")
     #-}
 myLookup :: A -> [(A, A)] -> Maybe A
@@ -110,4 +112,4 @@ smtMyLookup x xs
         where
             fst_xs = smtMap fst xs
             snd_xs = smtMap snd xs
-
+-}

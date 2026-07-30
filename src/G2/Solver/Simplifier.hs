@@ -20,8 +20,13 @@ module G2.Solver.Simplifier ( Simplifier (..)
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues
+import G2.Language.Monad
+import qualified G2.Language.Monad.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Typing as T
+
+import qualified Control.Monad.State.Lazy as SM
+
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
@@ -117,6 +122,8 @@ isZero _ = False
 data BoolSimplifier = BoolSimplifier
 
 instance Simplifier BoolSimplifier where
+    simplifyPC _ s (ExtCond e False) =
+        [modifyContainedASTs (simplifyBool (known_values s)) (ExtCond (App (Prim Not TyUnknown) e) True)]
     simplifyPC _ s pc = [modifyContainedASTs (simplifyBool (known_values s)) pc]
 
     reverseSimplification _ _ _ m = m
@@ -131,6 +138,7 @@ simplifyBool kv e
     , n == dcFalse kv = mkNotExpr kv e2
     | [Prim Eq _, e1, Data (DataCon { dc_name = n }) ] <- unApp e
     , n == dcFalse kv = mkNotExpr kv e1
+    | (App (Prim Not _) (App (Prim Not _) e')) <- e = e'
 simplifyBool _ e = e
 
 -- | Tries to simplify based on simple String principles, i.e. len x == 0 -> x == ""
@@ -349,7 +357,15 @@ data HigherOrderSimplifier = HigherOrderSimplifier
 instance Simplifier HigherOrderSimplifier where
     simplifyPC _ _ pc = [pc]
 
-    simplifyPCs _ (State { type_env = tenv, known_values = kv }) pc = modifyASTs (unfoldAppend tenv kv) . inFoldStringVars pc
+    simplifyPCs _ (State { type_env = tenv, known_values = kv }) pc =
+        splitAnds . modifyASTs (unfoldAppend tenv kv) . inFoldStringVars pc
+
+    simplifyPCWithExprEnv _ s@(State { known_values = kv, tyvar_env = tv_env }) ng eenv pc =
+        let 
+            pc' = fuseFoldLeftMap $ notContainsToFoldMap kv tv_env pc
+            (pcs, eenv', ng') = mapContainsUnit (s { expr_env = eenv }) ng $ seqNthMap pc'
+        in
+        (ng', eenv', pcs)
 
     reverseSimplification _ _ _ m = m
 
@@ -543,3 +559,114 @@ replaceVarFold' n _ le@(Let b _) | n `elem` map (idName . fst) b = le
 replaceVarFold' n e e' = modifyChildren (replaceVarFold' n e) e'
 
 
+seqNthMap :: PathCond -> PathCond
+seqNthMap = modifyASTs go
+    where
+        go e
+            | [Prim SeqNth _, e1, e2] <- unApp e
+            , [Prim Map _, f, lst] <- unApp e1 =
+                App
+                  f
+                $ mkApp [ Prim SeqNth TyUnknown
+                        , lst
+                        , e2]
+            | otherwise = e
+
+mapContainsUnit :: State t -> NameGen -> PathCond -> ([PathCond], ExprEnv, NameGen)
+mapContainsUnit s@(State { known_values = kv }) ng pc = 
+    let ((pc', (s', ng')), extra_pc) = SM.runState (runStateNGT (go pc) s ng) [] in
+    (pc':extra_pc, expr_env s', ng')
+    where
+        -- Rewrite
+        --    (contains (seq.map f lst) [x])
+        -- to
+        --    (f (lst !! i) == [x])
+        go :: SM.MonadState [PathCond] m => PathCond -> StateNGT t m PathCond
+        go (ExtCond e True)
+            | [Prim StrContains _, map_e, unit_e] <- unApp e
+            , [Prim Map _, f, lst] <- unApp map_e
+            , Just unit_v <- getUnit kv unit_e = do
+                elem_ind <- freshIdN TyLitInt
+                E.insertSymbolicE elem_ind
+                let gt_0 = ExtCond (mkApp [Prim Le TyUnknown, Lit (LitInt 0), Var elem_ind]) True
+                    lt_len = ExtCond (mkApp [Prim Lt TyUnknown, Var elem_ind, App (Prim StrLen TyUnknown) lst]) True
+                    
+                    index_lst_and_app = App f $ mkApp [Prim SeqNth TyUnknown, lst, Var elem_ind]
+
+                SM.lift $ SM.modify (\xs -> gt_0:lt_len:xs)
+
+                return $ ExtCond (mkApp [Prim Eq TyUnknown, index_lst_and_app, unit_v]) True
+        go pc_ = return pc_
+
+notContainsToFoldMap :: KnownValues
+                     -> TyVarEnv
+                     -> PathCond
+                     -> PathCond
+notContainsToFoldMap kv tv_env (ExtCond (App (Prim Not _) e) True)
+    | [Prim StrContains _, map_e, unit_e] <- unApp e
+    , [Prim Map _, _, _] <- unApp map_e
+    , Just unit_v <- getUnit kv unit_e = ExtCond (notContainsValToFold kv tv_env map_e unit_v) True
+notContainsToFoldMap _ _ e = e
+
+notContainsValToFold :: KnownValues
+                     -> TyVarEnv
+                     -> Expr -- ^ List being checked
+                     -> Expr -- ^ Value being checked for 
+                     -> Expr
+notContainsValToFold kv tv_env lst v =
+    let
+        accum_id = Id (Name "G2_!!_LAM_Acc" Nothing 0 Nothing) (T.tyBool kv)
+        e_id = Id (Name "G2_!!_LAM_Val" Nothing 0 Nothing) (typeOf tv_env v)
+
+        f = Lam TermL accum_id
+          . Lam TermL e_id
+          $ mkApp [ Prim And TyUnknown
+                  , Var accum_id
+                  , mkApp [ Prim Neq TyUnknown, Var e_id, v]
+                  ]
+    in
+    mkApp [ Prim FoldLeft TyUnknown
+          , f
+          , mkTrue kv
+          , lst]
+
+getUnit :: KnownValues -> Expr -> Maybe Expr
+getUnit kv (App 
+                (App 
+                    (App (Data dc_cons) _)
+                    x
+                ) 
+                (App (Data dc_emp) _)
+            )
+    | dc_name dc_cons == dcCons kv
+    , dc_name dc_emp == dcEmpty kv = Just x
+getUnit _ _ = Nothing
+
+fuseFoldLeftMap :: PathCond -> PathCond
+fuseFoldLeftMap = modifyASTs go
+    where
+        go e
+            | [Prim FoldLeft _, fold_f, v, fold_lst] <- unApp e
+            , [Prim Map _, map_f, map_lst] <- unApp fold_lst
+            , Lam acc_term acc_i (Lam val_term val_i fold_e) <- fold_f
+            , (Lam _ (Id _ map_t) _) <- map_f =
+                let
+                    new_val_i = Id (idName val_i) map_t
+                    mapped_val_i = App map_f $ Var new_val_i
+                    fold_f' = Lam acc_term acc_i
+                            . Lam val_term new_val_i
+                            $ replaceVar (idName val_i) mapped_val_i fold_e
+                in
+                mkApp [ Prim FoldLeft TyUnknown
+                    , fold_f'
+                    , v
+                    , map_lst]
+        go e = e
+
+splitAnds :: PathConds -> PathConds
+splitAnds = PC.concatMapHashedPCs go
+    where go pc
+            | ExtCond e True <- PC.unhashedPC pc
+            , [Prim And _, e1, e2] <- unApp e = [ PC.hashedPC $ ExtCond e1 True
+                                                , PC.hashedPC $ ExtCond e2 True ]
+            | otherwise = [pc]
