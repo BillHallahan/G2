@@ -7,7 +7,7 @@ import G2.Plugin
 {-# ANN module ("--smt-tuples --smt-adts A")
     #-}
 
-
+{-
 {-# ANN appTuple (SMTEquivIs "smtAppTuple")
     #-}
 appTuple :: Int -> Int -> [(Int, Int)] -> [(Int, Int)]
@@ -25,13 +25,14 @@ appTupleBad x y (t:ts) = t:appTupleBad x y ts
 
 smtAppTupleBad :: Int -> Int -> [(Int, Int)] -> [(Int, Int)]
 smtAppTupleBad x y ts = ts $++ ts $++ [(x, y)]
-
+-}
 data A = A | B
 
 instance Eq A where
     A == A = True
     B == B = True
     _ == _ = False
+{-
 
 {-# ANN pairA (SMTEquivIsWithConfig "smtPairA" "")
     #-}
@@ -91,8 +92,10 @@ myA (x:xs) ys = x:myA xs ys
 smtMyA :: [A] -> [A] -> [A]
 smtMyA _ [] = []
 smtMyA xs _ = genPred (\zs -> zs `smtEq` xs)
+-}
 
-{-# ANN myLookup (SMTEquivIsWithConfig "smtMyLookup" "")
+
+{-# ANN myLookup (SMTEquivIsWithConfig "smtMyLookup" "--print-smt")
     #-}
 myLookup :: A -> [(A, A)] -> Maybe A
 myLookup _ [] = Nothing

@@ -15,10 +15,6 @@ import Data.List
 import Data.Monoid
 import qualified G2.Data.UnionFind as UF
 
-import Debug.Trace
-import Control.Monad.Accum (MonadAccum(add))
-import G2.Translation.GHC (ways)
-
 newtype CheckUnsatSeq solver = CheckUnsatSeq solver
 
 -- | Attempt to prove that an inequality between two sequences is unsatisfiable
@@ -265,7 +261,6 @@ filterRedundant' eq_len kv e1 = HS.filter (not . isRedundant)
 
         posNum (Lit (LitInt n)) = n > 0
         posNum (App (Prim StrLen _) e) | nonEmptyList e = True
-        posNum (App (Prim StrLen _) e) | trace ("e = " ++ show e) nonEmptyList e = True
         posNum _ = False
 
         nonEmptyList e | [Prim StrAppend _, app_e1, app_e2] <- unApp e = nonEmptyList app_e1 || nonEmptyList app_e2
@@ -340,7 +335,7 @@ convertMapWithSeqNth (State { known_values = kv, tyvar_env = tv_env }) ind_intos
                                                   , mkSeqNth kv tv_env eq_e1 ii
                                                   , App f $ mkSeqNth kv tv_env lst ii
                                                   ]) ind_into
-                    ge_len = mkApp [ Prim Ge TyUnknown
+                    ge_len = mkApp [ Prim Le TyUnknown
                                    , mkSeqLen kv tv_env eq_e1
                                    , mkSeqLen kv tv_env lst]
                     anded = mkApp [Prim And TyUnknown, foldAnd kv nth_eq, ge_len]
@@ -408,7 +403,7 @@ getConjoined e
 
 foldExcludedUnsat :: Solver solver => solver -> State t -> PathConds -> IO (Result () () ())
 foldExcludedUnsat solver s@(State { known_values = kv }) pcs
-    | Just (pc, lst, check_f) <- PC.firstJust (getFoldExcluding kv) pcs = do
+    | Just _ <- PC.firstJust (getFoldExcluding kv) pcs = do
         putStrLn "CHECKING UNSAT foldExcludedUnsat"
         let nth_inds = HM.unionWith HS.union (listStart kv pcs) (nthFrom pcs)
             prop_nth_inds = propagateIndInto kv nth_inds pcs
