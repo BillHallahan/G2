@@ -170,7 +170,6 @@ consToSeqUnit kv (App (App (App (Data dc) _) x) ys) | dc_name dc == KV.dcCons kv
 consToSeqUnit _ e = e
 
 type IndInto = HM.HashMap Expr (HS.HashSet Expr)
-type IndIntoGen = HM.HashMap Expr (HS.HashSet (Expr, Expr))
 
 propagateIndInto :: KnownValues -> IndInto -> PathConds -> IndInto
 propagateIndInto kv ind_into pcs =
@@ -347,7 +346,7 @@ foldExcludedUnsat :: Solver solver => solver -> State t -> PathConds -> IO (Resu
 foldExcludedUnsat solver s@(State { known_values = kv }) pcs
     | Just (pc, lst, check_f) <- PC.firstJust (getFoldExcluding kv) pcs = do
         putStrLn "CHECKING UNSAT foldExcludedUnsat"
-        let nth_inds = nthFrom pcs
+        let nth_inds = HM.unionWith HS.union (listStart kv pcs) (nthFrom pcs)
             prop_nth_inds = propagateIndInto kv nth_inds pcs
         putStrLn "prop_nth_inds = "
         mapM_ print $ HM.toList prop_nth_inds
@@ -365,6 +364,12 @@ getFoldExcluding kv pc@(ExtCond e True)
     , conj <- getConjoined f_body
     , neq_chck:_ <- filter isNeq conj = Just (pc, lst, Lam TermL val_i neq_chck)
 getFoldExcluding _ _ = Nothing
+
+listStart :: KnownValues -> PathConds -> IndInto
+listStart kv = HM.fromListWith (HS.union) . evalASTs go
+    where
+        go e | [Prim StrAppend _, _, _] <- unApp $ consToSeqUnit kv e = [(e, HS.singleton . Lit $ LitInt 0)]
+             | otherwise = []
 
 nthFrom :: PathConds
         -> IndInto -- ^ (List, Index)

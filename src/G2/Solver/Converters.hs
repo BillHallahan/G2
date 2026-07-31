@@ -1066,7 +1066,7 @@ toSolverASTString = go
         go (StrReverseSMT x) = function1 "str.rev" (goBack x)
         go (SeqNthSMT x y) = function2 "seq.nth" (goBack x) (goBack y)
         go (LambdaSMT [(n, s)] e) =
-            "(lambda ((" <> TB.string n <> sortNameLam s <>  "))" <> go e <> ")"
+            "(lambda ((" <> TB.string n <> " " <> sortNameLam s <>  "))" <> go e <> ")"
         go (AppLam e1 e2) = "(" <> go e1 <> " " <> go e2 <> ")"
         go c = toSolverASTRe goBack c
 
