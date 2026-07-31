@@ -26,8 +26,6 @@ import Data.List
 import Data.Maybe
 import qualified Data.Sequence as Seq
 
-import qualified Data.Text as T
-
 data NewPC t = NoState
              | SingleState (State t)
              | SplitStatePieces (State t) [StateDiff]

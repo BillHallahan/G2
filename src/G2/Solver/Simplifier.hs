@@ -362,10 +362,15 @@ instance Simplifier HigherOrderSimplifier where
 
     simplifyPCWithExprEnv _ s@(State { known_values = kv, tyvar_env = tv_env }) ng eenv pc =
         let 
-            pc' = fuseFoldLeftMap $ notContainsToFoldMap kv tv_env pc
-            (pcs, eenv', ng') = mapContainsUnit (s { expr_env = eenv }) ng $ seqNthMap pc'
+            (pcs', eenv', ng') = indexOfToAppended (s { expr_env = eenv }) ng pc
+            pcs'' = map (seqNthMap . fuseFoldLeftMap . notContainsToFoldMap kv tv_env) pcs'
+            ((s', ng''), pcs''') = L.mapAccumL
+                                        (\(s_, ng_) pc_ -> let (pc_', eenv_, ng_') = mapContainsUnit (s { expr_env = eenv }) ng_ pc_ in
+                                                            ((s_ { expr_env = eenv_ }, ng_'), pc_'))
+                                        (s { expr_env = eenv' }, ng')
+                                        pcs''
         in
-        (ng', eenv', pcs)
+        (ng'', expr_env s', concat pcs''')
 
     reverseSimplification _ _ _ m = m
 
@@ -641,6 +646,76 @@ getUnit kv (App
     | dc_name dc_cons == dcCons kv
     , dc_name dc_emp == dcEmpty kv = Just x
 getUnit _ _ = Nothing
+
+indexOfToAppended :: State t -> NameGen -> PathCond -> ([PathCond], ExprEnv, NameGen)
+indexOfToAppended s@(State { known_values = kv, tyvar_env = tv_env }) ng pc = 
+    let ((pc', (s', ng')), extra_pc) = SM.runState (runStateNGT (go pc) s ng) [] in
+    (pc':extra_pc, expr_env s', ng')
+    where
+        -- Rewrite
+        --    (seq.indexof (seq.map f lst) [e]) == n
+        -- to
+        --    lst == xs ++ [y] ++ ys
+        --    length xs == n
+        --    not (contains (seq.map f xs) [e])
+        --    f (seq.nth lst n) == e
+        go :: SM.MonadState [PathCond] m => PathCond -> StateNGT t m PathCond
+        go (ExtCond e True)
+            | [Prim Eq _, check_ind, exp_ind] <- unApp e
+            , isNotNeg exp_ind
+            , [Prim StrIndexOf _, map_e, unit_e, Lit (LitInt 0)] <- unApp check_ind
+            , [Prim Map _, f, lst] <- unApp map_e
+            , list_ty@(TyApp _ list_elem_ty)<- typeOf tv_env lst
+            , Just unit_v <- getUnit kv unit_e = do
+                tenv <- typeEnv
+                start_i <- freshIdN list_ty
+                elem_at_ind <- freshIdN list_elem_ty
+                end_i <- freshIdN list_ty
+                
+                let build_full_list = mkApp [ Prim StrAppend TyUnknown
+                                                  , Var start_i
+                                                  , mkApp [ Prim StrAppend TyUnknown
+                                                          , mkG2List kv tenv list_elem_ty [Var elem_at_ind]
+                                                          , Var end_i ]
+                                            ]
+
+                    full_list_eq = ExtCond
+                                   (mkApp [ Prim Eq TyUnknown
+                                          , lst
+                                          , build_full_list
+                                          ]
+                                   )
+                                   True
+
+                    start_len_cond = ExtCond
+                                     (mkApp [ Prim Eq TyUnknown
+                                            , mkApp [Prim StrLen TyUnknown, Var start_i]
+                                            , exp_ind
+                                            ])
+                                     True
+                    not_contains_start = ExtCond
+                                            ( App (Prim Not TyUnknown)
+                                            $ mkApp [ Prim StrContains TyUnknown
+                                                    , mkApp [ Prim Map TyUnknown, f, Var start_i]
+                                                    , unit_e ]
+                                            )
+                                            True
+                    elem_maps_to = ExtCond
+                                        (mkApp
+                                            [ Prim Eq TyUnknown
+                                            , unit_v
+                                            , App f (mkApp [Prim SeqNth TyUnknown, lst, exp_ind]) ]
+                                        )
+                                        True
+
+                SM.lift $ SM.modify (\xs -> start_len_cond:not_contains_start:elem_maps_to:xs)
+
+                return full_list_eq
+        go pc_ = return pc_
+
+        isNotNeg (Lit (LitInt x)) = x >= 0
+        isNotNeg (App (Prim StrLen _) _) = True
+        isNotNeg _ = False
 
 fuseFoldLeftMap :: PathCond -> PathCond
 fuseFoldLeftMap = modifyASTs go

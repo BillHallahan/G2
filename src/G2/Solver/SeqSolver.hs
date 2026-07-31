@@ -13,8 +13,6 @@ import Data.List
 import Data.Maybe
 import Data.Monoid
 
-import Debug.Trace
-
 newtype CheckUnsatSeq solver = CheckUnsatSeq solver
 
 -- | Attempt to prove that an inequality between two sequences is unsatisfiable
