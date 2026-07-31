@@ -9,6 +9,7 @@ import qualified G2.Language.PathConds as PC
 import G2.Solver
 
 import Control.Applicative
+import qualified Data.HashMap.Lazy as HM
 import Data.List
 import Data.Maybe
 import Data.Monoid
@@ -151,26 +152,15 @@ checkElems solver s@(State { expr_env = eenv, known_values = kv, tyvar_env = tv_
                            . PC.insert diff_elem
                            $ PC.filter (/= pc) pcs
 
-        ind_into = computeIndIntos kv elem_ind e1
-                ++ computeIndIntos kv elem_ind e2
-                ++ [ (e1, Var elem_ind)
+        ind_into = HM.fromList $
+                   [ (e1, Var elem_ind)
                    , (e2, Var elem_ind) ]
-        prop_ind_into = ind_into ++ propagateIndInto kv ind_into pcs_with_diff_elem
+        prop_ind_into = propagateIndInto kv ind_into pcs_with_diff_elem
 
         pcs_adj = convertAllToSeqNth s prop_ind_into
                 $ convertMapWithSeqNth s prop_ind_into pcs_with_diff_elem
 
     check solver s' pcs_adj
-
--- | If we have, for instance, `xs == x ++ xs'`, this figures out that `xs !! i` is the same as `xs' !! (i - 1)`
-computeIndIntos :: KnownValues
-                -> Id
-                -> Expr
-                -> [(Expr, Expr)] -- ^ maps list expressions to the relevant index of that list, i.e. xs -> i, xs' -> (i - 1)
-computeIndIntos kv elem_ind e
-    | [ Prim StrAppend _, App (Prim SeqUnit _) _, e2 ] <- unApp $ consToSeqUnit kv e =
-        [(e2, mkApp [Prim Minus TyUnknown, Var elem_ind, Lit (LitInt 1)])]
-    | otherwise = []
 
 consToSeqUnit :: KnownValues -> Expr -> Expr
 consToSeqUnit kv (App (App (App (Data dc) _) x) ys) | dc_name dc == KV.dcCons kv =
@@ -178,30 +168,38 @@ consToSeqUnit kv (App (App (App (Data dc) _) x) ys) | dc_name dc == KV.dcCons kv
     mkApp [Prim StrAppend TyUnknown, xs, ys]
 consToSeqUnit _ e = e
 
-propagateIndInto :: KnownValues -> [(Expr, Expr)] -> PathConds -> [(Expr, Expr)]
-propagateIndInto kv ind_into = mapMaybe (propagateIndInto' kv ind_into) . PC.toList
+type IndInto = HM.HashMap Expr Expr
 
-propagateIndInto' :: KnownValues -> [(Expr, Expr)] -> PathCond -> Maybe (Expr, Expr)
+propagateIndInto :: KnownValues -> IndInto -> PathConds -> IndInto
+propagateIndInto kv ind_into pcs =
+    let
+        new_ind_into = HM.union ind_into . HM.fromList . mapMaybe (propagateIndInto' kv ind_into) . PC.toList $ pcs
+    in
+    case ind_into == new_ind_into of
+        True -> new_ind_into
+        False -> propagateIndInto kv new_ind_into pcs
+
+propagateIndInto' :: KnownValues -> IndInto -> PathCond -> Maybe (Expr, Expr)
 propagateIndInto' kv ind_intos (ExtCond e True)
     | Just (_, lst, eq_e1) <- eqToMap e =
-        case (lookup eq_e1 ind_intos, lookup lst ind_intos) of
+        case (HM.lookup eq_e1 ind_intos, HM.lookup lst ind_intos) of
             (Just ind_into, Nothing) -> Just (lst, ind_into)
             (Nothing, Just ind_into) -> Just (eq_e1, ind_into)
             _ -> Nothing
     | [ Prim Eq _, lst_app, v ] <- unApp $ consToSeqUnit kv e
     , [ Prim StrAppend _, App (Prim SeqUnit _) _, e2 ] <- unApp lst_app
-    , Just ind_into <- lookup v ind_intos =
+    , Just ind_into <- HM.lookup v ind_intos =
         Just (e2, mkApp [Prim Minus TyUnknown, ind_into, Lit (LitInt 1)])
 propagateIndInto' _ _ _ = Nothing
 
 -- | Converting map equality checks into checks on a specific element.
-convertMapWithSeqNth :: State t -> [(Expr, Expr)] -> PathConds -> PathConds
+convertMapWithSeqNth :: State t -> IndInto -> PathConds -> PathConds
 convertMapWithSeqNth (State { known_values = kv, tyvar_env = tv_env }) ind_intos = PC.map go
     where
         go (ExtCond e True)
             | Just (f, lst, eq_e1) <- eqToMap e
-            , m_ind_into_eq_e1 <- lookup eq_e1 ind_intos
-            , m_ind_into_lst <- lookup lst ind_intos
+            , m_ind_into_eq_e1 <- HM.lookup eq_e1 ind_intos
+            , m_ind_into_lst <- HM.lookup lst ind_intos
             , Just ind_into <- m_ind_into_eq_e1 <|> m_ind_into_lst
              =
                 let
@@ -217,7 +215,7 @@ convertMapWithSeqNth (State { known_values = kv, tyvar_env = tv_env }) ind_intos
                 ExtCond anded True
             | [Prim StrPrefixOf _, eq_e1, eq_e2] <- unApp e
             , [Prim Map _, f, lst ] <- unApp eq_e1
-            , Just ind_into <- lookup lst ind_intos =
+            , Just ind_into <- HM.lookup lst ind_intos =
                 let
                     nth_eq = mkApp [ Prim Eq TyUnknown
                                    , mkSeqNth kv tv_env eq_e2 ind_into
@@ -242,13 +240,13 @@ eqToMap e
     
 -- | If we have fold corresponding to the `all` function, then the condition that the require
 -- must hold for the i^th element
-convertAllToSeqNth :: State t -> [(Expr, Expr)] -> PathConds -> PathConds
+convertAllToSeqNth :: State t -> IndInto -> PathConds -> PathConds
 convertAllToSeqNth (State { known_values = kv, tyvar_env = tv_env }) ind_intos = PC.map go
     where
         go (ExtCond e True)
             | [Prim FoldLeft _, f, Data dc, lst] <- unApp e
             , dc_name dc == KV.dcTrue kv
-            , Just ind_into <- lookup lst ind_intos
+            , Just ind_into <- HM.lookup lst ind_intos
             , Just f' <- getBodyAll kv f
              =
                 ExtCond
@@ -293,7 +291,7 @@ foldExcludedUnsat solver s@(State { known_values = kv }) pcs
     | Just (pc, lst, check_f) <- PC.firstJust (getFoldExcluding kv) pcs = do
         putStrLn "CHECKING UNSAT foldExcludedUnsat"
         let nth_inds = nthFrom pcs
-            prop_nth_inds = nth_inds ++ propagateIndInto kv nth_inds pcs
+            prop_nth_inds = propagateIndInto kv nth_inds pcs
         putStrLn $ "prop_nth_inds = " ++ show prop_nth_inds
 
         let pcs_adj = convertAllToSeqNth s prop_nth_inds pcs
@@ -311,8 +309,8 @@ getFoldExcluding kv pc@(ExtCond e True)
 getFoldExcluding _ _ = Nothing
 
 nthFrom :: PathConds
-        -> [(Expr, Expr)] -- ^ (List, Index)
-nthFrom = evalASTs go
+        -> IndInto -- ^ (List, Index)
+nthFrom = HM.fromList . evalASTs go
     where
         go e 
             | [Prim SeqNth _, xs, i] <- unApp e = [(xs, i)]
