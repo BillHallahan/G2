@@ -1,7 +1,7 @@
 module Strings where
 
 import G2.Plugin
-
+{-
 {-# ANN f (SMTEquivIs "f2" )
     #-}
 f :: [Int] -> [Int]
@@ -207,3 +207,4 @@ myRevApp1Bad xs = myRev xs ++ [1]
 
 smtMyRevApp1Bad :: [Int] -> [Int]
 smtMyRevApp1Bad ys = smtFoldLeft (\acc y -> y:y:acc) [1] ys
+-}

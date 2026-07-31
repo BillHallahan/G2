@@ -12,8 +12,12 @@ import Control.Applicative
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import Data.List
-import Data.Maybe
 import Data.Monoid
+import qualified G2.Data.UnionFind as UF
+
+import Debug.Trace
+import Control.Monad.Accum (MonadAccum(add))
+import G2.Translation.GHC (ways)
 
 newtype CheckUnsatSeq solver = CheckUnsatSeq solver
 
@@ -180,7 +184,7 @@ propagateIndInto kv ind_into pcs =
         new_ind_into = ind_into `unionApp` new_ind_into_app `unionApp` new_ind_into_eq
     in
     case ind_into == new_ind_into of
-        True -> new_ind_into
+        True -> filterRedundant kv pcs new_ind_into
         False -> propagateIndInto kv new_ind_into pcs
 
 propagateIndIntoApp :: KnownValues -> IndInto -> PathConds -> [(Expr, HS.HashSet Expr)]
@@ -214,7 +218,8 @@ propagateIndIntoEq kv ind_intos (ExtCond e True)
     -- , Just ind_into <- HM.lookup v ind_intos =
     --     [(e2, map (\ii -> mkApp [Prim Minus TyUnknown, ii, Lit (LitInt 1)]) ind_into)]
 
-    | [ Prim Eq _, lst1, lst2 ] <- unApp $ consToSeqUnit kv e = propEqApp kv ind_intos lst1 lst2 ++ propEqApp kv ind_intos lst2 lst1
+    | [ Prim Eq _, lst1, lst2 ] <- unApp $ consToSeqUnit kv e =
+        propEqApp kv ind_intos lst1 lst2 ++ propEqApp kv ind_intos lst2 lst1
     -- , [ Prim StrAppend _, e1, e2 ] <- unApp $ consToSeqUnit kv lst_app
     -- , Just ind_into <- HM.lookup v ind_intos =
     --     [ (e1, ind_into)
@@ -227,6 +232,13 @@ propagateIndIntoEq _ _ _ = []
 
 propEqApp :: KnownValues -> IndInto -> Expr -> Expr -> [(Expr, HS.HashSet Expr)]
 propEqApp kv ind_intos lst1 lst2
+    | [ Prim StrAppend _, e1@(Prim SeqUnit _), e2 ] <- unApp $ consToSeqUnit kv lst1
+    , Just ind_into <- HM.lookup lst2 ind_intos =
+        [ (e1, ind_into)
+        , (e2, HS.map (\ii -> mkSmartMinus
+                                    ii
+                                    $ Lit (LitInt 1)) ind_into)
+        ]
     | [ Prim StrAppend _, e1, e2 ] <- unApp $ consToSeqUnit kv lst1
     , Just ind_into <- HM.lookup lst2 ind_intos =
         [ (e1, ind_into)
@@ -236,13 +248,50 @@ propEqApp kv ind_intos lst1 lst2
         ]
     | otherwise = []
 
+-- Filter out redundant indicies. In particular, (str.len xs) is guaranteed to be off the edge of xs
+filterRedundant :: KnownValues -> PathConds -> IndInto -> IndInto
+filterRedundant kv pcs =
+    let eq_len = getEqLengths pcs in
+    HM.mapWithKey (filterRedundant' eq_len kv)
+
+filterRedundant' :: UF.UnionFind Expr -> KnownValues -> Expr -> HS.HashSet Expr -> HS.HashSet Expr
+filterRedundant' eq_len kv e1 = HS.filter (not . isRedundant)
+    where
+        isRedundant (App (Prim StrLen _) e2) = UF.find e1 eq_len == UF.find e2 eq_len
+        isRedundant e2
+            | [Prim Minus _, Lit (LitInt 0), e2'] <- unApp e2
+            , posNum e2' = True
+        isRedundant _ = False
+
+        posNum (Lit (LitInt n)) = n > 0
+        posNum (App (Prim StrLen _) e) | nonEmptyList e = True
+        posNum (App (Prim StrLen _) e) | trace ("e = " ++ show e) nonEmptyList e = True
+        posNum _ = False
+
+        nonEmptyList e | [Prim StrAppend _, app_e1, app_e2] <- unApp e = nonEmptyList app_e1 || nonEmptyList app_e2
+                       | [Prim SeqUnit _, _] <- unApp e = True
+                       | Data dc:_ <- unApp e = dc_name dc == KV.dcCons kv
+        nonEmptyList _ = False
+
+getEqLengths :: PathConds -> UF.UnionFind Expr
+getEqLengths = foldl' go UF.empty . PC.toList
+    where
+        go uf (ExtCond e True)
+            | [Prim Eq _
+            , App (Prim StrLen _) lst1
+            , App (Prim StrLen _) lst2] <- unApp e = UF.union lst1 lst2 uf
+        go uf _ = uf
+
 mkSmartPlus :: Expr -> Expr -> Expr
+mkSmartPlus e1 (Lit (LitInt 0)) = e1
+mkSmartPlus (Lit (LitInt 0)) e2 = e2
 mkSmartPlus e1 e2
     | [Prim Minus _, e_add1, e_add2] <- unApp e1
     , e_add2 == e2 = e_add1
     | otherwise = mkApp [ Prim Plus TyUnknown, e1, e2]
 
 mkSmartMinus :: Expr -> Expr -> Expr
+mkSmartMinus e1 (Lit (LitInt 0)) = e1
 mkSmartMinus e1 e2
     | [Prim Plus _, e_add1, e_add2] <- unApp e1
     , e_add1 == e2 = e_add2
@@ -283,6 +332,21 @@ convertMapWithSeqNth (State { known_values = kv, tyvar_env = tv_env }) ind_intos
                     anded = mkApp [Prim And TyUnknown, foldAnd kv nth_eq, ge_len]
                 in
                 ExtCond anded True
+            | [Prim StrPrefixOf _, eq_e1, eq_e2] <- unApp e
+            , [Prim Map _, f, lst ] <- unApp eq_e2
+            , Just ind_into <- HM.lookup lst ind_intos =
+                let
+                    nth_eq = HS.map (\ii -> mkApp [ Prim Eq TyUnknown
+                                                  , mkSeqNth kv tv_env eq_e1 ii
+                                                  , App f $ mkSeqNth kv tv_env lst ii
+                                                  ]) ind_into
+                    ge_len = mkApp [ Prim Ge TyUnknown
+                                   , mkSeqLen kv tv_env eq_e1
+                                   , mkSeqLen kv tv_env lst]
+                    anded = mkApp [Prim And TyUnknown, foldAnd kv nth_eq, ge_len]
+                in
+                ExtCond anded True
+
         go pc = pc
 
 foldAnd :: KnownValues -> HS.HashSet Expr -> Expr
@@ -348,10 +412,12 @@ foldExcludedUnsat solver s@(State { known_values = kv }) pcs
         putStrLn "CHECKING UNSAT foldExcludedUnsat"
         let nth_inds = HM.unionWith HS.union (listStart kv pcs) (nthFrom pcs)
             prop_nth_inds = propagateIndInto kv nth_inds pcs
-        putStrLn "prop_nth_inds = "
-        mapM_ print $ HM.toList prop_nth_inds
+        -- putStrLn "prop_nth_inds = "
+        -- mapM_ print $ HM.toList prop_nth_inds
 
-        let pcs_adj = convertAllToSeqNth s prop_nth_inds pcs
+        let pcs_adj = simplifyLams
+                    . convertMapWithSeqNth s prop_nth_inds
+                    $ convertAllToSeqNth s prop_nth_inds pcs
 
         check solver s pcs_adj
     | otherwise = return $ SAT ()

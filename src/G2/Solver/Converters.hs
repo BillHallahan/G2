@@ -1329,8 +1329,10 @@ smtastToExpr kv tenv tv_env arg_tys _ (smt1 := smt2) =
     in
     mkApp $ [ Prim Eq TyUnknown, e1', e2']
 smtastToExpr kv tenv tv_env arg_tys _ (SmtAnd xs) =
-      foldr (\e1 e2 -> mkApp [Prim And TyUnknown, e1, e2]) (mkTrue kv)
-    $ map (smtastToExpr kv tenv tv_env arg_tys (tyBool kv)) xs
+    let ys = map (smtastToExpr kv tenv tv_env arg_tys (tyBool kv)) xs in
+    case ys of
+        [] -> mkTrue kv
+        z:zs -> foldr (\e1 e2 -> mkApp [Prim And TyUnknown, e1, e2]) z zs
 smtastToExpr kv tenv tv_env arg_tys _ (SmtOr xs) =
       foldr (\e1 e2 -> mkApp [Prim Or TyUnknown, e1, e2]) (mkFalse kv)
     $ map (smtastToExpr kv tenv tv_env arg_tys (tyBool kv)) xs

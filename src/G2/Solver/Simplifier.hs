@@ -369,8 +369,9 @@ instance Simplifier HigherOrderSimplifier where
                                                             ((s_ { expr_env = eenv_ }, ng_'), pc_'))
                                         (s { expr_env = eenv' }, ng')
                                         pcs''
+            pcs4 = simplifyLams $ concat pcs'''
         in
-        (ng'', expr_env s', concat pcs''')
+        (ng'', expr_env s', pcs4)
 
     reverseSimplification _ _ _ m = m
 

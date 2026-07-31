@@ -3,6 +3,7 @@
 module Tuples where
 
 import G2.Plugin
+
 {-# ANN module ("--smt-tuples --smt-adts A")
     #-}
 
@@ -91,9 +92,7 @@ smtMyA :: [A] -> [A] -> [A]
 smtMyA _ [] = []
 smtMyA xs _ = genPred (\zs -> zs `smtEq` xs)
 
-{-
-
-{-# ANN myLookup (SMTEquivIsWithConfig "smtMyLookup" "--print-smt")
+{-# ANN myLookup (SMTEquivIsWithConfig "smtMyLookup" "")
     #-}
 myLookup :: A -> [(A, A)] -> Maybe A
 myLookup _ [] = Nothing
@@ -112,4 +111,3 @@ smtMyLookup x xs
         where
             fst_xs = smtMap fst xs
             snd_xs = smtMap snd xs
--}
