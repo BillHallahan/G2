@@ -30,6 +30,7 @@ module G2.Plugin (SymEx (..)
                 --  , smtFoldLeftI
 
                 , genPred
+                , genPred2
 
                  , comp
                 ) where
@@ -533,6 +534,10 @@ smtFoldLeft' f x xs =
 
 genPred :: forall a . (a -> Bool) -> a
 genPred p = let !x = pSymGen# @a in assume (p x) x
+
+genPred2 :: forall a b . (a -> b -> Bool) -> (a, b)
+genPred2 p = let !x = pSymGen# @a 
+                 !y = pSymGen# @b in assume (p x y) (x, y)
 
 {-# NOINLINE evalSeq #-}
 evalSeq :: [a] -> b -> b

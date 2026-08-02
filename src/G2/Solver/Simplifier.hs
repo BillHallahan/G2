@@ -656,7 +656,7 @@ indexOfToAppended s@(State { known_values = kv, tyvar_env = tv_env }) ng pc =
         -- Rewrite
         --    (seq.indexof (seq.map f lst) [e]) == n
         -- to
-        --    lst == xs ++ [y] ++ ys
+        --    seq.prefixof lst xs
         --    length xs == n
         --    not (contains (seq.map f xs) [e])
         --    f (seq.nth lst n) == e
@@ -666,24 +666,18 @@ indexOfToAppended s@(State { known_values = kv, tyvar_env = tv_env }) ng pc =
             , isNotNeg exp_ind
             , [Prim StrIndexOf _, map_e, unit_e, Lit (LitInt 0)] <- unApp check_ind
             , [Prim Map _, f, lst] <- unApp map_e
-            , list_ty@(TyApp _ list_elem_ty)<- typeOf tv_env lst
             , Just unit_v <- getUnit kv unit_e = do
-                tenv <- typeEnv
+                let list_ty = typeOf tv_env lst
                 start_i <- freshIdN list_ty
-                elem_at_ind <- freshIdN list_elem_ty
                 end_i <- freshIdN list_ty
+                insertSymbolicE start_i
+                insertSymbolicE end_i
                 
-                let build_full_list = mkApp [ Prim StrAppend TyUnknown
-                                                  , Var start_i
-                                                  , mkApp [ Prim StrAppend TyUnknown
-                                                          , mkG2List kv tenv list_elem_ty [Var elem_at_ind]
-                                                          , Var end_i ]
-                                            ]
 
-                    full_list_eq = ExtCond
+                let prefix_of = ExtCond
                                    (mkApp [ Prim Eq TyUnknown
                                           , lst
-                                          , build_full_list
+                                          , mkApp [Prim StrAppend TyUnknown, Var start_i, Var end_i]
                                           ]
                                    )
                                    True
@@ -692,6 +686,12 @@ indexOfToAppended s@(State { known_values = kv, tyvar_env = tv_env }) ng pc =
                                      (mkApp [ Prim Eq TyUnknown
                                             , mkApp [Prim StrLen TyUnknown, Var start_i]
                                             , exp_ind
+                                            ])
+                                     True
+                    end_len_cond = ExtCond
+                                     (mkApp [ Prim Gt TyUnknown
+                                            , mkApp [Prim StrLen TyUnknown, Var end_i]
+                                            , Lit (LitInt 0)
                                             ])
                                      True
                     not_contains_start = ExtCond
@@ -705,13 +705,13 @@ indexOfToAppended s@(State { known_values = kv, tyvar_env = tv_env }) ng pc =
                                         (mkApp
                                             [ Prim Eq TyUnknown
                                             , unit_v
-                                            , App f (mkApp [Prim SeqNth TyUnknown, lst, exp_ind]) ]
+                                            , App f (mkApp [Prim SeqNth TyUnknown, Var end_i, Lit (LitInt 0)]) ]
                                         )
                                         True
 
-                SM.lift $ SM.modify (\xs -> start_len_cond:not_contains_start:elem_maps_to:xs)
+                SM.lift $ SM.modify (\xs -> start_len_cond:end_len_cond:not_contains_start:elem_maps_to:xs)
 
-                return full_list_eq
+                return prefix_of
         go pc_ = return pc_
 
         isNotNeg (Lit (LitInt x)) = x >= 0

@@ -1,7 +1,8 @@
-{-# LANGUAGE LambdaCase, MultiWayIf, OverloadedStrings, TupleSections #-}
+{-# LANGUAGE LambdaCase, MultiWayIf, OverloadedStrings, TupleSections, ViewPatterns #-}
 
 module G2.Solver.SeqSolver (CheckUnsatSeq (..)) where
 
+import G2.Execution.PrimitiveEval
 import G2.Language hiding (mkSeqLen)
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.KnownValues as KV
@@ -156,7 +157,7 @@ checkElems solver s@(State { expr_env = eenv, known_values = kv, tyvar_env = tv_
         ind_into = HM.fromList $
                    [ (e1, HS.singleton $ Var elem_ind)
                    , (e2, HS.singleton $ Var elem_ind) ]
-        prop_ind_into = propagateIndInto kv ind_into pcs_with_diff_elem
+        prop_ind_into = propagateIndInto kv tv_env ind_into pcs_with_diff_elem
 
         pcs_adj = convertAllToSeqNth s prop_ind_into
                 $ convertMapWithSeqNth s prop_ind_into pcs_with_diff_elem
@@ -171,20 +172,20 @@ consToSeqUnit _ e = e
 
 type IndInto = HM.HashMap Expr (HS.HashSet Expr)
 
-propagateIndInto :: KnownValues -> IndInto -> PathConds -> IndInto
-propagateIndInto kv ind_into pcs =
+propagateIndInto :: KnownValues -> TyVarEnv -> IndInto -> PathConds -> IndInto
+propagateIndInto kv tv_env ind_into pcs =
     let
-        new_ind_into_app = HM.fromListWith HS.union $ propagateIndIntoApp kv ind_into pcs
-        new_ind_into_eq = HM.fromListWith HS.union . concatMap (propagateIndIntoEq kv ind_into) . PC.toList $ pcs
+        new_ind_into_app = HM.fromListWith HS.union $ propagateIndIntoApp kv tv_env ind_into pcs
+        new_ind_into_eq = HM.fromListWith HS.union . concatMap (propagateIndIntoEq kv tv_env ind_into) . PC.toList $ pcs
         unionApp = HM.unionWith HS.union
         new_ind_into = ind_into `unionApp` new_ind_into_app `unionApp` new_ind_into_eq
     in
     case ind_into == new_ind_into of
         True -> filterRedundant kv pcs new_ind_into
-        False -> propagateIndInto kv new_ind_into pcs
+        False -> propagateIndInto kv tv_env new_ind_into pcs
 
-propagateIndIntoApp :: KnownValues -> IndInto -> PathConds -> [(Expr, HS.HashSet Expr)]
-propagateIndIntoApp kv ind_into = evalASTs go
+propagateIndIntoApp :: KnownValues -> TyVarEnv -> IndInto -> PathConds -> [(Expr, HS.HashSet Expr)]
+propagateIndIntoApp kv tv_env ind_into = evalASTs go
     where
         go e
             | [Prim StrAppend _, xs, ys] <- unApp $ consToSeqUnit kv e =
@@ -197,13 +198,13 @@ propagateIndIntoApp kv ind_into = evalASTs go
                                     Nothing -> []
                                     Just elem_ind -> [(e, HS.map (\ii -> mkSmartPlus
                                                                                ii
-                                                                               $ App (Prim StrLen TyUnknown) xs) elem_ind)]
+                                                                               $ mkSeqLen kv tv_env xs) elem_ind)]
                 in
                 xs_to_whole ++ ys_to_whole
             | otherwise = []
 
-propagateIndIntoEq :: KnownValues -> IndInto -> PathCond -> [(Expr, HS.HashSet Expr)]
-propagateIndIntoEq kv ind_intos (ExtCond e True)
+propagateIndIntoEq :: KnownValues -> TyVarEnv -> IndInto -> PathCond -> [(Expr, HS.HashSet Expr)]
+propagateIndIntoEq kv tv_env ind_intos (ExtCond e True)
     | Just (_, lst, eq_e1) <- eqToMap e =
         case (HM.lookup eq_e1 ind_intos, HM.lookup lst ind_intos) of
             (Just ind_into, Nothing) -> [(lst, ind_into) ]
@@ -215,7 +216,7 @@ propagateIndIntoEq kv ind_intos (ExtCond e True)
     --     [(e2, map (\ii -> mkApp [Prim Minus TyUnknown, ii, Lit (LitInt 1)]) ind_into)]
 
     | [ Prim Eq _, lst1, lst2 ] <- unApp $ consToSeqUnit kv e =
-        propEqApp kv ind_intos lst1 lst2 ++ propEqApp kv ind_intos lst2 lst1
+        propEqApp kv tv_env ind_intos lst1 lst2 ++ propEqApp kv tv_env ind_intos lst2 lst1
     -- , [ Prim StrAppend _, e1, e2 ] <- unApp $ consToSeqUnit kv lst_app
     -- , Just ind_into <- HM.lookup v ind_intos =
     --     [ (e1, ind_into)
@@ -224,10 +225,10 @@ propagateIndIntoEq kv ind_intos (ExtCond e True)
     --                              , App (Prim StrLen TyUnknown) e1]) ind_into)
     --     ]
 
-propagateIndIntoEq _ _ _ = []
+propagateIndIntoEq _ _ _ _ = []
 
-propEqApp :: KnownValues -> IndInto -> Expr -> Expr -> [(Expr, HS.HashSet Expr)]
-propEqApp kv ind_intos lst1 lst2
+propEqApp :: KnownValues -> TyVarEnv -> IndInto -> Expr -> Expr -> [(Expr, HS.HashSet Expr)]
+propEqApp kv tv_env ind_intos lst1 lst2
     | [ Prim StrAppend _, e1@(Prim SeqUnit _), e2 ] <- unApp $ consToSeqUnit kv lst1
     , Just ind_into <- HM.lookup lst2 ind_intos =
         [ (e1, ind_into)
@@ -240,7 +241,7 @@ propEqApp kv ind_intos lst1 lst2
         [ (e1, ind_into)
         , (e2, HS.map (\ii -> mkSmartMinus
                                     ii
-                                    $ App (Prim StrLen TyUnknown) e1) ind_into)
+                                    $ mkSeqLen kv tv_env e1) ind_into)
         ]
     | otherwise = []
 
@@ -294,9 +295,9 @@ mkSmartMinus e1 e2
 
 -- | Converting map equality checks into checks on a specific element.
 convertMapWithSeqNth :: State t -> IndInto -> PathConds -> PathConds
-convertMapWithSeqNth (State { known_values = kv, tyvar_env = tv_env }) ind_intos = PC.map go
+convertMapWithSeqNth (State { known_values = kv, tyvar_env = tv_env }) ind_intos = PC.concatMapHashedPCs go
     where
-        go (ExtCond e True)
+        go (PC.unhashedPC -> ExtCond e True)
             | Just (f, lst, eq_e1) <- eqToMap e
             , m_ind_into_eq_e1 <- HM.lookup eq_e1 ind_intos
             , m_ind_into_lst <- HM.lookup lst ind_intos
@@ -310,9 +311,8 @@ convertMapWithSeqNth (State { known_values = kv, tyvar_env = tv_env }) ind_intos
                     same_len = mkApp [ Prim Eq TyUnknown
                                      , mkSeqLen kv tv_env eq_e1
                                      , mkSeqLen kv tv_env lst]
-                    anded = mkApp [Prim And TyUnknown, foldAnd kv nth_eq, same_len]
                 in
-                ExtCond anded True
+                map PC.hashedPC . map (flip ExtCond True) $ same_len:HS.toList nth_eq
             | [Prim StrPrefixOf _, eq_e1, eq_e2] <- unApp e
             , [Prim Map _, f, lst ] <- unApp eq_e1
             , Just ind_into <- HM.lookup lst ind_intos =
@@ -324,9 +324,8 @@ convertMapWithSeqNth (State { known_values = kv, tyvar_env = tv_env }) ind_intos
                     ge_len = mkApp [ Prim Ge TyUnknown
                                    , mkSeqLen kv tv_env eq_e2
                                    , mkSeqLen kv tv_env lst]
-                    anded = mkApp [Prim And TyUnknown, foldAnd kv nth_eq, ge_len]
                 in
-                ExtCond anded True
+                map PC.hashedPC . map (flip ExtCond True) $ ge_len:HS.toList nth_eq
             | [Prim StrPrefixOf _, eq_e1, eq_e2] <- unApp e
             , [Prim Map _, f, lst ] <- unApp eq_e2
             , Just ind_into <- HM.lookup lst ind_intos =
@@ -335,18 +334,13 @@ convertMapWithSeqNth (State { known_values = kv, tyvar_env = tv_env }) ind_intos
                                                   , mkSeqNth kv tv_env eq_e1 ii
                                                   , App f $ mkSeqNth kv tv_env lst ii
                                                   ]) ind_into
-                    ge_len = mkApp [ Prim Le TyUnknown
+                    le_len = mkApp [ Prim Le TyUnknown
                                    , mkSeqLen kv tv_env eq_e1
                                    , mkSeqLen kv tv_env lst]
-                    anded = mkApp [Prim And TyUnknown, foldAnd kv nth_eq, ge_len]
                 in
-                ExtCond anded True
+                map PC.hashedPC . map (flip ExtCond True) $ le_len:HS.toList nth_eq
 
-        go pc = pc
-
-foldAnd :: KnownValues -> HS.HashSet Expr -> Expr
-foldAnd kv hs | x:xs <- HS.toList hs = foldl' (\acc y -> mkApp [Prim And TyUnknown, acc, y]) x xs
-              | otherwise = mkTrue kv
+        go pc = [pc]
 
 -- Given (map f ys == xs) returns (f, ys, xs)
 eqToMap :: Expr -> Maybe (Expr, Expr, Expr)
@@ -360,17 +354,17 @@ eqToMap e
 -- | If we have fold corresponding to the `all` function, then the condition that the require
 -- must hold for the i^th element
 convertAllToSeqNth :: State t -> IndInto -> PathConds -> PathConds
-convertAllToSeqNth (State { known_values = kv, tyvar_env = tv_env }) ind_intos = PC.map go
+convertAllToSeqNth (State { known_values = kv, tyvar_env = tv_env }) ind_intos = PC.concatMapHashedPCs go
     where
-        go (ExtCond e True)
+        go (PC.unhashedPC -> ExtCond e True)
             | [Prim FoldLeft _, f, Data dc, lst] <- unApp e
             , dc_name dc == KV.dcTrue kv
             , Just ind_into <- HM.lookup lst ind_intos
             , Just f' <- getBodyAll kv f
              =
                 let f_seq_nths = HS.map (App f' . mkSeqNth kv tv_env lst) ind_into in
-                ExtCond (foldAnd kv f_seq_nths) True
-        go pc = pc
+                map PC.hashedPC . map (flip ExtCond True) $ HS.toList f_seq_nths
+        go pc = [pc]
     
 -- | Get the body of an `all` fold
 getBodyAll :: KnownValues
@@ -402,11 +396,11 @@ getConjoined e
 -- the list at specific elements from other constraints.
 
 foldExcludedUnsat :: Solver solver => solver -> State t -> PathConds -> IO (Result () () ())
-foldExcludedUnsat solver s@(State { known_values = kv }) pcs
+foldExcludedUnsat solver s@(State { known_values = kv, tyvar_env = tv_env }) pcs
     | Just _ <- PC.firstJust (getFoldExcluding kv) pcs = do
         putStrLn "CHECKING UNSAT foldExcludedUnsat"
         let nth_inds = HM.unionWith HS.union (listStart kv pcs) (nthFrom pcs)
-            prop_nth_inds = propagateIndInto kv nth_inds pcs
+            prop_nth_inds = propagateIndInto kv tv_env nth_inds pcs
         -- putStrLn "prop_nth_inds = "
         -- mapM_ print $ HM.toList prop_nth_inds
 
@@ -450,6 +444,8 @@ isNeq e
 ------------------------------------------------------------------------------
 
 mkSeqLen :: KnownValues -> TyVarEnv -> Expr -> Expr
+mkSeqLen _ _ (App (Prim SeqUnit _) _) = Lit (LitInt 1)
+mkSeqLen kv _ e | Just xs <- toExprList kv e = Lit . LitInt $ genericLength xs
 mkSeqLen kv tv_env e =
     let t = TyFun (typeOf tv_env e) (tyBool kv) in
     App (Prim StrLen t) e

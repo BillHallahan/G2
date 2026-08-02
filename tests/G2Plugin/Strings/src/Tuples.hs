@@ -107,8 +107,9 @@ smtMyLookup x xs
     | not (smtContains fst_xs [x]) = Nothing
     | otherwise =
         let
-            zs' = genPred (\zs -> zs `smtPrefixOf` fst_xs
-                               && smtIndexOf fst_xs [x] 0 == smtLen zs)
+            (_, zs') = genPred2 (\ys zs -> ys ++ zs == fst_xs
+                                        && not (smtContains ys [x])
+                                        && smtAt ys 0 == [x])
         in
         Just $ smtNth snd_xs (smtLen zs')
         where
