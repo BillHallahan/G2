@@ -210,21 +210,8 @@ propagateIndIntoEq kv tv_env ind_intos (ExtCond e True)
             (Just ind_into, Nothing) -> [(lst, ind_into) ]
             (Nothing, Just ind_into) -> [(eq_e1, ind_into)]
             _ -> []
-    -- | [ Prim Eq _, lst_app, v ] <- unApp $ consToSeqUnit kv e
-    -- , [ Prim StrAppend _, App (Prim SeqUnit _) _, e2 ] <- unApp $ consToSeqUnit kv lst_app
-    -- , Just ind_into <- HM.lookup v ind_intos =
-    --     [(e2, map (\ii -> mkApp [Prim Minus TyUnknown, ii, Lit (LitInt 1)]) ind_into)]
-
     | [ Prim Eq _, lst1, lst2 ] <- unApp $ consToSeqUnit kv e =
         propEqApp kv tv_env ind_intos lst1 lst2 ++ propEqApp kv tv_env ind_intos lst2 lst1
-    -- , [ Prim StrAppend _, e1, e2 ] <- unApp $ consToSeqUnit kv lst_app
-    -- , Just ind_into <- HM.lookup v ind_intos =
-    --     [ (e1, ind_into)
-    --     , (e2, map (\ii -> mkApp [ Prim Minus TyUnknown
-    --                              , ii
-    --                              , App (Prim StrLen TyUnknown) e1]) ind_into)
-    --     ]
-
 propagateIndIntoEq _ _ _ _ = []
 
 propEqApp :: KnownValues -> TyVarEnv -> IndInto -> Expr -> Expr -> [(Expr, HS.HashSet Expr)]

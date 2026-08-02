@@ -72,7 +72,7 @@ checkEquiv func_config equiv_annots simp_state entry_real entry_smt
             comp_state = init_state { expr_env = eenv''
                                     , curr_expr = CurrExpr Evaluate comp_expr
                                     , true_assert = False }
-            config_no_output = func_config' -- { print_output = False }
+            config_no_output = func_config' { print_output = False }
         (ers, got_unknown, _, time_outs, _) <- liftIO $ runG2WithConfig
                                                             [] [] entry_id "" []
                                                             [nameModule entry_real_name]
