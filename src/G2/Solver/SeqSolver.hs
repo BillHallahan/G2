@@ -53,7 +53,7 @@ instance Solver solver => Solver (CheckUnsatSeq solver) where
 checkUnsat :: Solver solver => solver -> State t -> PathConds -> IO (Result () () ())
 checkUnsat solver s@(State { known_values = kv, tyvar_env = tv_env }) pcs
     | Just (pc, e1, e2) <- PC.firstJust (getListInequality kv tv_env) pcs = do
-        putStrLn "CHECKING UNSAT"
+        -- putStrLn "CHECKING UNSAT"
         let pcs' = PC.filter (\case (ExtCond e _) -> noMaps e; _ -> True) pcs
         res_no_maps <- check solver s pcs'
     
@@ -398,7 +398,7 @@ getConjoined e
 foldExcludedUnsat :: Solver solver => solver -> State t -> PathConds -> IO (Result () () ())
 foldExcludedUnsat solver s@(State { known_values = kv, tyvar_env = tv_env }) pcs
     | Just _ <- PC.firstJust (getFoldExcluding kv) pcs = do
-        putStrLn "CHECKING UNSAT foldExcludedUnsat"
+        -- putStrLn "CHECKING UNSAT foldExcludedUnsat"
         let nth_inds = HM.unionWith HS.union (listStart kv pcs) (nthFrom pcs)
             prop_nth_inds = propagateIndInto kv tv_env nth_inds pcs
         -- putStrLn "prop_nth_inds = "
