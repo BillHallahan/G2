@@ -111,3 +111,24 @@ smtMyLookup x xs
         where
             fst_xs = smtMap fst xs
             snd_xs = smtMap snd xs
+
+{-# ANN myLookupBad (SMTEquivIsWithConfig "smtMyLookupBad" "")
+    #-}
+myLookupBad :: A -> [(A, A)] -> Maybe A
+myLookupBad _ [] = Nothing
+myLookupBad x ((y, z):ys) | x == y = Just z
+                       | otherwise = myLookupBad x ys
+
+smtMyLookupBad :: A -> [(A, A)] -> Maybe A
+smtMyLookupBad x xs
+    | not (smtContains fst_xs [x]) = Nothing
+    | otherwise =
+        let
+            (_, zs') = genPred2 (\ys zs -> ys ++ zs == fst_xs
+                                        -- && not (smtContains ys [x])
+                                        && smtAt ys 0 == [x])
+        in
+        Just $ smtNth snd_xs (smtLen zs')
+        where
+            fst_xs = smtMap fst xs
+            snd_xs = smtMap snd xs
