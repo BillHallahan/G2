@@ -29,8 +29,11 @@ module G2.Plugin (SymEx (..)
                  , smtFoldLeft
                 --  , smtFoldLeftI
 
-                , genPred
-                , genPred2
+                , exists
+                , exists2
+                , exists3
+                , exists4
+                , exists5
 
                  , comp
                 ) where
@@ -532,12 +535,30 @@ smtFoldLeft' f x xs =
 --     let f' j = f (I# j) in
 --     xs `evalSeq` pSmtFoldLeftI# f' i x xs 
 
-genPred :: forall a . (a -> Bool) -> a
-genPred p = let !x = pSymGen# @a in assume (p x) x
+exists :: forall a . (a -> Bool) -> a
+exists p = let !x = pSymGen# @a in assume (p x) x
 
-genPred2 :: forall a b . (a -> b -> Bool) -> (a, b)
-genPred2 p = let !x = pSymGen# @a 
-                 !y = pSymGen# @b in assume (p x y) (x, y)
+exists2 :: forall a b . (a -> b -> Bool) -> (a, b)
+exists2 p = let !x = pSymGen# @a 
+                !y = pSymGen# @b in assume (p x y) (x, y)
+
+exists3 :: forall a b c . (a -> b -> c -> Bool) -> (a, b, c)
+exists3 p = let !x = pSymGen# @a 
+                !y = pSymGen# @b
+                !z = pSymGen# @c in assume (p x y z) (x, y, z)
+
+exists4 :: forall a b c d . (a -> b -> c -> d -> Bool) -> (a, b, c, d)
+exists4 p = let !w = pSymGen# @a 
+                !x = pSymGen# @b
+                !y = pSymGen# @c
+                !z = pSymGen# @d in assume (p w x y z) (w, x, y, z)
+
+exists5 :: forall a b c d e . (a -> b -> c -> d -> e -> Bool) -> (a, b, c, d, e)
+exists5 p = let !v = pSymGen# @a 
+                !w = pSymGen# @b
+                !x = pSymGen# @c
+                !y = pSymGen# @d
+                !z = pSymGen# @e in assume (p v w x y z) (v, w, x, y, z)
 
 {-# NOINLINE evalSeq #-}
 evalSeq :: [a] -> b -> b

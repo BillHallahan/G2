@@ -39,8 +39,8 @@ pairA [] = []
 pairA (x:xs) = (x, A):pairA xs
 
 smtPairA :: [A] -> [(A, A)]
-smtPairA xs = genPred (\ys -> xs `smtEq` smtMap fst ys
-                           && smtFoldLeft (\acc y -> acc && snd y == A) True ys)
+smtPairA xs = exists (\ys -> xs `smtEq` smtMap fst ys
+                          && smtFoldLeft (\acc y -> acc && snd y == A) True ys)
 
 {-# ANN pairABad (SMTEquivIsWithConfig "smtPairABad" "")
     #-}
@@ -49,8 +49,8 @@ pairABad [] = []
 pairABad (x:xs) = (x, B):pairA xs
 
 smtPairABad :: [A] -> [(A, A)]
-smtPairABad xs = genPred (\ys -> xs `smtEq` smtMap fst ys
-                              && smtFoldLeft (\acc y -> acc && snd y == A) True ys)
+smtPairABad xs = exists (\ys -> xs `smtEq` smtMap fst ys
+                             && smtFoldLeft (\acc y -> acc && snd y == A) True ys)
 
 
 {-# ANN myZip (SMTEquivIsWithConfig "smtMyZip" "")
@@ -61,10 +61,10 @@ myZip _ [] = []
 myZip (x:xs) (y:ys) = (x, y):myZip xs ys
 
 smtMyZip :: [A] -> [A] -> [(A, A)]
-smtMyZip xs ys | smtLen xs < smtLen ys = genPred (\zs -> xs `smtEq` smtMap fst zs 
-                                                      && smtMap snd zs `smtPrefixOf` ys)
-               | otherwise = genPred (\zs -> smtMap fst zs `smtPrefixOf` xs 
-                                          && ys `smtEq` smtMap snd zs)
+smtMyZip xs ys | smtLen xs < smtLen ys = exists (\zs -> xs `smtEq` smtMap fst zs 
+                                                     && smtMap snd zs `smtPrefixOf` ys)
+               | otherwise = exists (\zs -> smtMap fst zs `smtPrefixOf` xs 
+                                         && ys `smtEq` smtMap snd zs)
 
 
 {-# ANN myZipBad (SMTEquivIsWithConfig "smtMyZipBad" "")
@@ -75,10 +75,10 @@ myZipBad _ [] = []
 myZipBad (x:xs) (_:ys) = (x, x):myZipBad xs ys
 
 smtMyZipBad :: [A] -> [A] -> [(A, A)]
-smtMyZipBad xs ys | smtLen xs < smtLen ys = genPred (\zs -> xs `smtEq` smtMap fst zs 
-                                                         && smtMap snd zs `smtPrefixOf` ys)
-                  | otherwise = genPred (\zs -> smtMap fst zs `smtPrefixOf` xs 
-                                             && ys `smtEq` smtMap snd zs)
+smtMyZipBad xs ys | smtLen xs < smtLen ys = exists (\zs -> xs `smtEq` smtMap fst zs 
+                                                        && smtMap snd zs `smtPrefixOf` ys)
+                  | otherwise = exists (\zs -> smtMap fst zs `smtPrefixOf` xs 
+                                            && ys `smtEq` smtMap snd zs)
 
 {-# ANN myA (SMTEquivIsWithConfig "smtMyA" "")
     #-}
@@ -89,7 +89,7 @@ myA (x:xs) ys = x:myA xs ys
 
 smtMyA :: [A] -> [A] -> [A]
 smtMyA _ [] = []
-smtMyA xs _ = genPred (\zs -> zs `smtEq` xs)
+smtMyA xs _ = exists (\zs -> zs `smtEq` xs)
 
 {-# ANN myLookup (SMTEquivIsWithConfig "smtMyLookup" "")
     #-}
@@ -103,9 +103,9 @@ smtMyLookup x xs
     | not (smtContains fst_xs [x]) = Nothing
     | otherwise =
         let
-            (_, zs') = genPred2 (\ys zs -> ys ++ zs == fst_xs
-                                        && not (smtContains ys [x])
-                                        && smtAt ys 0 == [x])
+            (_, zs') = exists2 (\ys zs -> ys ++ zs == fst_xs
+                                       && not (smtContains ys [x])
+                                       && smtAt ys 0 == [x])
         in
         Just $ smtNth snd_xs (smtLen zs')
         where
@@ -124,9 +124,9 @@ smtMyLookupBad x xs
     | not (smtContains fst_xs [x]) = Nothing
     | otherwise =
         let
-            (_, zs') = genPred2 (\ys zs -> ys ++ zs == fst_xs
-                                        -- && not (smtContains ys [x])
-                                        && smtAt ys 0 == [x])
+            (_, zs') = exists2 (\ys zs -> ys ++ zs == fst_xs
+                                    -- && not (smtContains ys [x])
+                                       && smtAt ys 0 == [x])
         in
         Just $ smtNth snd_xs (smtLen zs')
         where
