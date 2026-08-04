@@ -293,6 +293,10 @@ foldExcludedUnsat solver s@(State { known_values = kv, tyvar_env = tv_env }) pcs
         putStrLn "CHECKING UNSAT foldExcludedUnsat"
 
         let nth_inds = HM.unionWith HS.union (listStart kv pcs) (nthFrom pcs)
+        let pretty_inds = prettyIndInto (setPrintUnique True $ mkPrettyGuide ()) s nth_inds
+        putStrLn "\nnth_inds = "
+        T.putStrLn pretty_inds
+
         prop_nth_inds <- propagateIndInto s nth_inds pcs
         let pretty_inds = prettyIndInto (setPrintUnique True $ mkPrettyGuide ()) s prop_nth_inds
         putStrLn "prop_nth_inds = "
@@ -352,7 +356,7 @@ propagateIndInto s@(State { known_values = kv, tyvar_env = tv_env }) ind_into pc
         new_ind_into = filterRedundant kv pcs $ unionApp [new_ind_map, new_ind_app, new_ind_eq]
         all_ind_into = HM.unionWith HS.union ind_into new_ind_into
     in
-    case trace ("new_ind_map = " ++ show new_ind_map ++ "\nnew_ind_into = " ++ show new_ind_into) ind_into == all_ind_into of
+    case ind_into == all_ind_into of
         True -> do
             let pretty_inds = prettyIndInto (setPrintUnique True $ mkPrettyGuide ()) s all_ind_into
             putStrLn "\nfinal = "
@@ -420,8 +424,8 @@ propagateIndMap kv tv_env ind_into = evalASTs go
             | [Prim Map _, f, xs] <- unApp $ consToSeqUnit kv e =
                 let
                     xs_to_map = case HM.lookup xs ind_into of
-                                    Nothing -> trace ("xs = " ++ show xs ++ "\nhm = " ++ show (HM.keys ind_into)) []
-                                    Just elem_ind -> trace ("e = " ++ show e) [(e, elem_ind)]
+                                    Nothing -> []
+                                    Just elem_ind -> [(e, elem_ind)]
                     map_to_xs = case HM.lookup e ind_into of
                                     Nothing -> []
                                     Just elem_ind -> [(xs, elem_ind)]
@@ -457,6 +461,8 @@ filterRedundant kv pcs =
 filterRedundant' :: UF.UnionFind Expr -> KnownValues -> Expr -> HS.HashSet Expr -> HS.HashSet Expr
 filterRedundant' eq_len kv e1 = HS.filter (not . isRedundant)
     where
+        isRedundant e 
+            | [Prim Mult _, _, App (Prim StrLen _) e2] <- unApp e = UF.find e1 eq_len == UF.find e2 eq_len
         isRedundant (App (Prim StrLen _) e2) = UF.find e1 eq_len == UF.find e2 eq_len
         isRedundant e | negNum e = True
         isRedundant e2
@@ -510,7 +516,7 @@ reduce e =
         cs_mult = mapMaybe (\(e', l) -> case l of
                                         0 -> Nothing
                                         1 -> Just e'
-                                        _ -> Just $ mkApp [Prim Mult TyUnknown, e', Lit (LitInt l)] ) $ HM.toList cs
+                                        _ -> Just $ mkApp [Prim Mult TyUnknown, Lit (LitInt l), e'] ) $ HM.toList cs
     in
     case cs_mult of
         [] -> Lit (LitInt total_l)
@@ -526,7 +532,9 @@ reduce e =
         sumL c (Lit (LitInt l)) = c + l
         sumL _ _ = error "reduce: sumL passed unexpected value"
 
-        countE hm (App (Prim Negate _) e') = HM.insertWith (-) e' 1 hm
+        countE hm (App (Prim Negate _) e') = HM.insertWith (+) e' (-1) hm
+        countE hm e' 
+            | [Prim Mult _, Lit (LitInt l), e''] <- unApp e' = HM.insertWith (+) e'' l hm
         countE hm e' = HM.insertWith (+) e' 1 hm
 
         summed e
@@ -535,7 +543,8 @@ reduce e =
             | otherwise = [e]
 
         negate (Lit (LitInt x)) = Lit . LitInt $ -x
-        negate e' = App (Prim Negate TyUnknown) e'
+        negate (App (App (Prim Mult TyUnknown) (Lit (LitInt l))) e') = App (App (Prim Mult TyUnknown) (Lit $ LitInt (-l))) e'
+        negate e' = App (App (Prim Mult TyUnknown) (Lit $ LitInt (-1))) e'
 
 -- type IndInto = HM.HashMap Expr (HS.HashSet Expr)
 
@@ -552,6 +561,8 @@ prettyIndInto pg s =
 
 mkSeqLen :: KnownValues -> TyVarEnv -> Expr -> Expr
 mkSeqLen _ _ (App (Prim SeqUnit _) _) = Lit (LitInt 1)
+mkSeqLen kv _ e | [Prim Map _, _, e'] <- unApp e
+                , Just xs <- toExprList kv e' = Lit . LitInt $ genericLength xs
 mkSeqLen kv _ e | Just xs <- toExprList kv e = Lit . LitInt $ genericLength xs
 mkSeqLen kv tv_env e =
     let t = TyFun (typeOf tv_env e) (tyBool kv) in
