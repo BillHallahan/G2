@@ -20,6 +20,8 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified G2.Data.UnionFind as UF
 
+import Debug.Trace
+
 newtype CheckUnsatSeq solver = CheckUnsatSeq solver
 
 -- | Attempt to prove that an inequality between two sequences is unsatisfiable
@@ -350,8 +352,13 @@ propagateIndInto s@(State { known_values = kv, tyvar_env = tv_env }) ind_into pc
         new_ind_into = filterRedundant kv pcs $ unionApp [new_ind_map, new_ind_app, new_ind_eq]
         all_ind_into = HM.unionWith HS.union ind_into new_ind_into
     in
-    case ind_into == all_ind_into of
-        True -> return all_ind_into
+    case trace ("new_ind_map = " ++ show new_ind_map ++ "\nnew_ind_into = " ++ show new_ind_into) ind_into == all_ind_into of
+        True -> do
+            let pretty_inds = prettyIndInto (setPrintUnique True $ mkPrettyGuide ()) s all_ind_into
+            putStrLn "\nfinal = "
+            T.putStrLn pretty_inds
+            
+            return all_ind_into
         False -> do
             let pretty_inds = prettyIndInto (setPrintUnique True $ mkPrettyGuide ()) s new_ind_into
             putStrLn "\niteration = "
@@ -413,8 +420,8 @@ propagateIndMap kv tv_env ind_into = evalASTs go
             | [Prim Map _, f, xs] <- unApp $ consToSeqUnit kv e =
                 let
                     xs_to_map = case HM.lookup xs ind_into of
-                                    Nothing -> []
-                                    Just elem_ind -> [(e, elem_ind)]
+                                    Nothing -> trace ("xs = " ++ show xs ++ "\nhm = " ++ show (HM.keys ind_into)) []
+                                    Just elem_ind -> trace ("e = " ++ show e) [(e, elem_ind)]
                     map_to_xs = case HM.lookup e ind_into of
                                     Nothing -> []
                                     Just elem_ind -> [(xs, elem_ind)]
@@ -451,7 +458,7 @@ filterRedundant' :: UF.UnionFind Expr -> KnownValues -> Expr -> HS.HashSet Expr 
 filterRedundant' eq_len kv e1 = HS.filter (not . isRedundant)
     where
         isRedundant (App (Prim StrLen _) e2) = UF.find e1 eq_len == UF.find e2 eq_len
-        isRedundant e | not $ posNum e = True
+        isRedundant e | negNum e = True
         isRedundant e2
             | [Prim Minus _, Lit (LitInt 0), e2'] <- unApp e2
             , posNum e2' = True
@@ -460,6 +467,9 @@ filterRedundant' eq_len kv e1 = HS.filter (not . isRedundant)
         posNum (Lit (LitInt n)) = n > 0
         posNum (App (Prim StrLen _) e) | nonEmptyList e = True
         posNum _ = False
+
+        negNum (Lit (LitInt n)) = n < 0
+        negNum _ = False
 
         nonEmptyList e | [Prim StrAppend _, app_e1, app_e2] <- unApp e = nonEmptyList app_e1 || nonEmptyList app_e2
                        | [Prim SeqUnit _, _] <- unApp e = True

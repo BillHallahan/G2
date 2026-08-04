@@ -53,6 +53,8 @@ smtPairABad :: [A] -> [(A, A)]
 smtPairABad xs = exists (\ys -> xs `smtEq` smtMap fst ys
                              && smtFoldLeft (\acc y -> acc && snd y == A) True ys)
 
+-}
+{-
 
 {-# ANN myZip (SMTEquivIsWithConfig "smtMyZip" "")
     #-}
@@ -66,7 +68,6 @@ smtMyZip xs ys | smtLen xs < smtLen ys = exists (\zs -> xs `smtEq` smtMap fst zs
                                                      && smtMap snd zs `smtPrefixOf` ys)
                | otherwise = exists (\zs -> smtMap fst zs `smtPrefixOf` xs 
                                          && ys `smtEq` smtMap snd zs)
-
 
 {-# ANN myZipBad (SMTEquivIsWithConfig "smtMyZipBad" "")
     #-}
