@@ -54,6 +54,7 @@ smtPairABad xs = exists (\ys -> xs `smtEq` smtMap fst ys
                              && smtFoldLeft (\acc y -> acc && snd y == A) True ys)
 
 -}
+{-
 
 {-# ANN myZip (SMTEquivIsWithConfig "smtMyZip" "")
     #-}
@@ -68,7 +69,6 @@ smtMyZip xs ys | smtLen xs < smtLen ys = exists (\zs -> xs `smtEq` smtMap fst zs
                | otherwise = exists (\zs -> smtMap fst zs `smtPrefixOf` xs 
                                          && ys `smtEq` smtMap snd zs)
 
-{-
 {-# ANN myZipBad (SMTEquivIsWithConfig "smtMyZipBad" "")
     #-}
 myZipBad :: [A] -> [A] -> [(A, A)]
@@ -93,7 +93,7 @@ smtMyA :: [A] -> [A] -> [A]
 smtMyA _ [] = []
 smtMyA xs _ = genPred (\zs -> zs `smtEq` xs)
 -}
-{-
+
 {-# ANN myLookup (SMTEquivIsWithConfig "smtMyLookup" "--print-smt")
     #-}
 myLookup :: A -> [(A, A)] -> Maybe A
@@ -114,7 +114,7 @@ smtMyLookup x xs
         where
             fst_xs = smtMap fst xs
             snd_xs = smtMap snd xs
--}
+
 {-
 {-# ANN myLookupBad (SMTEquivIsWithConfig "smtMyLookupBad" "")
     #-}

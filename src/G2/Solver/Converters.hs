@@ -477,7 +477,7 @@ exprToSMT tv e | [ Data (DataCon (Name ":" _ _ _) _ _ _)
                             App (Data (DataCon (Name "[]" _ _ _) _ _ _)) type_t'
                                 | Just (TyCon (Name "Char" _ _ _) _) <- TV.deepLookup tv type_t' -> exprToSMT tv unwrapped_e1
                             _ -> StrAppendSMT [exprToSMT tv unwrapped_e1, exprToSMT tv e2]
-                    _ -> StrAppendSMT [SeqUnitSMT (exprToSMT tv unwrapped_e1), exprToSMT tv e2]
+                    _ -> strAppendSMT (SeqUnitSMT (exprToSMT tv unwrapped_e1)) (exprToSMT tv e2)
 exprToSMT tv e | [ Data (DataCon (Name ":" _ _ _) _ _ _)
                  , type_t
                  , e1
@@ -524,6 +524,14 @@ exprToSMT tv (Case bindee _ _ as)
 exprToSMT tv (Tick _ e) = exprToSMT tv e
 
 exprToSMT _ e = error $ "exprToSMT: unhandled Expr: " ++ show e
+
+strAppendSMT :: SMTAST -> SMTAST -> SMTAST
+strAppendSMT (SeqEmptySMT _) smt2 = smt2
+strAppendSMT smt1 (SeqEmptySMT _) = smt1
+strAppendSMT (StrAppendSMT xs) (StrAppendSMT ys) = StrAppendSMT (xs ++ ys)
+strAppendSMT (StrAppendSMT xs) smt2 = StrAppendSMT (xs ++ [smt2])
+strAppendSMT smt1 (StrAppendSMT xs) = StrAppendSMT (smt1:xs)
+strAppendSMT smt1 smt2 = StrAppendSMT [smt1, smt2]
 
 lonePrim :: Primitive -> SMTAST
 lonePrim ReNone = ReNoneSMT
