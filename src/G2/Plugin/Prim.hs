@@ -84,6 +84,50 @@ pSmtFoldLeft# = error "pSmtFoldLeft#"
 pSmtFoldLeftI# :: (Int# -> a -> b -> a) -> Int# -> a -> [b] -> a
 pSmtFoldLeftI# = error "pSmtFoldLeftI#"
 
+{-# NOINLINE pSmtReRange# #-}
+pSmtReRange# :: String -> String -> String
+pSmtReRange# = error "pSmtReRange#"
+
+{-# NOINLINE pSmtInRe# #-}
+pSmtInRe# :: String -> String -> Bool
+pSmtInRe# = error "pSmtInRe#"
+
+{-# NOINLINE pSmtToRe# #-}
+pSmtToRe# :: String -> String
+pSmtToRe# = error "pSmtToRe#"
+
+{-# NOINLINE pSmtReNone# #-}
+pSmtReNone# :: String
+pSmtReNone# = error "pSmtReNone#"
+
+{-# NOINLINE pSmtReAll# #-}
+pSmtReAll# :: String
+pSmtReAll# = error "pSmtReAll#"
+
+{-# NOINLINE pSmtReAllChar# #-}
+pSmtReAllChar# :: String
+pSmtReAllChar# = error "pSmtReAllChar#"
+
+{-# NOINLINE pSmtReConcat# #-}
+pSmtReConcat# :: String -> String -> String
+pSmtReConcat# = error "pSmtReConcat#"
+
+{-# NOINLINE pSmtReUnion# #-}
+pSmtReUnion# :: String -> String -> String
+pSmtReUnion# = error "pSmtReUnion#"
+
+{-# NOINLINE pSmtReInter# #-}
+pSmtReInter# :: String -> String -> String
+pSmtReInter# = error "pSmtReInter#"
+
+{-# NOINLINE pSmtReStar# #-}
+pSmtReStar# :: String -> String
+pSmtReStar# = error "pSmtReStar#"
+
+{-# NOINLINE pSmtReStar# #-}
+pSmtReComp# :: String -> String
+pSmtReComp# = error "pSmtReComp#"
+
 {-# NOINLINE pIsSMTRep# #-}
 pIsSMTRep# :: [a] -> Bool
 pIsSMTRep# _ = error "pIsSMTRep#"
