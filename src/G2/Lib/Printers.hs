@@ -37,6 +37,7 @@ module G2.Lib.Printers ( PrettyGuide
                        , EnvOrdering(..)
                        , TyLamPrinting(..)
                        , setTypePrinting
+                       , setPrintUnique
                        , updateQualMods
                        , setStrictCase
                        , setEnvOrdering
@@ -81,6 +82,7 @@ printName = mkNameHaskell
 mkNameHaskell :: PrettyGuide -> Name -> T.Text
 mkNameHaskell pg n
     | Just s <- lookupPG n pg = s
+    | print_unq pg = nameOcc n <> "''" <> T.pack (show $ nameUnique n)
     | otherwise = nameOcc n
 
 mkUnsugaredExprHaskell :: State t -> Expr -> T.Text
@@ -1216,6 +1218,8 @@ data PrettyGuide = PG { pg_assigned :: !(HM.HashMap Name T.Text) -- ^ Mapping of
                                                                         -- is the greatest Int I such that  X'I has been used
                                                                         -- as a printable name.
                                                                         -- See also Note [PrettyGuide AssignedLvl].
+                      , print_unq :: Bool -- ^ Toggle whether to print uniques when a name has not been assigned
+
                       , qual_mods :: HS.HashSet T.Text
                       , strict_case :: Bool -- ^ Should we ensure that case expressions are strictly evaluated?
                       , type_printing :: TypePrinting -- ^ How detailed should the type information we print be?
@@ -1249,6 +1253,8 @@ data PrettyGuide = PG { pg_assigned :: !(HM.HashMap Name T.Text) -- ^ Mapping of
 mkPrettyGuide :: Named a => a -> PrettyGuide
 mkPrettyGuide = foldr insertPG (PG { pg_assigned = HM.empty
                                    , pg_nums = HM.empty
+                                   , print_unq = False
+
                                    , qual_mods = HS.empty
                                    , strict_case = False
                                    , type_printing = LaxTypes
@@ -1272,6 +1278,9 @@ updatePGValNames e pg = foldr (insertPGLvl ValLvl) pg $ exprNames e
 -- | Update the `PrettyGuide` with mappings for all Type `Name`s in the `Named` argument.
 updatePGTypeNames :: ASTContainer a Type => a -> PrettyGuide -> PrettyGuide
 updatePGTypeNames e pg = foldr (insertPGLvl TypeLvl) pg $ typeNames e
+
+setPrintUnique :: Bool -> PrettyGuide -> PrettyGuide
+setPrintUnique b pg = pg { print_unq = b }
 
 updateQualMods :: T.Text -> PrettyGuide -> PrettyGuide
 updateQualMods m pg@(PG { qual_mods = qm }) = pg { qual_mods = HS.insert m qm }

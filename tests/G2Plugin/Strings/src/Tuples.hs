@@ -92,6 +92,7 @@ smtMyA :: [A] -> [A] -> [A]
 smtMyA _ [] = []
 smtMyA xs _ = genPred (\zs -> zs `smtEq` xs)
 -}
+
 {-# ANN myLookup (SMTEquivIsWithConfig "smtMyLookup" "--print-smt")
     #-}
 myLookup :: A -> [(A, A)] -> Maybe A
