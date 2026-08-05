@@ -5,7 +5,7 @@ module Regex where
 import G2.Plugin
 import Data.Char (ord)
 
-{-# ANN isNum (SMTEquivIs "smtIsNum") #-}
+{-# ANN isNum (SMTEquivIsWithConfig "smtIsNum" "--log-pretty a") #-}
 isNum :: String -> Bool
 isNum (num:rest) = ord num >= ord '0' && ord num <= ord '9' && isNum rest
 isNum _ = True
