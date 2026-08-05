@@ -40,7 +40,7 @@ tests = testGroup "All Tests"
                                 , ("pairA", "smtPairA")
                                 , ("myZip", "smtMyZip")
                                 , ("myA", "smtMyA")
-                                , ("myLookup", "smtMyLookup")
+                                , ("myUnzip", "smtMyUnzip")
                                 ]
                                 [ 
                                   -- Strings  

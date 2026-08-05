@@ -1,4 +1,4 @@
-{-# LANGUAGE LambdaCase, MultiWayIf, OverloadedStrings, TupleSections, ViewPatterns #-}
+{-# LANGUAGE BangPatterns, LambdaCase, MultiWayIf, OverloadedStrings, TupleSections, ViewPatterns #-}
 
 module G2.Solver.SeqSolver (CheckUnsatSeq (..)) where
 
@@ -59,7 +59,7 @@ instance Solver solver => Solver (CheckUnsatSeq solver) where
 checkUnsat :: Solver solver => solver -> State t -> PathConds -> IO (Result () () ())
 checkUnsat solver s@(State { known_values = kv, tyvar_env = tv_env }) pcs
     | Just (pc, e1, e2) <- PC.firstJust (getListInequality kv tv_env) pcs = do
-        putStrLn "CHECKING UNSAT"
+        -- putStrLn "CHECKING UNSAT"
         let pcs' = PC.filter (\case (ExtCond e _) -> noMaps e; _ -> True) pcs
         res_no_maps <- check solver s pcs'
     
@@ -288,19 +288,19 @@ getConjoined e
 -- the list at specific elements from other constraints.
 
 foldExcludedUnsat :: Solver solver => solver -> State t -> PathConds -> IO (Result () () ())
-foldExcludedUnsat solver s@(State { known_values = kv, tyvar_env = tv_env }) pcs
+foldExcludedUnsat solver s@(State { known_values = kv }) pcs
     | Just _ <- PC.firstJust (getFoldExcluding kv) pcs = do
         putStrLn "CHECKING UNSAT foldExcludedUnsat"
 
         let nth_inds = HM.unionWith HS.union (listStart kv pcs) (nthFrom pcs)
         let pretty_inds = prettyIndInto (setPrintUnique True $ mkPrettyGuide ()) s nth_inds
-        putStrLn "\nnth_inds = "
-        T.putStrLn pretty_inds
+        -- putStrLn "\nnth_inds = "
+        -- T.putStrLn pretty_inds
 
         prop_nth_inds <- propagateIndInto s nth_inds pcs
-        let pretty_inds = prettyIndInto (setPrintUnique True $ mkPrettyGuide ()) s prop_nth_inds
-        putStrLn "prop_nth_inds = "
-        T.putStrLn pretty_inds
+        -- let pretty_inds = prettyIndInto (setPrintUnique True $ mkPrettyGuide ()) s prop_nth_inds
+        -- putStrLn "prop_nth_inds = "
+        -- T.putStrLn pretty_inds
 
         let pcs_adj = simplifyLams
                     . convertMapWithSeqNth s prop_nth_inds
@@ -346,7 +346,10 @@ isNeq e
 type IndInto = HM.HashMap Expr (HS.HashSet Expr)
 
 propagateIndInto :: State t -> IndInto -> PathConds -> IO IndInto
-propagateIndInto s@(State { known_values = kv, tyvar_env = tv_env }) ind_into pcs =
+propagateIndInto = propagateIndInto' 3
+
+propagateIndInto' :: Int -> State t -> IndInto -> PathConds -> IO IndInto
+propagateIndInto' !n s@(State { known_values = kv, tyvar_env = tv_env }) ind_into pcs =
     let
         new_ind_app = HM.fromListWith HS.union $ propagateIndApp kv tv_env ind_into pcs
         new_ind_map = HM.fromListWith HS.union $ propagateIndMap kv tv_env ind_into pcs
@@ -357,17 +360,17 @@ propagateIndInto s@(State { known_values = kv, tyvar_env = tv_env }) ind_into pc
         all_ind_into = HM.unionWith HS.union ind_into new_ind_into
     in
     case ind_into == all_ind_into of
-        True -> do
-            let pretty_inds = prettyIndInto (setPrintUnique True $ mkPrettyGuide ()) s all_ind_into
-            putStrLn "\nfinal = "
-            T.putStrLn pretty_inds
+        False | n > 0 -> do
+            -- let pretty_inds = prettyIndInto (setPrintUnique True $ mkPrettyGuide ()) s new_ind_into
+            -- putStrLn "\niteration = "
+            -- T.putStrLn pretty_inds
+            propagateIndInto' (n - 1) s all_ind_into pcs
+        _ -> do
+            -- let pretty_inds = prettyIndInto (setPrintUnique True $ mkPrettyGuide ()) s all_ind_into
+            -- putStrLn "\nfinal = "
+            -- T.putStrLn pretty_inds
             
             return all_ind_into
-        False -> do
-            let pretty_inds = prettyIndInto (setPrintUnique True $ mkPrettyGuide ()) s new_ind_into
-            putStrLn "\niteration = "
-            T.putStrLn pretty_inds
-            propagateIndInto s all_ind_into pcs
 
 -- | Propagate across ++.
 -- ind(xs) = n <-> ind(xs ++ ys) = n,
@@ -396,7 +399,7 @@ propagateIndApp kv tv_env ind_into = evalASTs go
                                                                             $ mkSeqLen kv tv_env xs) elem_ind)
                                                 ]
                 in
-                xs_to_whole ++ ys_to_whole -- ++ whole_to_xs_ys
+                xs_to_whole ++ ys_to_whole ++ whole_to_xs_ys
             | otherwise = []
 
 -- | Propagate across ==.
@@ -497,20 +500,20 @@ mkSmartPlus (Lit (LitInt 0)) e2 = e2
 mkSmartPlus e1 e2
     -- | [Prim Minus _, e_add1, e_add2] <- unApp e1
     -- , e_add2 == e2 = e_add1
-    | otherwise = reduce $ mkApp [ Prim Plus TyUnknown, e1, e2]
+    | otherwise = reduce e1 e2 $ mkApp [ Prim Plus TyUnknown, e1, e2]
 
 mkSmartMinus :: Expr -> Expr -> Expr
 mkSmartMinus e1 (Lit (LitInt 0)) = e1
 mkSmartMinus e1 e2
     -- | [Prim Plus _, e_add1, e_add2] <- unApp e1
     -- , e_add1 == e2 = e_add2
-    | otherwise = reduce $ mkApp [ Prim Minus TyUnknown, e1, e2]
+    | otherwise = reduce e1 e2 $ mkApp [ Prim Minus TyUnknown, e1, e2]
 
-reduce :: Expr -> Expr
-reduce e = 
+reduce :: Expr -> Expr -> Expr -> Expr
+reduce e1 e2 e = 
     let
         (es, ls) = partition (not . isLitInt) $ summed e
-        cs = foldl' (countE) HM.empty es
+        cs = foldl' countE HM.empty es
         total_l = foldl' sumL 0 ls
 
         cs_mult = mapMaybe (\(e', l) -> case l of
@@ -521,10 +524,12 @@ reduce e =
     case cs_mult of
         [] -> Lit (LitInt total_l)
         c:cs' -> 
-            let e_sum = foldl' (\e1 e2 -> mkApp [Prim Plus TyUnknown, e1, e2]) c cs' in
-                case total_l of
-                    0 -> e_sum
-                    _ -> mkApp [Prim Plus TyUnknown, e_sum, Lit (LitInt total_l)]
+            let e_sum = foldl' (\e1 e2 -> mkApp [Prim Plus TyUnknown, e1, e2]) c cs'
+                res = case total_l of
+                            0 -> e_sum
+                            _ -> mkApp [Prim Plus TyUnknown, e_sum, Lit (LitInt total_l)]
+            in
+            res
     where
         isLitInt (Lit (LitInt _)) = True
         isLitInt _ = False
@@ -537,10 +542,10 @@ reduce e =
             | [Prim Mult _, Lit (LitInt l), e''] <- unApp e' = HM.insertWith (+) e'' l hm
         countE hm e' = HM.insertWith (+) e' 1 hm
 
-        summed e
-            | [Prim Plus _, e1, e2] <- unApp e = summed e1 ++ summed e2
-            | [Prim Minus _, e1, e2] <- unApp e = summed e1 ++ map negate (summed e2)
-            | otherwise = [e]
+        summed e'
+            | [Prim Plus _, e1, e2] <- unApp e' = summed e1 ++ summed e2
+            | [Prim Minus _, e1, e2] <- unApp e' = summed e1 ++ map negate (summed e2)
+            | otherwise = [e']
 
         negate (Lit (LitInt x)) = Lit . LitInt $ -x
         negate (App (App (Prim Mult TyUnknown) (Lit (LitInt l))) e') = App (App (Prim Mult TyUnknown) (Lit $ LitInt (-l))) e'

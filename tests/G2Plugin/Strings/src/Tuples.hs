@@ -77,7 +77,6 @@ smtMyZipBad xs ys | smtLen xs < smtLen ys = exists (\zs -> xs `smtEq` smtMap fst
                                                         && smtMap snd zs `smtPrefixOf` ys)
                   | otherwise = exists (\zs -> smtMap fst zs `smtPrefixOf` xs 
                                             && ys `smtEq` smtMap snd zs)
-
 {-# ANN myA (SMTEquivIsWithConfig "smtMyA" "")
     #-}
 myA :: [A] -> [A] -> [A]
@@ -89,14 +88,15 @@ smtMyA :: [A] -> [A] -> [A]
 smtMyA _ [] = []
 smtMyA xs _ = exists (\zs -> zs `smtEq` xs)
 
-{-# ANN myUnzip (SMTEquivIsWithConfig "smtMyUnip" "")
+
+{-# ANN myUnzip (SMTEquivIsWithConfig "smtMyUnzip" "")
     #-}
 myUnzip :: [(A, A)] -> [A] -> [A] -> ([A], [A])
 myUnzip [] xs ys = (myRev xs, myRev ys)
 myUnzip ((x, y):xs_ys) xs ys = myUnzip xs_ys (x:xs) (y:ys)
 
-smtMyUnip :: [(A, A)] -> [A] -> [A] -> ([A], [A])
-smtMyUnip xs_ys xs ys =
+smtMyUnzip :: [(A, A)] -> [A] -> [A] -> ([A], [A])
+smtMyUnzip xs_ys xs ys =
     let (as', bs') = exists2 (\as bs -> as `smtEq` smtMap fst xs_ys 
                                      && bs `smtEq` smtMap snd xs_ys)
     in
@@ -133,7 +133,6 @@ smtMyLookup x xs
             snd_xs = smtMap snd xs
 -}
 
-{-
 {-# ANN myLookupBad (SMTEquivIsWithConfig "smtMyLookupBad" "")
     #-}
 myLookupBad :: A -> [(A, A)] -> Maybe A
@@ -154,4 +153,3 @@ smtMyLookupBad x xs
         where
             fst_xs = smtMap fst xs
             snd_xs = smtMap snd xs
--}
