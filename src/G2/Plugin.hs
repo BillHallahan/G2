@@ -29,6 +29,18 @@ module G2.Plugin (SymEx (..)
                  , smtFoldLeft
                 --  , smtFoldLeftI
 
+                , smtReRange
+                , smtInRe
+                , smtToRe
+                , smtReNone
+                , smtReAll
+                , smtReAllChar
+                , smtReUnion
+                , smtReConcat
+                , smtReInter
+                , smtReStar
+                , smtReComp
+
                 , genVal
 
                  , comp

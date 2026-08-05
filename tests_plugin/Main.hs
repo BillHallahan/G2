@@ -56,6 +56,9 @@ tests = testGroup "All Tests"
                                 , ("appTupleBad", "smtAppTupleBad")
                                 , ("pairABad", "smtPairA")
                                 , ("myZipBad", "smtMyZip")
+
+                                -- Regex
+                                , ("isNum", "smtIsNum")
                                 ]
         , checkNebulaPackage "tests/RewriteVerify/PluginTests/Simple" ["add_assoc", "fg", "fg_toint"] ["f_one"]]
 

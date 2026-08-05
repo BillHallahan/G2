@@ -124,7 +124,7 @@ pSmtReInter# = error "pSmtReInter#"
 pSmtReStar# :: String -> String
 pSmtReStar# = error "pSmtReStar#"
 
-{-# NOINLINE pSmtReStar# #-}
+{-# NOINLINE pSmtReComp# #-}
 pSmtReComp# :: String -> String
 pSmtReComp# = error "pSmtReComp#"
 
