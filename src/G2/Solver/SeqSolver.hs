@@ -396,7 +396,7 @@ propagateIndApp kv tv_env ind_into = evalASTs go
                                                                             $ mkSeqLen kv tv_env xs) elem_ind)
                                                 ]
                 in
-                xs_to_whole ++ ys_to_whole ++ whole_to_xs_ys
+                xs_to_whole ++ ys_to_whole -- ++ whole_to_xs_ys
             | otherwise = []
 
 -- | Propagate across ==.

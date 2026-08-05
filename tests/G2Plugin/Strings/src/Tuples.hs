@@ -6,7 +6,6 @@ import G2.Plugin
 
 {-# ANN module ("--smt-tuples --smt-adts A")
     #-}
-{-
 
 {-# ANN appTuple (SMTEquivIs "smtAppTuple")
     #-}
@@ -25,14 +24,14 @@ appTupleBad x y (t:ts) = t:appTupleBad x y ts
 
 smtAppTupleBad :: Int -> Int -> [(Int, Int)] -> [(Int, Int)]
 smtAppTupleBad x y ts = ts $++ ts $++ [(x, y)]
--}
+
 data A = A | B
 
 instance Eq A where
     A == A = True
     B == B = True
     _ == _ = False
-{-
+
 {-# ANN pairA (SMTEquivIsWithConfig "smtPairA" "")
     #-}
 pairA :: [A] -> [(A, A)]
@@ -52,9 +51,6 @@ pairABad (x:xs) = (x, B):pairA xs
 smtPairABad :: [A] -> [(A, A)]
 smtPairABad xs = exists (\ys -> xs `smtEq` smtMap fst ys
                              && smtFoldLeft (\acc y -> acc && snd y == A) True ys)
-
--}
-{-
 
 {-# ANN myZip (SMTEquivIsWithConfig "smtMyZip" "")
     #-}
@@ -91,9 +87,30 @@ myA (x:xs) ys = x:myA xs ys
 
 smtMyA :: [A] -> [A] -> [A]
 smtMyA _ [] = []
-smtMyA xs _ = genPred (\zs -> zs `smtEq` xs)
--}
+smtMyA xs _ = exists (\zs -> zs `smtEq` xs)
 
+{-# ANN myUnzip (SMTEquivIsWithConfig "smtMyUnip" "")
+    #-}
+myUnzip :: [(A, A)] -> [A] -> [A] -> ([A], [A])
+myUnzip [] xs ys = (myRev xs, myRev ys)
+myUnzip ((x, y):xs_ys) xs ys = myUnzip xs_ys (x:xs) (y:ys)
+
+smtMyUnip :: [(A, A)] -> [A] -> [A] -> ([A], [A])
+smtMyUnip xs_ys xs ys =
+    let (as', bs') = exists2 (\as bs -> as `smtEq` smtMap fst xs_ys 
+                                     && bs `smtEq` smtMap snd xs_ys)
+    in
+    (smtMyRev xs $++ as', smtMyRev ys $++ bs')
+
+{-# ANN myRev (SMTEquivIsWithConfig "smtMyRev" "") #-}
+myRev :: [A] -> [A]
+myRev [] = []
+myRev (y:ys) = myRev ys ++ [y]
+
+smtMyRev :: [A] -> [A]
+smtMyRev ys = smtFoldLeft (\acc y -> y:acc) [] ys
+
+{-
 {-# ANN myLookup (SMTEquivIsWithConfig "smtMyLookup" "--print-smt")
     #-}
 myLookup :: A -> [(A, A)] -> Maybe A
@@ -114,6 +131,7 @@ smtMyLookup x xs
         where
             fst_xs = smtMap fst xs
             snd_xs = smtMap snd xs
+-}
 
 {-
 {-# ANN myLookupBad (SMTEquivIsWithConfig "smtMyLookupBad" "")
