@@ -20,8 +20,6 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified G2.Data.UnionFind as UF
 
-import Debug.Trace
-
 newtype CheckUnsatSeq solver = CheckUnsatSeq solver
 
 -- | Attempt to prove that an inequality between two sequences is unsatisfiable
@@ -352,8 +350,8 @@ propagateIndInto' :: Int -> State t -> IndInto -> PathConds -> IO IndInto
 propagateIndInto' !n s@(State { known_values = kv, tyvar_env = tv_env }) ind_into pcs =
     let
         new_ind_app = HM.fromListWith HS.union $ propagateIndApp kv tv_env ind_into pcs
-        new_ind_map = HM.fromListWith HS.union $ propagateIndMap kv tv_env ind_into pcs
-        new_ind_eq = HM.fromListWith HS.union . concatMap (propagateIndEq kv tv_env ind_into) . PC.toList $ pcs
+        new_ind_map = HM.fromListWith HS.union $ propagateIndMap kv ind_into pcs
+        new_ind_eq = HM.fromListWith HS.union . concatMap (propagateIndEq kv ind_into) . PC.toList $ pcs
         unionApp = foldl' (HM.unionWith HS.union) HM.empty
 
         new_ind_into = filterRedundant kv pcs $ unionApp [new_ind_map, new_ind_app, new_ind_eq]
@@ -405,8 +403,8 @@ propagateIndApp kv tv_env ind_into = evalASTs go
 -- | Propagate across ==.
 -- xs == ys and ind(xs) = n -> ind(ys) = n
 -- xs == ys and ind(xs) = n -> ind(ys) = n
-propagateIndEq :: KnownValues -> TyVarEnv -> IndInto -> PathCond -> [(Expr, HS.HashSet Expr)]
-propagateIndEq kv tv_env ind_intos (ExtCond e True) =
+propagateIndEq :: KnownValues -> IndInto -> PathCond -> [(Expr, HS.HashSet Expr)]
+propagateIndEq kv ind_intos (ExtCond e True) =
     let
         eq_list_prop = case unApp $ consToSeqUnit kv e of
                             [ Prim Eq _, lst1, lst2 ] ->
@@ -415,16 +413,16 @@ propagateIndEq kv tv_env ind_intos (ExtCond e True) =
                             _ -> []
     in
     eq_list_prop
-propagateIndEq _ _ _ _ = []
+propagateIndEq _ _ _ = []
 
 -- | Propagate across map.
 -- ind(xs) = n <-> ind(map f xs) = n,
 -- ind(map f xs) = n <-> ind(xs) = n
-propagateIndMap :: KnownValues -> TyVarEnv -> IndInto -> PathConds -> [(Expr, HS.HashSet Expr)]
-propagateIndMap kv tv_env ind_into = evalASTs go
+propagateIndMap :: KnownValues -> IndInto -> PathConds -> [(Expr, HS.HashSet Expr)]
+propagateIndMap kv ind_into = evalASTs go
     where
         go e
-            | [Prim Map _, f, xs] <- unApp $ consToSeqUnit kv e =
+            | [Prim Map _, _, xs] <- unApp $ consToSeqUnit kv e =
                 let
                     xs_to_map = case HM.lookup xs ind_into of
                                     Nothing -> []
@@ -500,17 +498,17 @@ mkSmartPlus (Lit (LitInt 0)) e2 = e2
 mkSmartPlus e1 e2
     -- | [Prim Minus _, e_add1, e_add2] <- unApp e1
     -- , e_add2 == e2 = e_add1
-    | otherwise = reduce e1 e2 $ mkApp [ Prim Plus TyUnknown, e1, e2]
+    | otherwise = reduce $ mkApp [ Prim Plus TyUnknown, e1, e2]
 
 mkSmartMinus :: Expr -> Expr -> Expr
 mkSmartMinus e1 (Lit (LitInt 0)) = e1
 mkSmartMinus e1 e2
     -- | [Prim Plus _, e_add1, e_add2] <- unApp e1
     -- , e_add1 == e2 = e_add2
-    | otherwise = reduce e1 e2 $ mkApp [ Prim Minus TyUnknown, e1, e2]
+    | otherwise = reduce $ mkApp [ Prim Minus TyUnknown, e1, e2]
 
-reduce :: Expr -> Expr -> Expr -> Expr
-reduce e1 e2 e = 
+reduce :: Expr -> Expr
+reduce e = 
     let
         (es, ls) = partition (not . isLitInt) $ summed e
         cs = foldl' countE HM.empty es
@@ -544,12 +542,12 @@ reduce e1 e2 e =
 
         summed e'
             | [Prim Plus _, e1, e2] <- unApp e' = summed e1 ++ summed e2
-            | [Prim Minus _, e1, e2] <- unApp e' = summed e1 ++ map negate (summed e2)
+            | [Prim Minus _, e1, e2] <- unApp e' = summed e1 ++ map neg (summed e2)
             | otherwise = [e']
 
-        negate (Lit (LitInt x)) = Lit . LitInt $ -x
-        negate (App (App (Prim Mult TyUnknown) (Lit (LitInt l))) e') = App (App (Prim Mult TyUnknown) (Lit $ LitInt (-l))) e'
-        negate e' = App (App (Prim Mult TyUnknown) (Lit $ LitInt (-1))) e'
+        neg (Lit (LitInt x)) = Lit . LitInt $ -x
+        neg (App (App (Prim Mult TyUnknown) (Lit (LitInt l))) e') = App (App (Prim Mult TyUnknown) (Lit $ LitInt (-l))) e'
+        neg e' = App (App (Prim Mult TyUnknown) (Lit $ LitInt (-1))) e'
 
 -- type IndInto = HM.HashMap Expr (HS.HashSet Expr)
 
