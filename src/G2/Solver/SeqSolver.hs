@@ -11,6 +11,7 @@ import G2.Lib.Printers
 import G2.Solver
 
 import Control.Applicative
+import Control.Monad
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import Data.List
@@ -20,23 +21,25 @@ import qualified Data.Text as T
 import qualified Data.Text.IO as T
 import qualified G2.Data.UnionFind as UF
 
-newtype CheckUnsatSeq solver = CheckUnsatSeq solver
+type ShowLogs = Bool
+
+data CheckUnsatSeq solver = CheckUnsatSeq ShowLogs solver
 
 -- | Attempt to prove that an inequality between two sequences is unsatisfiable
 instance Solver solver => Solver (CheckUnsatSeq solver) where
-    check (CheckUnsatSeq solver) s pc = do
-        r1 <- foldExcludedUnsat solver s pc
+    check (CheckUnsatSeq show_logs solver) s pc = do
+        r1 <- foldExcludedUnsat show_logs solver s pc
         case r1 of
             UNSAT _ -> return r1
             _ -> do
-                r2 <- checkUnsat solver s pc
+                r2 <- checkUnsat show_logs solver s pc
                 case r2 of
                     UNSAT _ -> return r2
                     _ -> check solver s pc
 
-    solve (CheckUnsatSeq solver) = solve solver
+    solve (CheckUnsatSeq _ solver) = solve solver
     
-    close (CheckUnsatSeq solver) = close solver
+    close (CheckUnsatSeq _ solver) = close solver
 
 ------------------------------------------------------------------------------
 -- Length and different element
@@ -54,8 +57,8 @@ instance Solver solver => Solver (CheckUnsatSeq solver) where
 -- This means that the original formula implies the new formulas, i.e.
 -- if the new formula is unsatisfiable, the original formula was unsatisfiable.
 
-checkUnsat :: Solver solver => solver -> State t -> PathConds -> IO (Result () () ())
-checkUnsat solver s@(State { known_values = kv, tyvar_env = tv_env }) pcs
+checkUnsat :: Solver solver => ShowLogs -> solver -> State t -> PathConds -> IO (Result () () ())
+checkUnsat show_logs solver s@(State { known_values = kv, tyvar_env = tv_env }) pcs
     | Just (pc, e1, e2) <- PC.firstJust (getListInequality kv tv_env) pcs = do
         -- putStrLn "CHECKING UNSAT"
         let pcs' = PC.filter (\case (ExtCond e _) -> noMaps e; _ -> True) pcs
@@ -67,12 +70,12 @@ checkUnsat solver s@(State { known_values = kv, tyvar_env = tv_env }) pcs
                 len_res <- checkLengths solver s e1 e2 pc pcs
                 case len_res of
                     UNSAT _ -> do
-                        elem_res <- checkElems solver s e1 e2 pc pcs
+                        elem_res <- checkElems show_logs solver s e1 e2 pc pcs
                         case elem_res of
                             UNSAT _ -> return $ UNSAT ()
                             _ -> return $ Unknown "CheckUnsatSeq Solver" ()
                     _ -> return $ Unknown "CheckUnsatSeq Solver" ()
-checkUnsat solver s pcs = do
+checkUnsat _ solver s pcs = do
     let pcs' = PC.filter (\case (ExtCond e _) -> noMaps e; _ -> True) pcs
     res <- check solver s pcs'
     case res of
@@ -134,8 +137,8 @@ convertMapEqsToLenEqs (State { known_values = kv, tyvar_env = tv_env }) = PC.map
 
 -- | Given that two lists `xs` and `ys` must be the same length (a condition we check via `checkLengths`),
 -- check if there is some index `i` such that `xs !! i /= ys !! i`
-checkElems :: Solver solver => solver -> State t -> Expr -> Expr -> PathCond -> PathConds -> IO (Result () () ())
-checkElems solver s@(State { expr_env = eenv, known_values = kv, tyvar_env = tv_env }) e1 e2 pc pcs = do
+checkElems :: Solver solver => ShowLogs -> solver -> State t -> Expr -> Expr -> PathCond -> PathConds -> IO (Result () () ())
+checkElems show_logs solver s@(State { expr_env = eenv, known_values = kv, tyvar_env = tv_env }) e1 e2 pc pcs = do
     let elem_ind = Id (Name "ELEM_IND_!!_G2_!!" Nothing 0 Nothing) TyLitInt
         s' = s { expr_env = E.insertSymbolic elem_ind eenv }
 
@@ -161,7 +164,7 @@ checkElems solver s@(State { expr_env = eenv, known_values = kv, tyvar_env = tv_
         ind_into = HM.fromList $
                    [ (e1, HS.singleton $ Var elem_ind)
                    , (e2, HS.singleton $ Var elem_ind) ]
-    prop_ind_into <- propagateIndInto s' ind_into pcs_with_diff_elem
+    prop_ind_into <- propagateIndInto show_logs s' ind_into pcs_with_diff_elem
 
     let pcs_adj = convertAllToSeqNth s prop_ind_into
                 $ convertMapWithSeqNth s prop_ind_into pcs_with_diff_elem
@@ -285,18 +288,20 @@ getConjoined e
 -- Rewrite folds enforcing that a specific elements cannot be in a list to check
 -- the list at specific elements from other constraints.
 
-foldExcludedUnsat :: Solver solver => solver -> State t -> PathConds -> IO (Result () () ())
-foldExcludedUnsat solver s@(State { known_values = kv }) pcs
+foldExcludedUnsat :: Solver solver => ShowLogs -> solver -> State t -> PathConds -> IO (Result () () ())
+foldExcludedUnsat show_logs solver s@(State { known_values = kv }) pcs
     | Just _ <- PC.firstJust (getFoldExcluding kv) pcs = do
         let nth_inds = HM.unionWith HS.union (listStart kv pcs) (nthFrom pcs)
-        let pretty_inds = prettyIndInto (setPrintUnique True $ mkPrettyGuide ()) s nth_inds
-        -- putStrLn "\nnth_inds = "
-        -- T.putStrLn pretty_inds
+        when show_logs $ do
+            let pretty_inds = prettyIndInto (setPrintUnique True $ mkPrettyGuide ()) s nth_inds
+            putStrLn "\nnth_inds = "
+            T.putStrLn pretty_inds
 
-        prop_nth_inds <- propagateIndInto s nth_inds pcs
-        -- let pretty_inds = prettyIndInto (setPrintUnique True $ mkPrettyGuide ()) s prop_nth_inds
-        -- putStrLn "prop_nth_inds = "
-        -- T.putStrLn pretty_inds
+        prop_nth_inds <- propagateIndInto show_logs s nth_inds pcs
+        when show_logs $ do
+            let pretty_inds = prettyIndInto (setPrintUnique True $ mkPrettyGuide ()) s prop_nth_inds
+            putStrLn "prop_nth_inds = "
+            T.putStrLn pretty_inds
 
         let pcs_adj = simplifyLams
                     . convertMapWithSeqNth s prop_nth_inds
@@ -341,11 +346,11 @@ isNeq e
 
 type IndInto = HM.HashMap Expr (HS.HashSet Expr)
 
-propagateIndInto :: State t -> IndInto -> PathConds -> IO IndInto
-propagateIndInto = propagateIndInto' 3
+propagateIndInto :: ShowLogs -> State t -> IndInto -> PathConds -> IO IndInto
+propagateIndInto show_logs = propagateIndInto' show_logs 3
 
-propagateIndInto' :: Int -> State t -> IndInto -> PathConds -> IO IndInto
-propagateIndInto' !n s@(State { known_values = kv, tyvar_env = tv_env }) ind_into pcs =
+propagateIndInto' :: ShowLogs -> Int -> State t -> IndInto -> PathConds -> IO IndInto
+propagateIndInto' show_logs !n s@(State { known_values = kv, tyvar_env = tv_env }) ind_into pcs =
     let
         new_ind_app = HM.fromListWith HS.union $ propagateIndApp kv tv_env ind_into pcs
         new_ind_map = HM.fromListWith HS.union $ propagateIndMap kv ind_into pcs
@@ -357,14 +362,16 @@ propagateIndInto' !n s@(State { known_values = kv, tyvar_env = tv_env }) ind_int
     in
     case ind_into == all_ind_into of
         False | n > 0 -> do
-            -- let pretty_inds = prettyIndInto (setPrintUnique True $ mkPrettyGuide ()) s new_ind_into
-            -- putStrLn "\niteration = "
-            -- T.putStrLn pretty_inds
-            propagateIndInto' (n - 1) s all_ind_into pcs
+            when show_logs $ do
+                let pretty_inds = prettyIndInto (setPrintUnique True $ mkPrettyGuide ()) s new_ind_into
+                putStrLn "\niteration = "
+                T.putStrLn pretty_inds
+            propagateIndInto' show_logs (n - 1) s all_ind_into pcs
         _ -> do
-            -- let pretty_inds = prettyIndInto (setPrintUnique True $ mkPrettyGuide ()) s all_ind_into
-            -- putStrLn "\nfinal = "
-            -- T.putStrLn pretty_inds
+            when show_logs $ do
+                let pretty_inds = prettyIndInto (setPrintUnique True $ mkPrettyGuide ()) s all_ind_into
+                putStrLn "\nfinal = "
+                T.putStrLn pretty_inds
             
             return all_ind_into
 

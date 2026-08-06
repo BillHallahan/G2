@@ -172,6 +172,7 @@ data Config = Config {
     , print_num_solver_calls :: Bool -- ^ Output the number of calls made to check/solve path constraints
     , print_solver_sol_counts :: Bool -- ^ Output the number of sat/unsat/unknown solver results from the SMT solver
     , print_smt :: Bool -- ^ Output SMT formulas when checking/solving path constraints
+    , print_seq_solver :: Bool -- ^ Output logging information from sequence solver
     , accept_times :: Bool -- ^ Output the time each state is accepted
     , states_at_time :: Bool -- ^ Output time and number of states each time a state is added/removed
     , states_at_step :: Bool -- ^ Output step and number of states at each step where a state is added/removed
@@ -317,6 +318,7 @@ mkConfig homedir = Config Regular
     <*> switch (long "print-num-solver-calls" <> help "output the number of calls made to check/solve path constraints")
     <*> switch (long "print-sol-counts" <> help "output the number of sat/unsat/unknown solver results from the SMT solver")
     <*> switch (long "print-smt" <> help "output SMT formulas when checking/solving path constraints")
+    <*> switch (long "print-seq-solver" <> help "output logging information from sequence solver")
     <*> switch (long "accept-times" <> help "output the time each state is accepted")
     <*> switch (long "states-at-time" <> help "output time and number of states each time a state is added/removed")
     <*> switch (long "states-at-step" <> help "output step and number of states at each step where a state is added/removed")
@@ -527,6 +529,7 @@ mkConfigDirect homedir as m = Config {
     , print_num_solver_calls = False
     , print_solver_sol_counts = False
     , print_smt = False
+    , print_seq_solver = False
     , accept_times = boolArg "accept-times" as m Off
     , states_at_time = False
     , states_at_step = False
