@@ -414,7 +414,6 @@ propagateIndEq kv ind_intos (ExtCond e True) =
         eq_list_prop = case unApp $ consToSeqUnit kv e of
                             [ Prim Eq _, lst1, lst2 ] ->
                                 catMaybes [fmap (lst1,) (HM.lookup lst2 ind_intos), fmap (lst2,) (HM.lookup lst1 ind_intos)]
-                                -- propEqApp kv tv_env ind_intos lst1 lst2 ++ propEqApp kv tv_env ind_intos lst2 lst1
                             _ -> []
     in
     eq_list_prop
@@ -439,24 +438,6 @@ propagateIndMap kv ind_into = evalASTs go
                 in
                 xs_to_map ++ map_to_xs
             | otherwise = []
-
--- propEqApp :: KnownValues -> TyVarEnv -> IndInto -> Expr -> Expr -> [(Expr, HS.HashSet Expr)]
--- propEqApp kv tv_env ind_intos lst1 lst2
---     | [ Prim StrAppend _, e1@(Prim SeqUnit _), e2 ] <- unApp $ consToSeqUnit kv lst1
---     , Just ind_into <- HM.lookup lst2 ind_intos =
---         [ (e1, ind_into)
---         , (e2, HS.map (\ii -> mkSmartMinus
---                                     ii
---                                     $ Lit (LitInt 1)) ind_into)
---         ]
---     | [ Prim StrAppend _, e1, e2 ] <- unApp $ consToSeqUnit kv lst1
---     , Just ind_into <- HM.lookup lst2 ind_intos =
---         [ (e1, ind_into)
---         , (e2, HS.map (\ii -> mkSmartMinus
---                                     ii
---                                     $ mkSeqLen kv tv_env e1) ind_into)
---         ]
---     | otherwise = []
 
 -- Filter out redundant indicies. In particular, (str.len xs) is guaranteed to be off the edge of xs
 filterRedundant :: KnownValues -> PathConds -> IndInto -> IndInto
@@ -500,17 +481,11 @@ getEqLengths = foldl' go UF.empty . PC.toList
 mkSmartPlus :: Expr -> Expr -> Expr
 mkSmartPlus e1 (Lit (LitInt 0)) = e1
 mkSmartPlus (Lit (LitInt 0)) e2 = e2
-mkSmartPlus e1 e2
-    -- | [Prim Minus _, e_add1, e_add2] <- unApp e1
-    -- , e_add2 == e2 = e_add1
-    | otherwise = reduce $ mkApp [ Prim Plus TyUnknown, e1, e2]
+mkSmartPlus e1 e2 = reduce $ mkApp [ Prim Plus TyUnknown, e1, e2]
 
 mkSmartMinus :: Expr -> Expr -> Expr
 mkSmartMinus e1 (Lit (LitInt 0)) = e1
-mkSmartMinus e1 e2
-    -- | [Prim Plus _, e_add1, e_add2] <- unApp e1
-    -- , e_add1 == e2 = e_add2
-    | otherwise = reduce $ mkApp [ Prim Minus TyUnknown, e1, e2]
+mkSmartMinus e1 e2 = reduce $ mkApp [ Prim Minus TyUnknown, e1, e2]
 
 reduce :: Expr -> Expr
 reduce e = 
@@ -553,8 +528,6 @@ reduce e =
         neg (Lit (LitInt x)) = Lit . LitInt $ -x
         neg (App (App (Prim Mult TyUnknown) (Lit (LitInt l))) e') = App (App (Prim Mult TyUnknown) (Lit $ LitInt (-l))) e'
         neg e' = App (App (Prim Mult TyUnknown) (Lit $ LitInt (-1))) e'
-
--- type IndInto = HM.HashMap Expr (HS.HashSet Expr)
 
 prettyIndInto :: PrettyGuide -> State t -> IndInto -> T.Text
 prettyIndInto pg s = 
