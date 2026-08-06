@@ -15,11 +15,13 @@ module G2.Solver.Simplifier ( Simplifier (..)
                             , LamVarSimplifier (..)
                             , ConstSimplifier (..)
                             , HigherOrderSimplifier (..)
+
+                            , mkSeqNth
                             ) where
 
 import G2.Language
 import qualified G2.Language.ExprEnv as E
-import G2.Language.KnownValues
+import G2.Language.KnownValues as KV
 import G2.Language.Monad
 import qualified G2.Language.Monad.ExprEnv as E
 import qualified G2.Language.PathConds as PC
@@ -363,7 +365,7 @@ instance Simplifier HigherOrderSimplifier where
     simplifyPCWithExprEnv _ s@(State { known_values = kv, tyvar_env = tv_env }) ng eenv pc =
         let 
             (pcs', eenv', ng') = indexOfToAppended (s { expr_env = eenv }) ng pc
-            pcs'' = map (seqNthMap . fuseFoldLeftMap . notContainsToFoldMap kv tv_env) pcs'
+            pcs'' = map (seqNthMap kv tv_env . fuseFoldLeftMap . notContainsToFoldMap kv tv_env) pcs'
             ((s', ng''), pcs''') = L.mapAccumL
                                         (\(s_, ng_) pc_ -> let (pc_', eenv_, ng_') = mapContainsUnit (s { expr_env = eenv }) ng_ pc_ in
                                                             ((s_ { expr_env = eenv_ }, ng_'), pc_'))
@@ -565,21 +567,19 @@ replaceVarFold' n _ le@(Let b _) | n `elem` map (idName . fst) b = le
 replaceVarFold' n e e' = modifyChildren (replaceVarFold' n e) e'
 
 
-seqNthMap :: PathCond -> PathCond
-seqNthMap = modifyASTs go
+seqNthMap :: KnownValues -> TyVarEnv -> PathCond -> PathCond
+seqNthMap kv tv_env = modifyASTs go
     where
         go e
             | [Prim SeqNth _, e1, e2] <- unApp e
             , [Prim Map _, f, lst] <- unApp e1 =
                 App
                   f
-                $ mkApp [ Prim SeqNth TyUnknown
-                        , lst
-                        , e2]
+                $ mkSeqNth kv tv_env lst e2
             | otherwise = e
 
 mapContainsUnit :: State t -> NameGen -> PathCond -> ([PathCond], ExprEnv, NameGen)
-mapContainsUnit s@(State { known_values = kv }) ng pc = 
+mapContainsUnit s@(State { known_values = kv, tyvar_env = tv_env }) ng pc = 
     let ((pc', (s', ng')), extra_pc) = SM.runState (runStateNGT (go pc) s ng) [] in
     (pc':extra_pc, expr_env s', ng')
     where
@@ -597,7 +597,7 @@ mapContainsUnit s@(State { known_values = kv }) ng pc =
                 let gt_0 = ExtCond (mkApp [Prim Le TyUnknown, Lit (LitInt 0), Var elem_ind]) True
                     lt_len = ExtCond (mkApp [Prim Lt TyUnknown, Var elem_ind, App (Prim StrLen TyUnknown) lst]) True
                     
-                    index_lst_and_app = App f $ mkApp [Prim SeqNth TyUnknown, lst, Var elem_ind]
+                    index_lst_and_app = App f $ mkSeqNth kv tv_env lst (Var elem_ind)
 
                 SM.lift $ SM.modify (\xs -> gt_0:lt_len:xs)
 
@@ -705,7 +705,7 @@ indexOfToAppended s@(State { known_values = kv, tyvar_env = tv_env }) ng pc =
                                         (mkApp
                                             [ Prim Eq TyUnknown
                                             , unit_v
-                                            , App f (mkApp [Prim SeqNth TyUnknown, Var end_i, Lit (LitInt 0)]) ]
+                                            , App f $ mkSeqNth kv tv_env (Var end_i) (Lit $ LitInt 0) ]
                                         )
                                         True
 
@@ -746,3 +746,18 @@ splitAnds = PC.concatMapHashedPCs go
             , [Prim And _, e1, e2] <- unApp e = [ PC.hashedPC $ ExtCond e1 True
                                                 , PC.hashedPC $ ExtCond e2 True ]
             | otherwise = [pc]
+
+mkSeqNth :: KnownValues -> TyVarEnv -> Expr -> Expr -> Expr
+mkSeqNth kv tv_env lst ind =
+    let
+        t_lst = typeOf tv_env lst
+        t = TyFun t_lst (TyFun TyLitInt (G2.Language.tyBool kv))
+
+        -- Seq.nth returns a unicode character when applied to a String, so have to wrap in a SeqUnit to compare
+        -- to strings
+        wrap = case t_lst of
+                    TyApp _ (TyCon n _) | n == KV.tyChar kv -> \e -> mkApp [Prim SeqUnit TyUnknown, e]
+                    TyLitChar -> \e -> mkApp [Prim SeqUnit TyUnknown, e]
+                    _ -> id
+    in
+    wrap $ mkApp [Prim SeqNth t, lst, ind]

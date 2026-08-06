@@ -1,6 +1,6 @@
 {-# LANGUAGE BangPatterns, LambdaCase, MultiWayIf, OverloadedStrings, TupleSections, ViewPatterns #-}
 
-module G2.Solver.SeqSolver (CheckUnsatSeq (..)) where
+module G2.Solver.SeqSolver ( CheckUnsatSeq (..)) where
 
 import G2.Execution.PrimitiveEval
 import G2.Language hiding (mkSeqLen)
@@ -288,8 +288,6 @@ getConjoined e
 foldExcludedUnsat :: Solver solver => solver -> State t -> PathConds -> IO (Result () () ())
 foldExcludedUnsat solver s@(State { known_values = kv }) pcs
     | Just _ <- PC.firstJust (getFoldExcluding kv) pcs = do
-        putStrLn "CHECKING UNSAT foldExcludedUnsat"
-
         let nth_inds = HM.unionWith HS.union (listStart kv pcs) (nthFrom pcs)
         let pretty_inds = prettyIndInto (setPrintUnique True $ mkPrettyGuide ()) s nth_inds
         -- putStrLn "\nnth_inds = "
@@ -570,8 +568,3 @@ mkSeqLen kv _ e | Just xs <- toExprList kv e = Lit . LitInt $ genericLength xs
 mkSeqLen kv tv_env e =
     let t = TyFun (typeOf tv_env e) (tyBool kv) in
     App (Prim StrLen t) e
-
-mkSeqNth :: KnownValues -> TyVarEnv -> Expr -> Expr -> Expr
-mkSeqNth kv tv_env lst ind =
-    let t = TyFun (typeOf tv_env lst) (TyFun TyLitInt (tyBool kv)) in
-    mkApp [Prim SeqNth t, lst, ind]
