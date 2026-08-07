@@ -141,6 +141,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | StrPrefixOfSMT !SMTAST !SMTAST
             | StrSuffixOfSMT !SMTAST !SMTAST
             | StrReverseSMT !SMTAST
+            | StrUpdateSMT !SMTAST !SMTAST !SMTAST
             | SeqNthSMT !SMTAST !SMTAST
 
             | MapSMT SMTName Sort !SMTAST !SMTAST

@@ -354,6 +354,7 @@ isStr' (StrReplaceReAllSMT _ _ _) = All True
 isStr' (StrPrefixOfSMT _ _) = All True
 isStr' (StrSuffixOfSMT _ _) = All True
 isStr' (StrReverseSMT _) = All True
+isStr' (StrUpdateSMT _ _ _) = All True
 isStr' (FromCode _) = All True
 isStr' (ToCode _) = All True
 
@@ -714,6 +715,7 @@ funcToSMT3Prim tv StrReplace x y z = StrReplaceSMT (exprToSMT tv x) (exprToSMT t
 funcToSMT3Prim tv StrReplaceAll x y z = StrReplaceAllSMT (exprToSMT tv x) (exprToSMT tv y) (exprToSMT tv z)
 funcToSMT3Prim tv StrReplaceRe x y z = StrReplaceReSMT (exprToSMT tv x) (exprToSMT tv y) (exprToSMT tv z)
 funcToSMT3Prim tv StrReplaceReAll x y z = StrReplaceReAllSMT (exprToSMT tv x) (exprToSMT tv y) (exprToSMT tv z)
+funcToSMT3Prim tv StrUpdate x y z = StrUpdateSMT (exprToSMT tv x) (exprToSMT tv y) (exprToSMT tv z)
 
 funcToSMT3Prim tv ForAllBoundPr lower upper e_body | (Lam _ (Id n t) e) <- stripAllTicks e_body =
     let
@@ -1072,6 +1074,7 @@ toSolverASTString = go
         go (StrPrefixOfSMT x y) = function2 "str.prefixof" (goBack x) (goBack y)
         go (StrSuffixOfSMT x y) = function2 "str.suffixof" (goBack x) (goBack y)
         go (StrReverseSMT x) = function1 "str.rev" (goBack x)
+        go (StrUpdateSMT x y z) = function3 "str.update" (goBack x) (goBack y) (goBack z)
         go (SeqNthSMT x y) = function2 "seq.nth" (goBack x) (goBack y)
         go (LambdaSMT [(n, s)] e) =
             "(lambda ((" <> TB.string n <> " " <> sortNameLam s <>  "))" <> go e <> ")"
@@ -1097,6 +1100,7 @@ toSolverASTSeq = go
         go (StrPrefixOfSMT x y) = function2 "seq.prefixof" (goBack x) (goBack y)
         go (StrSuffixOfSMT x y) = function2 "seq.suffixof" (goBack x) (goBack y)
         go (StrReverseSMT x) = function1 "seq.rev" (goBack x)
+        go (StrUpdateSMT x y z) = function3 "seq.update" (goBack x) (goBack y) (goBack z)
         go (SeqNthSMT x y) = function2 "seq.nth" (goBack x) (goBack y)
         go (SeqEmptySMT s) = "(as seq.empty (Seq " <> sortName s <> "))"
         go (MapSMT n1 s1 x y) =

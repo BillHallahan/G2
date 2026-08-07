@@ -273,6 +273,7 @@ data Primitive = -- Mathematical and logical operators
                | StrPrefixOf
                | StrSuffixOf
                | StrReverse -- CVC5 only
+               | StrUpdate -- CVC5 only
 
                | SeqNth -- ^ Z3 and CVC5 only, return the nth element of a sequence (unspecified if out of range)
 
