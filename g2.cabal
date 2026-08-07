@@ -436,7 +436,22 @@ executable Verify
   main-is:             Main.hs
 
 executable Verify-QuickCheck
-  other-modules:       ZenoBadProp
+  other-modules:         ZenoBadProp
+                       , ZenoWithDelete
+                       , ZenoWithDrop
+                       , ZenoWithElem
+                       , ZenoWithFilter
+                       , ZenoWithHeight
+                       , ZenoWithIns
+                       , ZenoWithLen
+                       , ZenoWithMap
+                       , ZenoWithMirror
+                       , ZenoWithRev
+                       , ZenoWithTake
+                       , ZenoWithTakeWhile
+                       , ZenoWithZip
+                       , Definitions
+                       , Nat
   -- other-extensions:
   build-depends:         base >= 4.8 && < 5
                        , containers
