@@ -69,37 +69,30 @@ _    && _    = False
 
 -- Natural numbers
 
-(===) :: Nat -> Nat -> Bool
 Z     === Z     = True
 Z     === _     = False
 (S _) === Z     = False
 (S x) === (S y) = x === y
 
-(<=) :: Nat -> Nat -> Bool
 Z     <= _     = True
 _     <= Z     = False
 (S x) <= (S y) = x <= y
 
-(<) :: Nat -> Nat -> Bool
 _     < Z     = False
 Z     < _     = True
 (S x) < (S y) = x < y
 
-(+) :: Nat -> Nat -> Nat
 Z     + y = y
 (S x) + y = S (x + y)
 
-(-) :: Nat -> Nat -> Nat
 Z     - _     = Z
 x     - Z     = x
 (S x) - (S y) = x - y
 
-min :: Nat -> Nat -> Nat
-min Z     _     = Z
-min (S _) Z     = Z
+min Z     y     = Z
+min (S x) Z     = Z
 min (S x) (S y) = S (min x y)
 
-max :: Nat -> Nat -> Nat
 max Z     y     = y
 max x     Z     = x
 max (S x) (S y) = S (max x y)
@@ -119,10 +112,9 @@ rev [] = []
 rev (x:xs) = rev xs ++ [x]
 
 -- BUG
-zip :: [a] -> [b] -> [(a, b)]
 zip [] _ = []
 zip _ [] = []
-zip (x:_:xs) (y:_:ys) = (x, y) : (zip xs ys)
+zip (x:x':xs) (y:y':ys) = (x, y) : (zip xs ys)
 zip (x:xs) (y:ys) = (x, y) : (zip xs ys)
 
 delete :: Nat -> [Nat] -> [Nat]
@@ -143,25 +135,23 @@ elem n (x:xs) =
     True -> True
     False -> elem n xs
 
-drop :: Nat -> [a] -> [a]
 drop Z xs = xs
 drop _ [] = []
 drop (S x) (_:xs) = drop x xs
 
-take :: Nat -> [a] -> [a]
 take Z _ = []
 take _ [] = []
 take (S x) (y:ys) = y : (take x ys)
 
 count :: Nat -> [Nat] -> Nat
-count _ [] = Z
+count x [] = Z
 count x (y:ys) =
   case x === y of
     True -> S (count x ys)
     _ -> count x ys
 
 map :: (a -> b) -> [a] -> [b]
-map _ [] = []
+map f [] = []
 map f (x:xs) = (f x) : (map f xs)
 
 takeWhile :: (a -> Bool) -> [a] -> [a]
@@ -187,17 +177,17 @@ filter p (x:xs) =
 
 butlast :: [a] -> [a]
 butlast [] = []
-butlast [_] = []
+butlast [x] = []
 butlast (x:xs) = x:(butlast xs)
 
 last :: [Nat] -> Nat
 last [] = Z
 last [x] = x
-last (_:xs) = last xs
+last (x:xs) = last xs
 
 sorted :: [Nat] -> Bool
 sorted [] = True
-sorted [_] = True
+sorted [x] = True
 sorted (x:y:ys) = (x <= y) && sorted (y:ys)
 
 insort :: Nat -> [Nat] -> [Nat]
@@ -239,7 +229,7 @@ zipConcat x xs (y:ys) = (x, y) : zip xs ys
 
 height :: Tree a -> Nat
 height Leaf = Z
-height (Node l _ r) = S (max (height l) (height r))
+height (Node l x r) = S (max (height l) (height r))
 
 mirror :: Tree a -> Tree a
 mirror Leaf = Leaf
