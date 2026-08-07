@@ -29,11 +29,11 @@ pSmtNth# :: [a] -> Int# -> a
 pSmtNth# _ = error "pSmtNth#"
 
 {-# NOINLINE pSmtUpdate# #-}
-pSmtUpdate# :: [a] -> Int# -> [a] ->[a]
+pSmtUpdate# :: [a] -> Int# -> [a] -> [a]
 pSmtUpdate# _ = error "pSmtUpdate#"
 
 {-# NOINLINE pSmtExtract# #-}
-pSmtExtract# :: [a] -> Int# -> Int# ->[a]
+pSmtExtract# :: [a] -> Int# -> Int# -> [a]
 pSmtExtract# _ = error "pSmtExtract#"
 
 {-# NOINLINE pSmtAppend# #-}

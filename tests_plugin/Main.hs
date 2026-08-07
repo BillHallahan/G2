@@ -36,6 +36,8 @@ tests = testGroup "All Tests"
 
                                 , ("myRev", "smtMyRev")
 
+                                , ("makeFourthElemSix", "smtMakeFourthElemSix")
+
                                 -- Tuples
                                 , ("appTuple", "smtAppTuple")
                                 , ("pairA", "smtPairA")
