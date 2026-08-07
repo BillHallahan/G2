@@ -29,6 +29,18 @@ module G2.Plugin (SymEx (..)
                  , smtFoldLeft
                 --  , smtFoldLeftI
 
+                , smtReRange
+                , smtInRe
+                , smtToRe
+                , smtReNone
+                , smtReAll
+                , smtReAllChar
+                , smtReUnion
+                , smtReConcat
+                , smtReInter
+                , smtReStar
+                , smtReComp
+
                 , genVal
 
                  , comp
@@ -439,6 +451,18 @@ adjustFunctions nm ex_g2 = do
 
     . adjustFunction ("pIsSMTRep#", Just "G2.Plugin.Prim") nm (callPrim nm "isSMTRep#")
 
+    . adjustFunction ("pSmtReRange#", Just "G2.Plugin.Prim") nm (callPrim nm "reRange#")
+    . adjustFunction ("pSmtInRe#", Just "G2.Plugin.Prim") nm (callPrim nm "inRe#")
+    . adjustFunction ("pSmtToRe#", Just "G2.Plugin.Prim") nm (callPrim nm "toRe#")
+    . adjustFunction ("pSmtReNone#", Just "G2.Plugin.Prim") nm (callPrim nm "reNone#")
+    . adjustFunction ("pSmtReAll#", Just "G2.Plugin.Prim") nm (callPrim nm "reAll#")
+    . adjustFunction ("pSmtReAllChar#", Just "G2.Plugin.Prim") nm (callPrim nm "reAllChar#")
+    . adjustFunction ("pSmtReConcat#", Just "G2.Plugin.Prim") nm (callPrim nm "reConcat#")
+    . adjustFunction ("pSmtReUnion#", Just "G2.Plugin.Prim") nm (callPrim nm "reUnion#")
+    . adjustFunction ("pSmtReInter#", Just "G2.Plugin.Prim") nm (callPrim nm "reInter#")
+    . adjustFunction ("pSmtReComp#", Just "G2.Plugin.Prim") nm (callPrim nm "reComp#")
+    . adjustFunction ("pSmtReStar#", Just "G2.Plugin.Prim") nm (callPrim nm "reStar#")
+
     . adjustMkSymbolicPrim SNoLog "pSymGen#" (Just "G2.Plugin.Prim") nm
 
     . adjustFunction ("$&&#", Just "G2.Plugin.Prim") nm (callPrim nm "&&#")
@@ -530,6 +554,39 @@ smtFoldLeft' f x xs =
 -- smtFoldLeftI f (I# i) !x xs =
 --     let f' j = f (I# j) in
 --     xs `evalSeq` pSmtFoldLeftI# f' i x xs 
+
+smtReRange :: String -> String -> String
+smtReRange xs ys = xs `evalSeq` ys `evalSeq` pSmtReRange# xs ys
+
+smtInRe :: String -> String -> Bool
+smtInRe xs rl = xs `evalSeq` rl `evalSeq` pSmtInRe# xs rl
+
+smtToRe :: String -> String
+smtToRe xs = xs `evalSeq` pSmtToRe# xs
+
+smtReNone :: String
+smtReNone = pSmtReNone#
+
+smtReAll :: String
+smtReAll = pSmtReAll#
+
+smtReAllChar :: String
+smtReAllChar = pSmtReAllChar#
+
+smtReConcat :: String -> String -> String
+smtReConcat f s = f `evalSeq` s `evalSeq` pSmtReConcat# f s
+
+smtReUnion :: String -> String -> String
+smtReUnion f s = f `evalSeq` s `evalSeq` pSmtReUnion# f s
+
+smtReInter :: String -> String -> String
+smtReInter f s = f `evalSeq` s `evalSeq` pSmtReInter# f s
+
+smtReStar :: String -> String
+smtReStar r = r `evalSeq` pSmtReStar# r
+
+smtReComp :: String -> String
+smtReComp r = r `evalSeq` pSmtReComp# r
 
 genVal :: forall a . (a -> Bool) -> a
 genVal p = let !x = pSymGen# @a in assume (p x) x
