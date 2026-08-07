@@ -216,4 +216,4 @@ makeFourthElemSix (x:y:z:_:xs) = (x:y:z:6:xs)
 makeFourthElemSix xs = xs
 
 smtMakeFourthElemSix :: [Int] -> [Int]
-smtMakeFourthElemSix xs = smtUpdate xs 4 [6]
+smtMakeFourthElemSix xs = smtUpdate xs 3 [6]
