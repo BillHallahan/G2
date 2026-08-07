@@ -24,6 +24,7 @@ module G2.Plugin (SymEx (..)
                  , smtReverse
                  , smtPrefixOf
                  , smtSuffixOf
+                 , smtUpdate
                  
                  , smtMap
                  , smtFoldLeft
@@ -420,7 +421,7 @@ adjustFunctions nm ex_g2 = do
       adjustFunction ("pSmtEq#", Just "G2.Plugin.Prim") nm (callPrim nm "strEq#")
     . adjustFunction ("pSmtLen#", Just "G2.Plugin.Prim") nm (callPrim nm "strLen#")
     . adjustFunction ("pSmtNth#", Just "G2.Plugin.Prim") nm (callPrim nm "seqNthInt#")
-    -- . adjustFunction ("pSmtUpdate#", Just "G2.Plugin.Prim") nm (callPrim nm "strUpdate#")
+    . adjustFunction ("pSmtUpdate#", Just "G2.Plugin.Prim") nm (callPrim nm "strUpdate#")
     . adjustFunction ("pSmtExtract#", Just "G2.Plugin.Prim") nm (callPrim nm "strSubstr#")
     . adjustFunction ("pSmtAppend#", Just "G2.Plugin.Prim") nm (callPrim nm "strAppend#")
     . adjustFunction ("pSmtAt#", Just "G2.Plugin.Prim") nm (callPrim nm "strAt#")
@@ -490,6 +491,9 @@ smtReplaceAll xs ys zs = xs `evalSeq` ys `evalSeq` zs `evalSeq` pSmtReplaceAll# 
 
 smtReverse :: [a] -> [a]
 smtReverse xs = xs `evalSeq` pSmtReverse# xs
+
+smtUpdate :: [a] -> Int -> [a] -> [a]
+smtUpdate xs (I# x) ys = xs `evalSeq` ys `evalSeq` pSmtUpdate# xs x ys
 
 smtPrefixOf :: [a] -> [a] -> Bool
 smtPrefixOf xs ys = xs `evalSeq` ys `evalSeq` pSmtPrefixOf# xs ys

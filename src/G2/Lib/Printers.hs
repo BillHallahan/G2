@@ -540,6 +540,7 @@ mkPrimHaskell pg = pr
         pr StrPrefixOf = "str.prefixof"
         pr StrSuffixOf = "str.suffixof"
         pr StrReverse = "str.reverse"
+        pr StrUpdate = "str.update"
 
         pr SeqNth = "seq.nth"
 

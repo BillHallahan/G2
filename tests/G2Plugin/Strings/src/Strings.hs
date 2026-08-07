@@ -201,9 +201,19 @@ myRevApp1 xs = myRev xs ++ [1]
 smtMyRevApp1 :: [Int] -> [Int]
 smtMyRevApp1 ys = smtFoldLeft (\acc y -> y:acc) [1] ys
 -}
+
 {-# ANN myRevApp1Bad (SMTEquivIsWithConfig "smtMyRevApp1Bad" "") #-}
 myRevApp1Bad :: [Int] -> [Int]
 myRevApp1Bad xs = myRev xs ++ [1]
 
 smtMyRevApp1Bad :: [Int] -> [Int]
 smtMyRevApp1Bad ys = smtFoldLeft (\acc y -> y:y:acc) [1] ys
+
+{-# ANN makeFourthElemSix (SMTEquivIsWithConfig "smtMakeFourthElemSix" "--smt cvc5")
+    #-}
+makeFourthElemSix :: [Int] -> [Int]
+makeFourthElemSix (x:y:z:_:xs) = (x:y:z:6:xs)
+makeFourthElemSix xs = xs
+
+smtMakeFourthElemSix :: [Int] -> [Int]
+smtMakeFourthElemSix xs = smtUpdate xs 4 [6]
