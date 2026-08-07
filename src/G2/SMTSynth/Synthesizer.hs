@@ -1194,7 +1194,7 @@ toStringTerm s =
                         [TermLit (LitStr pre), non_pr_t] ++ go post'
 
 toSeqTermFromExpr :: KnownValues -> Expr -> Maybe Term
-toSeqTermFromExpr kv e | Just s <- toExprList e = Just $ toSeqTerm kv (exprListType e) s
+toSeqTermFromExpr kv e | Just s <- toExprList kv e = Just $ toSeqTerm kv (exprListType e) s
                        | otherwise = Nothing
 
 exprListType :: Expr -> Type

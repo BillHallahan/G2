@@ -41,6 +41,7 @@ tests = testGroup "All Tests"
                                 , ("pairA", "smtPairA")
                                 , ("myZip", "smtMyZip")
                                 , ("myA", "smtMyA")
+                                , ("myUnzip", "smtMyUnzip")
 
                                 -- Regex
                                 , ("isNum", "smtIsNum")
@@ -63,6 +64,7 @@ tests = testGroup "All Tests"
                                 , ("appTupleBad", "smtAppTupleBad")
                                 , ("pairABad", "smtPairA")
                                 , ("myZipBad", "smtMyZip")
+                                , ("myLookupBad", "smtMyLookupBad")
 
                                 -- Regex
                                 , ("isNumBad", "smtIsNumBad")

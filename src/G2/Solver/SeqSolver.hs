@@ -1,31 +1,49 @@
-{-# LANGUAGE LambdaCase, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, LambdaCase, MultiWayIf, OverloadedStrings, TupleSections, ViewPatterns #-}
 
-module G2.Solver.SeqSolver (CheckUnsatSeq (..)) where
+module G2.Solver.SeqSolver ( CheckUnsatSeq (..)) where
 
-import G2.Language
+import G2.Execution.PrimitiveEval
+import G2.Language hiding (mkSeqLen)
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.PathConds as PC
+import G2.Lib.Printers
 import G2.Solver
 
 import Control.Applicative
+import Control.Monad
+import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashSet as HS
 import Data.List
 import Data.Maybe
 import Data.Monoid
+import qualified Data.Text as T
+import qualified Data.Text.IO as T
+import qualified G2.Data.UnionFind as UF
 
-newtype CheckUnsatSeq solver = CheckUnsatSeq solver
+type ShowLogs = Bool
+
+data CheckUnsatSeq solver = CheckUnsatSeq ShowLogs solver
 
 -- | Attempt to prove that an inequality between two sequences is unsatisfiable
 instance Solver solver => Solver (CheckUnsatSeq solver) where
-    check (CheckUnsatSeq solver) s pc = do
-        r <- checkUnsat solver s pc
-        case r of
-            UNSAT _ -> return r
-            _ -> check solver s pc
+    check (CheckUnsatSeq show_logs solver) s pc = do
+        r1 <- foldExcludedUnsat show_logs solver s pc
+        case r1 of
+            UNSAT _ -> return r1
+            _ -> do
+                r2 <- checkUnsat show_logs solver s pc
+                case r2 of
+                    UNSAT _ -> return r2
+                    _ -> check solver s pc
 
-    solve (CheckUnsatSeq solver) = solve solver
+    solve (CheckUnsatSeq _ solver) = solve solver
     
-    close (CheckUnsatSeq solver) = close solver
+    close (CheckUnsatSeq _ solver) = close solver
+
+------------------------------------------------------------------------------
+-- Length and different element
+------------------------------------------------------------------------------
 
 -- The key idea is that, given two sequences xs and ys, the formula:
 --     xs /= ys
@@ -39,9 +57,10 @@ instance Solver solver => Solver (CheckUnsatSeq solver) where
 -- This means that the original formula implies the new formulas, i.e.
 -- if the new formula is unsatisfiable, the original formula was unsatisfiable.
 
-checkUnsat :: Solver solver => solver -> State t -> PathConds -> IO (Result () () ())
-checkUnsat solver s@(State { known_values = kv, tyvar_env = tv_env }) pcs
+checkUnsat :: Solver solver => ShowLogs -> solver -> State t -> PathConds -> IO (Result () () ())
+checkUnsat show_logs solver s@(State { known_values = kv, tyvar_env = tv_env }) pcs
     | Just (pc, e1, e2) <- PC.firstJust (getListInequality kv tv_env) pcs = do
+        -- putStrLn "CHECKING UNSAT"
         let pcs' = PC.filter (\case (ExtCond e _) -> noMaps e; _ -> True) pcs
         res_no_maps <- check solver s pcs'
     
@@ -51,12 +70,12 @@ checkUnsat solver s@(State { known_values = kv, tyvar_env = tv_env }) pcs
                 len_res <- checkLengths solver s e1 e2 pc pcs
                 case len_res of
                     UNSAT _ -> do
-                        elem_res <- checkElems solver s e1 e2 pc pcs
+                        elem_res <- checkElems show_logs solver s e1 e2 pc pcs
                         case elem_res of
                             UNSAT _ -> return $ UNSAT ()
                             _ -> return $ Unknown "CheckUnsatSeq Solver" ()
                     _ -> return $ Unknown "CheckUnsatSeq Solver" ()
-checkUnsat solver s pcs = do
+checkUnsat _ solver s pcs = do
     let pcs' = PC.filter (\case (ExtCond e _) -> noMaps e; _ -> True) pcs
     res <- check solver s pcs'
     case res of
@@ -90,51 +109,51 @@ isListTy kv tv_env e =
 
 -- | Check unsatisfiability when just asserting that the lengths of sequences are the same
 checkLengths :: Solver solver => solver -> State t -> Expr -> Expr -> PathCond -> PathConds -> IO (Result () () ())
-checkLengths solver s e1 e2 pc pcs = do
+checkLengths solver s@(State { known_values = kv, tyvar_env = tv_env }) e1 e2 pc pcs = do
     let diff_length = mkApp [ Prim Neq TyUnknown
-                            , App (Prim StrLen TyUnknown) e1 
-                            , App (Prim StrLen TyUnknown) e2]
+                            , mkSeqLen kv tv_env e1 
+                            , mkSeqLen kv tv_env e2]
         diff_length_pc = ExtCond diff_length True
         pcs_with_diff_length = PC.insert diff_length_pc $ PC.filter (/= pc) pcs
-        pcs_adj = convertMapEqsToLenEqs pcs_with_diff_length
+        pcs_adj = convertMapEqsToLenEqs s pcs_with_diff_length
     check solver s pcs_adj
 
 -- | Simplify
 --     xs == map f ys
 -- to
 --     seq.len xs == seq.len ys
-convertMapEqsToLenEqs :: PathConds -> PathConds
-convertMapEqsToLenEqs = PC.map go
+convertMapEqsToLenEqs :: State t -> PathConds -> PathConds
+convertMapEqsToLenEqs (State { known_values = kv, tyvar_env = tv_env }) = PC.map go
     where
         go (ExtCond e True)
             | [Prim Eq _, eq_e1, eq_e2] <- unApp e
-            , [Prim Map _, _, _ ] <- unApp eq_e2 =
+            , [Prim Map _, _, _ ] <- getMap eq_e2 =
                 ExtCond
                 (mkApp [ Prim Eq TyUnknown
-                      , App (Prim StrLen TyUnknown) eq_e1
-                      , App (Prim StrLen TyUnknown) eq_e2 ])
+                       , mkSeqLen kv tv_env eq_e1
+                       , mkSeqLen kv tv_env eq_e2 ])
                 True
         go pc = pc
 
 -- | Given that two lists `xs` and `ys` must be the same length (a condition we check via `checkLengths`),
 -- check if there is some index `i` such that `xs !! i /= ys !! i`
-checkElems :: Solver solver => solver -> State t -> Expr -> Expr -> PathCond -> PathConds -> IO (Result () () ())
-checkElems solver s@(State { expr_env = eenv, known_values = kv }) e1 e2 pc pcs = do
+checkElems :: Solver solver => ShowLogs -> solver -> State t -> Expr -> Expr -> PathCond -> PathConds -> IO (Result () () ())
+checkElems show_logs solver s@(State { expr_env = eenv, known_values = kv, tyvar_env = tv_env }) e1 e2 pc pcs = do
     let elem_ind = Id (Name "ELEM_IND_!!_G2_!!" Nothing 0 Nothing) TyLitInt
         s' = s { expr_env = E.insertSymbolic elem_ind eenv }
 
         -- i must be between the beginning and end of the list
         gt_0 = ExtCond (mkApp [Prim Le TyUnknown, Lit (LitInt 0), Var elem_ind]) True
-        lt_len = ExtCond (mkApp [Prim Lt TyUnknown, Var elem_ind, App (Prim StrLen TyUnknown) e1]) True
+        lt_len = ExtCond (mkApp [Prim Lt TyUnknown, Var elem_ind, mkSeqLen kv tv_env e1]) True
         same_len = ExtCond
                     (mkApp [ Prim Eq TyUnknown
-                          , App (Prim StrLen TyUnknown) e1
-                          , App (Prim StrLen TyUnknown) e2])
+                          , mkSeqLen kv tv_env e1
+                          , mkSeqLen kv tv_env e2])
                     True
         diff_elem = ExtCond
                     (mkApp [ Prim Neq TyUnknown
-                          , mkApp [Prim SeqNth TyUnknown, e1, Var elem_ind]
-                          , mkApp [Prim SeqNth TyUnknown, e2, Var elem_ind]])
+                          , mkSeqNth kv tv_env e1 (Var elem_ind)
+                          , mkSeqNth kv tv_env e2 (Var elem_ind)])
                     True
         pcs_with_diff_elem = PC.insert gt_0
                            . PC.insert lt_len
@@ -142,26 +161,15 @@ checkElems solver s@(State { expr_env = eenv, known_values = kv }) e1 e2 pc pcs 
                            . PC.insert diff_elem
                            $ PC.filter (/= pc) pcs
 
-        ind_into = computeIndIntos kv elem_ind e1
-                ++ computeIndIntos kv elem_ind e2
-                ++ [ (e1, Var elem_ind)
-                   , (e2, Var elem_ind) ]
-        prop_ind_into = ind_into ++ mapMaybe (propagateIndInto ind_into) (PC.toList pcs_with_diff_elem)
-        
-        pcs_adj = convertAllToSeqNth kv prop_ind_into
-                $ convertMapWithSeqNth prop_ind_into pcs_with_diff_elem
+        ind_into = HM.fromList $
+                   [ (e1, HS.singleton $ Var elem_ind)
+                   , (e2, HS.singleton $ Var elem_ind) ]
+    prop_ind_into <- propagateIndInto show_logs s' ind_into pcs_with_diff_elem
+
+    let pcs_adj = convertAllToSeqNth s prop_ind_into
+                $ convertMapWithSeqNth s prop_ind_into pcs_with_diff_elem
 
     check solver s' pcs_adj
-
--- | If we have, for instance, `xs == x ++ xs'`, this figures out that `xs !! i` is the same as `xs' !! (i - 1)`
-computeIndIntos :: KnownValues
-                -> Id
-                -> Expr
-                -> [(Expr, Expr)] -- ^ maps list expressions to the relevant index of that list, i.e. xs -> i, xs' -> (i - 1)
-computeIndIntos kv elem_ind e
-    | [ Prim StrAppend _, App (Prim SeqUnit _) _, e2 ] <- unApp $ consToSeqUnit kv e =
-        [(e2, mkApp [Prim Minus TyUnknown, Var elem_ind, Lit (LitInt 1)])]
-    | otherwise = []
 
 consToSeqUnit :: KnownValues -> Expr -> Expr
 consToSeqUnit kv (App (App (App (Data dc) _) x) ys) | dc_name dc == KV.dcCons kv =
@@ -169,79 +177,87 @@ consToSeqUnit kv (App (App (App (Data dc) _) x) ys) | dc_name dc == KV.dcCons kv
     mkApp [Prim StrAppend TyUnknown, xs, ys]
 consToSeqUnit _ e = e
 
-propagateIndInto :: [(Expr, Expr)] -> PathCond -> Maybe (Expr, Expr)
-propagateIndInto ind_intos (ExtCond e True)
-    | Just (_, lst, eq_e1) <- eqToMap e =
-        case (lookup eq_e1 ind_intos, lookup lst ind_intos) of
-            (Just ind_into, Nothing) -> Just (lst, ind_into)
-            (Nothing, Just ind_into) -> Just (eq_e1, ind_into)
-            _ -> Nothing
-propagateIndInto _ _ = Nothing
-
 -- | Converting map equality checks into checks on a specific element.
-convertMapWithSeqNth :: [(Expr, Expr)] -> PathConds -> PathConds
-convertMapWithSeqNth ind_intos = PC.map go
+convertMapWithSeqNth :: State t -> IndInto -> PathConds -> PathConds
+convertMapWithSeqNth (State { known_values = kv, tyvar_env = tv_env }) ind_intos = PC.concatMapHashedPCs go
     where
-        go (ExtCond e True)
+        go (PC.unhashedPC -> ExtCond e True)
             | Just (f, lst, eq_e1) <- eqToMap e
-            , m_ind_into_eq_e1 <- lookup eq_e1 ind_intos
-            , m_ind_into_lst <- lookup lst ind_intos
+            , m_ind_into_eq_e1 <- HM.lookup eq_e1 ind_intos
+            , m_ind_into_lst <- HM.lookup lst ind_intos
             , Just ind_into <- m_ind_into_eq_e1 <|> m_ind_into_lst
              =
                 let
-                    nth_eq = mkApp [ Prim Eq TyUnknown
-                                   , mkApp [Prim SeqNth TyUnknown, eq_e1, ind_into]
-                                   , App f $ mkApp [Prim SeqNth TyUnknown, lst, ind_into ]
-                                   ]
+                    nth_eq = HS.map (\ii -> mkApp [ Prim Eq TyUnknown
+                                                  , mkSeqNth kv tv_env eq_e1 ii
+                                                  , App f $ mkSeqNth kv tv_env lst ii
+                                                  ]) ind_into
                     same_len = mkApp [ Prim Eq TyUnknown
-                                     , App (Prim StrLen TyUnknown) eq_e1
-                                     , App (Prim StrLen TyUnknown) lst]
-                    anded = mkApp [Prim And TyUnknown, nth_eq, same_len]
+                                     , mkSeqLen kv tv_env eq_e1
+                                     , mkSeqLen kv tv_env lst]
                 in
-                ExtCond anded True
+                map PC.hashedPC . map (flip ExtCond True) $ same_len:HS.toList nth_eq
             | [Prim StrPrefixOf _, eq_e1, eq_e2] <- unApp e
-            , [Prim Map _, f, lst ] <- unApp eq_e1
-            , Just ind_into <- lookup lst ind_intos =
+            , [Prim Map _, f, lst ] <- getMap eq_e1
+            , Just ind_into <- HM.lookup lst ind_intos =
                 let
-                    nth_eq = mkApp [ Prim Eq TyUnknown
-                                   , mkApp [Prim SeqNth TyUnknown, eq_e2, ind_into]
-                                   , App f $ mkApp [Prim SeqNth TyUnknown, lst, ind_into ]
-                                   ]
+                    nth_eq = HS.map (\ii -> mkApp [ Prim Eq TyUnknown
+                                                  , mkSeqNth kv tv_env eq_e2 ii
+                                                  , App f $ mkSeqNth kv tv_env lst ii
+                                                  ]) ind_into
                     ge_len = mkApp [ Prim Ge TyUnknown
-                                     , App (Prim StrLen TyUnknown) eq_e2
-                                     , App (Prim StrLen TyUnknown) lst]
-                    anded = mkApp [Prim And TyUnknown, nth_eq, ge_len]
+                                   , mkSeqLen kv tv_env eq_e2
+                                   , mkSeqLen kv tv_env lst]
                 in
-                ExtCond anded True
-        go pc = pc
+                map PC.hashedPC . map (flip ExtCond True) $ ge_len:HS.toList nth_eq
+            | [Prim StrPrefixOf _, eq_e1, eq_e2] <- unApp e
+            , [Prim Map _, f, lst ] <- getMap eq_e2
+            , Just ind_into <- HM.lookup lst ind_intos =
+                let
+                    nth_eq = HS.map (\ii -> mkApp [ Prim Eq TyUnknown
+                                                  , mkSeqNth kv tv_env eq_e1 ii
+                                                  , App f $ mkSeqNth kv tv_env lst ii
+                                                  ]) ind_into
+                    le_len = mkApp [ Prim Le TyUnknown
+                                   , mkSeqLen kv tv_env eq_e1
+                                   , mkSeqLen kv tv_env lst]
+                in
+                map PC.hashedPC . map (flip ExtCond True) $ le_len:HS.toList nth_eq
+
+        go pc = [pc]
+
+getMap :: Expr -> [Expr]
+getMap e
+    | es@[Prim Map _, _, _] <- unApp e = es
+    | [Prim StrAppend _, l1, l2] <- unApp e
+    , [Prim Map t, f1, e1] <- unApp l1
+    , [Prim Map _, f2, e2] <- unApp l2
+    , f1 == f2 = [Prim Map t, f1, mkApp [Prim StrAppend TyUnknown, e1, e2]]
+    | otherwise = []
 
 -- Given (map f ys == xs) returns (f, ys, xs)
 eqToMap :: Expr -> Maybe (Expr, Expr, Expr)
 eqToMap e
     | [Prim Eq _, eq_e1, eq_e2] <- unApp e
-    , [Prim Map _, f, lst ] <- unApp eq_e2 = Just (f, lst, eq_e1)
+    , [Prim Map _, f, lst ] <- getMap eq_e2 = Just (f, lst, eq_e1)
     | [Prim Eq _, eq_e1, eq_e2] <- unApp e
-    , [Prim Map _, f, lst ] <- unApp eq_e1 = Just (f, lst, eq_e2)
+    , [Prim Map _, f, lst ] <- getMap eq_e1 = Just (f, lst, eq_e2)
     | otherwise = Nothing
     
 -- | If we have fold corresponding to the `all` function, then the condition that the require
 -- must hold for the i^th element
-convertAllToSeqNth :: KnownValues -> [(Expr, Expr)] -> PathConds -> PathConds
-convertAllToSeqNth kv ind_intos = PC.map go
+convertAllToSeqNth :: State t -> IndInto -> PathConds -> PathConds
+convertAllToSeqNth (State { known_values = kv, tyvar_env = tv_env }) ind_intos = PC.concatMapHashedPCs go
     where
-        go (ExtCond e True)
+        go (PC.unhashedPC -> ExtCond e True)
             | [Prim FoldLeft _, f, Data dc, lst] <- unApp e
             , dc_name dc == KV.dcTrue kv
-            , Just ind_into <- lookup lst ind_intos
+            , Just ind_into <- HM.lookup lst ind_intos
             , Just f' <- getBodyAll kv f
              =
-                ExtCond
-                (mkApp [ f'
-                       , mkApp [Prim SeqNth TyUnknown, lst, ind_into ]
-                       ])
-                True
-
-        go pc = pc
+                let f_seq_nths = HS.map (App f' . mkSeqNth kv tv_env lst) ind_into in
+                map PC.hashedPC . map (flip ExtCond True) $ HS.toList f_seq_nths
+        go pc = [pc]
     
 -- | Get the body of an `all` fold
 getBodyAll :: KnownValues
@@ -264,3 +280,271 @@ getConjoined :: Expr -> [Expr]
 getConjoined e
     | [Prim And _, e1, e2] <- unApp e = getConjoined e1 ++ getConjoined e2
     | otherwise = [e]
+
+------------------------------------------------------------------------------
+-- Fold excluded element
+------------------------------------------------------------------------------
+
+-- Rewrite folds enforcing that a specific elements cannot be in a list to check
+-- the list at specific elements from other constraints.
+
+foldExcludedUnsat :: Solver solver => ShowLogs -> solver -> State t -> PathConds -> IO (Result () () ())
+foldExcludedUnsat show_logs solver s@(State { known_values = kv }) pcs
+    | Just _ <- PC.firstJust (getFoldExcluding kv) pcs = do
+        let nth_inds = HM.unionWith HS.union (listStart kv pcs) (nthFrom pcs)
+        when show_logs $ do
+            let pretty_inds = prettyIndInto (setPrintUnique True $ mkPrettyGuide ()) s nth_inds
+            putStrLn "\nnth_inds = "
+            T.putStrLn pretty_inds
+
+        prop_nth_inds <- propagateIndInto show_logs s nth_inds pcs
+        when show_logs $ do
+            let pretty_inds = prettyIndInto (setPrintUnique True $ mkPrettyGuide ()) s prop_nth_inds
+            putStrLn "prop_nth_inds = "
+            T.putStrLn pretty_inds
+
+        let pcs_adj = simplifyLams
+                    . convertMapWithSeqNth s prop_nth_inds
+                    $ convertAllToSeqNth s prop_nth_inds pcs
+
+        check solver s pcs_adj
+    | otherwise = return $ SAT ()
+
+getFoldExcluding :: KnownValues -> PathCond -> Maybe (PathCond, Expr, Expr)
+getFoldExcluding kv pc@(ExtCond e True)
+    | [ Prim FoldLeft _, f@(Lam _ _ (Lam _ val_i f_body)), init_e, lst] <- unApp e
+    , Data dc <- init_e, dc_name dc == KV.dcTrue kv
+    , Just _ <- getBodyAll kv f -- Make sure we have an "all"
+    , conj <- getConjoined f_body
+    , neq_chck:_ <- filter isNeq conj = Just (pc, lst, Lam TermL val_i neq_chck)
+    | [Prim Not _, con] <- unApp e
+    , [Prim StrContains _, _, _] <- unApp con = Just undefined 
+getFoldExcluding _ _ = Nothing
+
+listStart :: KnownValues -> PathConds -> IndInto
+listStart kv = HM.fromListWith (HS.union) . evalASTs go
+    where
+        go e | [Prim StrAppend _, _, _] <- unApp $ consToSeqUnit kv e = [(e, HS.singleton . Lit $ LitInt 0)]
+             | otherwise = []
+
+nthFrom :: PathConds
+        -> IndInto -- ^ (List, Index)
+nthFrom = HM.fromListWith (HS.union) . evalASTs go
+    where
+        go e 
+            | [Prim SeqNth _, xs, i] <- unApp e = [(xs, HS.singleton i)]
+            | otherwise = []
+
+isNeq :: Expr -> Bool
+isNeq e
+    | [Prim Neq _, _, _] <- unApp e = True
+    | otherwise= False
+
+------------------------------------------------------------------------------
+-- Ind Into
+------------------------------------------------------------------------------
+
+type IndInto = HM.HashMap Expr (HS.HashSet Expr)
+
+propagateIndInto :: ShowLogs -> State t -> IndInto -> PathConds -> IO IndInto
+propagateIndInto show_logs = propagateIndInto' show_logs 3
+
+propagateIndInto' :: ShowLogs -> Int -> State t -> IndInto -> PathConds -> IO IndInto
+propagateIndInto' show_logs !n s@(State { known_values = kv, tyvar_env = tv_env }) ind_into pcs =
+    let
+        new_ind_app = HM.fromListWith HS.union $ propagateIndApp kv tv_env ind_into pcs
+        new_ind_map = HM.fromListWith HS.union $ propagateIndMap kv ind_into pcs
+        new_ind_eq = HM.fromListWith HS.union . concatMap (propagateIndEq kv ind_into) . PC.toList $ pcs
+        unionApp = foldl' (HM.unionWith HS.union) HM.empty
+
+        new_ind_into = filterRedundant kv pcs $ unionApp [new_ind_map, new_ind_app, new_ind_eq]
+        all_ind_into = HM.unionWith HS.union ind_into new_ind_into
+    in
+    case ind_into == all_ind_into of
+        False | n > 0 -> do
+            when show_logs $ do
+                let pretty_inds = prettyIndInto (setPrintUnique True $ mkPrettyGuide ()) s new_ind_into
+                putStrLn "\niteration = "
+                T.putStrLn pretty_inds
+            propagateIndInto' show_logs (n - 1) s all_ind_into pcs
+        _ -> do
+            when show_logs $ do
+                let pretty_inds = prettyIndInto (setPrintUnique True $ mkPrettyGuide ()) s all_ind_into
+                putStrLn "\nfinal = "
+                T.putStrLn pretty_inds
+            
+            return all_ind_into
+
+-- | Propagate across ++.
+-- ind(xs) = n <-> ind(xs ++ ys) = n,
+-- ind(ys) = n <-> ind(xs ++ ys) = n + length xs
+propagateIndApp :: KnownValues -> TyVarEnv -> IndInto -> PathConds -> [(Expr, HS.HashSet Expr)]
+propagateIndApp kv tv_env ind_into = evalASTs go
+    where
+        go e
+            | [Prim StrAppend _, xs, ys] <- unApp $ consToSeqUnit kv e =
+                let
+                    xs_to_whole = case HM.lookup xs ind_into of
+                                    Nothing -> []
+                                    Just elem_ind -> [(e, elem_ind)]
+
+                    ys_to_whole = case HM.lookup ys ind_into of
+                                    Nothing -> []
+                                    Just elem_ind -> [(e, HS.map (\ii -> mkSmartPlus
+                                                                               ii
+                                                                               $ mkSeqLen kv tv_env xs) elem_ind)]
+                    whole_to_xs_ys = case HM.lookup e ind_into of
+                                            Nothing -> []
+                                            Just elem_ind ->
+                                                [ (xs, elem_ind)
+                                                , (ys, HS.map (\ii -> mkSmartMinus
+                                                                            ii
+                                                                            $ mkSeqLen kv tv_env xs) elem_ind)
+                                                ]
+                in
+                xs_to_whole ++ ys_to_whole ++ whole_to_xs_ys
+            | otherwise = []
+
+-- | Propagate across ==.
+-- xs == ys and ind(xs) = n -> ind(ys) = n
+-- xs == ys and ind(xs) = n -> ind(ys) = n
+propagateIndEq :: KnownValues -> IndInto -> PathCond -> [(Expr, HS.HashSet Expr)]
+propagateIndEq kv ind_intos (ExtCond e True) =
+    let
+        eq_list_prop = case unApp $ consToSeqUnit kv e of
+                            [ Prim Eq _, lst1, lst2 ] ->
+                                catMaybes [fmap (lst1,) (HM.lookup lst2 ind_intos), fmap (lst2,) (HM.lookup lst1 ind_intos)]
+                            _ -> []
+    in
+    eq_list_prop
+propagateIndEq _ _ _ = []
+
+-- | Propagate across map.
+-- ind(xs) = n <-> ind(map f xs) = n,
+-- ind(map f xs) = n <-> ind(xs) = n
+propagateIndMap :: KnownValues -> IndInto -> PathConds -> [(Expr, HS.HashSet Expr)]
+propagateIndMap kv ind_into = evalASTs go
+    where
+        go e
+            | [Prim Map _, _, xs] <- unApp $ consToSeqUnit kv e =
+                let
+                    xs_to_map = case HM.lookup xs ind_into of
+                                    Nothing -> []
+                                    Just elem_ind -> [(e, elem_ind)]
+                    map_to_xs = case HM.lookup e ind_into of
+                                    Nothing -> []
+                                    Just elem_ind -> [(xs, elem_ind)]
+
+                in
+                xs_to_map ++ map_to_xs
+            | otherwise = []
+
+-- Filter out redundant indicies. In particular, (str.len xs) is guaranteed to be off the edge of xs
+filterRedundant :: KnownValues -> PathConds -> IndInto -> IndInto
+filterRedundant kv pcs =
+    let eq_len = getEqLengths pcs in
+    HM.filter (not . HS.null) . HM.mapWithKey (filterRedundant' eq_len kv)
+
+filterRedundant' :: UF.UnionFind Expr -> KnownValues -> Expr -> HS.HashSet Expr -> HS.HashSet Expr
+filterRedundant' eq_len kv e1 = HS.filter (not . isRedundant)
+    where
+        isRedundant e 
+            | [Prim Mult _, _, App (Prim StrLen _) e2] <- unApp e = UF.find e1 eq_len == UF.find e2 eq_len
+        isRedundant (App (Prim StrLen _) e2) = UF.find e1 eq_len == UF.find e2 eq_len
+        isRedundant e | negNum e = True
+        isRedundant e2
+            | [Prim Minus _, Lit (LitInt 0), e2'] <- unApp e2
+            , posNum e2' = True
+        isRedundant _ = False
+
+        posNum (Lit (LitInt n)) = n > 0
+        posNum (App (Prim StrLen _) e) | nonEmptyList e = True
+        posNum _ = False
+
+        negNum (Lit (LitInt n)) = n < 0
+        negNum _ = False
+
+        nonEmptyList e | [Prim StrAppend _, app_e1, app_e2] <- unApp e = nonEmptyList app_e1 || nonEmptyList app_e2
+                       | [Prim SeqUnit _, _] <- unApp e = True
+                       | Data dc:_ <- unApp e = dc_name dc == KV.dcCons kv
+        nonEmptyList _ = False
+
+getEqLengths :: PathConds -> UF.UnionFind Expr
+getEqLengths = foldl' go UF.empty . PC.toList
+    where
+        go uf (ExtCond e True)
+            | [Prim Eq _
+            , App (Prim StrLen _) lst1
+            , App (Prim StrLen _) lst2] <- unApp e = UF.union lst1 lst2 uf
+        go uf _ = uf
+
+mkSmartPlus :: Expr -> Expr -> Expr
+mkSmartPlus e1 (Lit (LitInt 0)) = e1
+mkSmartPlus (Lit (LitInt 0)) e2 = e2
+mkSmartPlus e1 e2 = reduce $ mkApp [ Prim Plus TyUnknown, e1, e2]
+
+mkSmartMinus :: Expr -> Expr -> Expr
+mkSmartMinus e1 (Lit (LitInt 0)) = e1
+mkSmartMinus e1 e2 = reduce $ mkApp [ Prim Minus TyUnknown, e1, e2]
+
+reduce :: Expr -> Expr
+reduce e = 
+    let
+        (es, ls) = partition (not . isLitInt) $ summed e
+        cs = foldl' countE HM.empty es
+        total_l = foldl' sumL 0 ls
+
+        cs_mult = mapMaybe (\(e', l) -> case l of
+                                        0 -> Nothing
+                                        1 -> Just e'
+                                        _ -> Just $ mkApp [Prim Mult TyUnknown, Lit (LitInt l), e'] ) $ HM.toList cs
+    in
+    case cs_mult of
+        [] -> Lit (LitInt total_l)
+        c:cs' -> 
+            let e_sum = foldl' (\e1 e2 -> mkApp [Prim Plus TyUnknown, e1, e2]) c cs'
+                res = case total_l of
+                            0 -> e_sum
+                            _ -> mkApp [Prim Plus TyUnknown, e_sum, Lit (LitInt total_l)]
+            in
+            res
+    where
+        isLitInt (Lit (LitInt _)) = True
+        isLitInt _ = False
+        
+        sumL c (Lit (LitInt l)) = c + l
+        sumL _ _ = error "reduce: sumL passed unexpected value"
+
+        countE hm (App (Prim Negate _) e') = HM.insertWith (+) e' (-1) hm
+        countE hm e' 
+            | [Prim Mult _, Lit (LitInt l), e''] <- unApp e' = HM.insertWith (+) e'' l hm
+        countE hm e' = HM.insertWith (+) e' 1 hm
+
+        summed e'
+            | [Prim Plus _, e1, e2] <- unApp e' = summed e1 ++ summed e2
+            | [Prim Minus _, e1, e2] <- unApp e' = summed e1 ++ map neg (summed e2)
+            | otherwise = [e']
+
+        neg (Lit (LitInt x)) = Lit . LitInt $ -x
+        neg (App (App (Prim Mult TyUnknown) (Lit (LitInt l))) e') = App (App (Prim Mult TyUnknown) (Lit $ LitInt (-l))) e'
+        neg e' = App (App (Prim Mult TyUnknown) (Lit $ LitInt (-1))) e'
+
+prettyIndInto :: PrettyGuide -> State t -> IndInto -> T.Text
+prettyIndInto pg s = 
+      T.intercalate "\n"
+    . map (\(lst, inds) -> printHaskellPG pg s lst <> " ->\n\t"
+                           <> T.intercalate "\n\t" (map (printHaskellPG pg s) $ HS.toList inds))
+    . HM.toList
+
+------------------------------------------------------------------------------
+-- Constructing primitives
+------------------------------------------------------------------------------
+
+mkSeqLen :: KnownValues -> TyVarEnv -> Expr -> Expr
+mkSeqLen _ _ (App (Prim SeqUnit _) _) = Lit (LitInt 1)
+mkSeqLen kv _ e | [Prim Map _, _, e'] <- unApp e
+                , Just xs <- toExprList kv e' = Lit . LitInt $ genericLength xs
+mkSeqLen kv _ e | Just xs <- toExprList kv e = Lit . LitInt $ genericLength xs
+mkSeqLen kv tv_env e =
+    let t = TyFun (typeOf tv_env e) (tyBool kv) in
+    App (Prim StrLen t) e

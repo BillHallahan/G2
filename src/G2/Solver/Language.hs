@@ -353,6 +353,7 @@ instance AST SMTAST where
     children (x :!! y) = [x, y]
     children (StrSubstrSMT x y z) = [x, y, z]
     children (StrIndexOfSMT x y z) = [x, y, z]
+    children (StrContainsSMT x y) = [x, y]
     children (StrReplaceSMT x y z) = [x, y, z]
     children (StrPrefixOfSMT x y) = [x, y]
     children (StrSuffixOfSMT x y) = [x, y]
