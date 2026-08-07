@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module G2.Initialization.AddDCPC (addToDCPC) where
 
 import G2.Config
@@ -26,7 +28,8 @@ addToDCPC (Config { smt_prim_lists = UseSMTSeq { add_to_dcs = True } }) (IT.Simp
                     ) tys
       dcs = concatMap (\(_, adt) -> data_cons adt) tys
 
-      dcpc_prim = addWrappedListToDCPCMap kv (mkDCDouble kv tenv) TyLitDouble
+      dcpc_prim = addGenericListToDCPCMap kv
+                . addWrappedListToDCPCMap kv (mkDCDouble kv tenv) TyLitDouble
                 . addWrappedListToDCPCMap kv (mkDCFloat kv tenv) TyLitFloat
                 . addWrappedListToDCPCMap kv (mkDCInteger kv tenv) TyLitInt
                 . addWrappedListToDCPCMap kv (mkDCInt kv tenv) TyLitInt $ dcpc
@@ -41,6 +44,13 @@ addWrappedListToDCPCMap :: KV.KnownValues -> Expr -> Type -> DataConPCMap -> Dat
 addWrappedListToDCPCMap kv dc t =
       addToDCPCMap (KV.dcEmpty kv) [T.returnType $ T.typeOf TV.empty dc] (listEmpty t kv TV.empty)
     . addToDCPCMap (KV.dcCons kv) [T.returnType $ T.typeOf TV.empty dc] (wrapperListCons dc t kv TV.empty)
+
+addGenericListToDCPCMap :: KV.KnownValues -> DataConPCMap -> DataConPCMap
+addGenericListToDCPCMap kv dcpc =
+    let t = TyVar (Id (Name "__!!__G2_TYVAR" Nothing 0 Nothing) TYPE) in
+      addToDCPCMap (KV.dcEmpty kv) [t] (listEmpty t kv TV.empty)
+    . addToDCPCMap (KV.dcCons kv) [t] (listCons t kv TV.empty)
+    $ dcpc
 
 addListToDCPCMap :: KV.KnownValues -> DataConPCMap -> Type -> DataConPCMap
 addListToDCPCMap kv dcpc t =

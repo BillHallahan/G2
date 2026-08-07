@@ -20,6 +20,7 @@ library
     import:           warnings
     exposed-modules:    Strings
                       , Tuples
+                      , Regex
     -- other-modules:
     -- other-extensions:
     build-depends:    base >=4.14
