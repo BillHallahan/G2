@@ -524,7 +524,7 @@ initSolver' avf config = do
                                                 SomeSolver adt_solver -> SomeSolver (UnrollBoundedQuant n adt_solver)
     
     let unsat_seq_solver = case using_smt_lams config of
-                                UseSMTLams | SomeSolver quant_solver' <- quant_solver -> SomeSolver (CheckUnsatSeq quant_solver')
+                                UseSMTLams | SomeSolver quant_solver' <- quant_solver -> SomeSolver (CheckUnsatSeq (print_seq_solver config) quant_solver')
                                 NoSMTLams -> quant_solver
 
     let con' = case unsat_seq_solver of

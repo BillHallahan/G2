@@ -477,7 +477,7 @@ exprToSMT tv e | [ Data (DataCon (Name ":" _ _ _) _ _ _)
                             App (Data (DataCon (Name "[]" _ _ _) _ _ _)) type_t'
                                 | Just (TyCon (Name "Char" _ _ _) _) <- TV.deepLookup tv type_t' -> exprToSMT tv unwrapped_e1
                             _ -> StrAppendSMT [exprToSMT tv unwrapped_e1, exprToSMT tv e2]
-                    _ -> StrAppendSMT [SeqUnitSMT (exprToSMT tv unwrapped_e1), exprToSMT tv e2]
+                    _ -> strAppendSMT (SeqUnitSMT (exprToSMT tv unwrapped_e1)) (exprToSMT tv e2)
 exprToSMT tv e | [ Data (DataCon (Name ":" _ _ _) _ _ _)
                  , type_t
                  , e1
@@ -524,6 +524,14 @@ exprToSMT tv (Case bindee _ _ as)
 exprToSMT tv (Tick _ e) = exprToSMT tv e
 
 exprToSMT _ e = error $ "exprToSMT: unhandled Expr: " ++ show e
+
+strAppendSMT :: SMTAST -> SMTAST -> SMTAST
+strAppendSMT (SeqEmptySMT _) smt2 = smt2
+strAppendSMT smt1 (SeqEmptySMT _) = smt1
+strAppendSMT (StrAppendSMT xs) (StrAppendSMT ys) = StrAppendSMT (xs ++ ys)
+strAppendSMT (StrAppendSMT xs) smt2 = StrAppendSMT (xs ++ [smt2])
+strAppendSMT smt1 (StrAppendSMT xs) = StrAppendSMT (smt1:xs)
+strAppendSMT smt1 smt2 = StrAppendSMT [smt1, smt2]
 
 lonePrim :: Primitive -> SMTAST
 lonePrim ReNone = ReNoneSMT
@@ -1066,7 +1074,7 @@ toSolverASTString = go
         go (StrReverseSMT x) = function1 "str.rev" (goBack x)
         go (SeqNthSMT x y) = function2 "seq.nth" (goBack x) (goBack y)
         go (LambdaSMT [(n, s)] e) =
-            "(lambda ((" <> TB.string n <> sortNameLam s <>  "))" <> go e <> ")"
+            "(lambda ((" <> TB.string n <> " " <> sortNameLam s <>  "))" <> go e <> ")"
         go (AppLam e1 e2) = "(" <> go e1 <> " " <> go e2 <> ")"
         go c = toSolverASTRe goBack c
 
@@ -1273,7 +1281,7 @@ smtastToExpr kv tenv tv_env arg_tys t (StrAppendSMT xs) =
 smtastToExpr kv tenv tv_env arg_tys t (DataSMT dc_smt_n as)
     | let dc_n = certainStrToName dc_smt_n
     
-    , TyCon tycon_n _:ts <- unTyApp t
+    , TyCon tycon_n _:ts <- unTyApp $ tyVarSubst tv_env t
     , Just dc <- getDataCon tenv tycon_n dc_n =
     let
         named_ty = map idName . leadingTyForAllBindings $ dc_type dc
@@ -1329,8 +1337,10 @@ smtastToExpr kv tenv tv_env arg_tys _ (smt1 := smt2) =
     in
     mkApp $ [ Prim Eq TyUnknown, e1', e2']
 smtastToExpr kv tenv tv_env arg_tys _ (SmtAnd xs) =
-      foldr (\e1 e2 -> mkApp [Prim And TyUnknown, e1, e2]) (mkTrue kv)
-    $ map (smtastToExpr kv tenv tv_env arg_tys (tyBool kv)) xs
+    let ys = map (smtastToExpr kv tenv tv_env arg_tys (tyBool kv)) xs in
+    case ys of
+        [] -> mkTrue kv
+        z:zs -> foldr (\e1 e2 -> mkApp [Prim And TyUnknown, e1, e2]) z zs
 smtastToExpr kv tenv tv_env arg_tys _ (SmtOr xs) =
       foldr (\e1 e2 -> mkApp [Prim Or TyUnknown, e1, e2]) (mkFalse kv)
     $ map (smtastToExpr kv tenv tv_env arg_tys (tyBool kv)) xs

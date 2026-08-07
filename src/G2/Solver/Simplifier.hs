@@ -15,13 +15,20 @@ module G2.Solver.Simplifier ( Simplifier (..)
                             , LamVarSimplifier (..)
                             , ConstSimplifier (..)
                             , HigherOrderSimplifier (..)
+
+                            , mkSeqNth
                             ) where
 
 import G2.Language
 import qualified G2.Language.ExprEnv as E
-import G2.Language.KnownValues
+import G2.Language.KnownValues as KV
+import G2.Language.Monad
+import qualified G2.Language.Monad.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Typing as T
+
+import qualified Control.Monad.State.Lazy as SM
+
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
@@ -117,6 +124,8 @@ isZero _ = False
 data BoolSimplifier = BoolSimplifier
 
 instance Simplifier BoolSimplifier where
+    simplifyPC _ s (ExtCond e False) =
+        [modifyContainedASTs (simplifyBool (known_values s)) (ExtCond (App (Prim Not TyUnknown) e) True)]
     simplifyPC _ s pc = [modifyContainedASTs (simplifyBool (known_values s)) pc]
 
     reverseSimplification _ _ _ m = m
@@ -131,6 +140,7 @@ simplifyBool kv e
     , n == dcFalse kv = mkNotExpr kv e2
     | [Prim Eq _, e1, Data (DataCon { dc_name = n }) ] <- unApp e
     , n == dcFalse kv = mkNotExpr kv e1
+    | (App (Prim Not _) (App (Prim Not _) e')) <- e = e'
 simplifyBool _ e = e
 
 -- | Tries to simplify based on simple String principles, i.e. len x == 0 -> x == ""
@@ -349,7 +359,21 @@ data HigherOrderSimplifier = HigherOrderSimplifier
 instance Simplifier HigherOrderSimplifier where
     simplifyPC _ _ pc = [pc]
 
-    simplifyPCs _ (State { type_env = tenv, known_values = kv }) pc = modifyASTs (unfoldAppend tenv kv) . inFoldStringVars pc
+    simplifyPCs _ (State { type_env = tenv, known_values = kv }) pc =
+        splitAnds . modifyASTs (unfoldAppend tenv kv) . inFoldStringVars pc
+
+    simplifyPCWithExprEnv _ s@(State { known_values = kv, tyvar_env = tv_env }) ng eenv pc =
+        let 
+            (pcs', eenv', ng') = indexOfToAppended (s { expr_env = eenv }) ng pc
+            pcs'' = map (seqNthMap kv tv_env . fuseFoldLeftMap . notContainsToFoldMap kv tv_env) pcs'
+            ((s', ng''), pcs''') = L.mapAccumL
+                                        (\(s_, ng_) pc_ -> let (pc_', eenv_, ng_') = mapContainsUnit (s { expr_env = eenv }) ng_ pc_ in
+                                                            ((s_ { expr_env = eenv_ }, ng_'), pc_'))
+                                        (s { expr_env = eenv' }, ng')
+                                        pcs''
+            pcs4 = simplifyLams $ concat pcs'''
+        in
+        (ng'', expr_env s', pcs4)
 
     reverseSimplification _ _ _ m = m
 
@@ -543,3 +567,197 @@ replaceVarFold' n _ le@(Let b _) | n `elem` map (idName . fst) b = le
 replaceVarFold' n e e' = modifyChildren (replaceVarFold' n e) e'
 
 
+seqNthMap :: KnownValues -> TyVarEnv -> PathCond -> PathCond
+seqNthMap kv tv_env = modifyASTs go
+    where
+        go e
+            | [Prim SeqNth _, e1, e2] <- unApp e
+            , [Prim Map _, f, lst] <- unApp e1 =
+                App
+                  f
+                $ mkSeqNth kv tv_env lst e2
+            | otherwise = e
+
+mapContainsUnit :: State t -> NameGen -> PathCond -> ([PathCond], ExprEnv, NameGen)
+mapContainsUnit s@(State { known_values = kv, tyvar_env = tv_env }) ng pc = 
+    let ((pc', (s', ng')), extra_pc) = SM.runState (runStateNGT (go pc) s ng) [] in
+    (pc':extra_pc, expr_env s', ng')
+    where
+        -- Rewrite
+        --    (contains (seq.map f lst) [x])
+        -- to
+        --    (f (lst !! i) == [x])
+        go :: SM.MonadState [PathCond] m => PathCond -> StateNGT t m PathCond
+        go (ExtCond e True)
+            | [Prim StrContains _, map_e, unit_e] <- unApp e
+            , [Prim Map _, f, lst] <- unApp map_e
+            , Just unit_v <- getUnit kv unit_e = do
+                elem_ind <- freshIdN TyLitInt
+                E.insertSymbolicE elem_ind
+                let gt_0 = ExtCond (mkApp [Prim Le TyUnknown, Lit (LitInt 0), Var elem_ind]) True
+                    lt_len = ExtCond (mkApp [Prim Lt TyUnknown, Var elem_ind, App (Prim StrLen TyUnknown) lst]) True
+                    
+                    index_lst_and_app = App f $ mkSeqNth kv tv_env lst (Var elem_ind)
+
+                SM.lift $ SM.modify (\xs -> gt_0:lt_len:xs)
+
+                return $ ExtCond (mkApp [Prim Eq TyUnknown, index_lst_and_app, unit_v]) True
+        go pc_ = return pc_
+
+notContainsToFoldMap :: KnownValues
+                     -> TyVarEnv
+                     -> PathCond
+                     -> PathCond
+notContainsToFoldMap kv tv_env (ExtCond (App (Prim Not _) e) True)
+    | [Prim StrContains _, map_e, unit_e] <- unApp e
+    , [Prim Map _, _, _] <- unApp map_e
+    , Just unit_v <- getUnit kv unit_e = ExtCond (notContainsValToFold kv tv_env map_e unit_v) True
+notContainsToFoldMap _ _ e = e
+
+notContainsValToFold :: KnownValues
+                     -> TyVarEnv
+                     -> Expr -- ^ List being checked
+                     -> Expr -- ^ Value being checked for 
+                     -> Expr
+notContainsValToFold kv tv_env lst v =
+    let
+        accum_id = Id (Name "G2_!!_LAM_Acc" Nothing 0 Nothing) (T.tyBool kv)
+        e_id = Id (Name "G2_!!_LAM_Val" Nothing 0 Nothing) (typeOf tv_env v)
+
+        f = Lam TermL accum_id
+          . Lam TermL e_id
+          $ mkApp [ Prim And TyUnknown
+                  , Var accum_id
+                  , mkApp [ Prim Neq TyUnknown, Var e_id, v]
+                  ]
+    in
+    mkApp [ Prim FoldLeft TyUnknown
+          , f
+          , mkTrue kv
+          , lst]
+
+getUnit :: KnownValues -> Expr -> Maybe Expr
+getUnit kv (App 
+                (App 
+                    (App (Data dc_cons) _)
+                    x
+                ) 
+                (App (Data dc_emp) _)
+            )
+    | dc_name dc_cons == dcCons kv
+    , dc_name dc_emp == dcEmpty kv = Just x
+getUnit _ _ = Nothing
+
+indexOfToAppended :: State t -> NameGen -> PathCond -> ([PathCond], ExprEnv, NameGen)
+indexOfToAppended s@(State { known_values = kv, tyvar_env = tv_env }) ng pc = 
+    let ((pc', (s', ng')), extra_pc) = SM.runState (runStateNGT (go pc) s ng) [] in
+    (pc':extra_pc, expr_env s', ng')
+    where
+        -- Rewrite
+        --    (seq.indexof (seq.map f lst) [e]) == n
+        -- to
+        --    seq.prefixof lst xs
+        --    length xs == n
+        --    not (contains (seq.map f xs) [e])
+        --    f (seq.nth lst n) == e
+        go :: SM.MonadState [PathCond] m => PathCond -> StateNGT t m PathCond
+        go (ExtCond e True)
+            | [Prim Eq _, check_ind, exp_ind] <- unApp e
+            , isNotNeg exp_ind
+            , [Prim StrIndexOf _, map_e, unit_e, Lit (LitInt 0)] <- unApp check_ind
+            , [Prim Map _, f, lst] <- unApp map_e
+            , Just unit_v <- getUnit kv unit_e = do
+                let list_ty = typeOf tv_env lst
+                start_i <- freshIdN list_ty
+                end_i <- freshIdN list_ty
+                insertSymbolicE start_i
+                insertSymbolicE end_i
+                
+
+                let prefix_of = ExtCond
+                                   (mkApp [ Prim Eq TyUnknown
+                                          , lst
+                                          , mkApp [Prim StrAppend TyUnknown, Var start_i, Var end_i]
+                                          ]
+                                   )
+                                   True
+
+                    start_len_cond = ExtCond
+                                     (mkApp [ Prim Eq TyUnknown
+                                            , mkApp [Prim StrLen TyUnknown, Var start_i]
+                                            , exp_ind
+                                            ])
+                                     True
+                    end_len_cond = ExtCond
+                                     (mkApp [ Prim Gt TyUnknown
+                                            , mkApp [Prim StrLen TyUnknown, Var end_i]
+                                            , Lit (LitInt 0)
+                                            ])
+                                     True
+                    not_contains_start = ExtCond
+                                            ( App (Prim Not TyUnknown)
+                                            $ mkApp [ Prim StrContains TyUnknown
+                                                    , mkApp [ Prim Map TyUnknown, f, Var start_i]
+                                                    , unit_e ]
+                                            )
+                                            True
+                    elem_maps_to = ExtCond
+                                        (mkApp
+                                            [ Prim Eq TyUnknown
+                                            , unit_v
+                                            , App f $ mkSeqNth kv tv_env (Var end_i) (Lit $ LitInt 0) ]
+                                        )
+                                        True
+
+                SM.lift $ SM.modify (\xs -> start_len_cond:end_len_cond:not_contains_start:elem_maps_to:xs)
+
+                return prefix_of
+        go pc_ = return pc_
+
+        isNotNeg (Lit (LitInt x)) = x >= 0
+        isNotNeg (App (Prim StrLen _) _) = True
+        isNotNeg _ = False
+
+fuseFoldLeftMap :: PathCond -> PathCond
+fuseFoldLeftMap = modifyASTs go
+    where
+        go e
+            | [Prim FoldLeft _, fold_f, v, fold_lst] <- unApp e
+            , [Prim Map _, map_f, map_lst] <- unApp fold_lst
+            , Lam acc_term acc_i (Lam val_term val_i fold_e) <- fold_f
+            , (Lam _ (Id _ map_t) _) <- map_f =
+                let
+                    new_val_i = Id (idName val_i) map_t
+                    mapped_val_i = App map_f $ Var new_val_i
+                    fold_f' = Lam acc_term acc_i
+                            . Lam val_term new_val_i
+                            $ replaceVar (idName val_i) mapped_val_i fold_e
+                in
+                mkApp [ Prim FoldLeft TyUnknown
+                    , fold_f'
+                    , v
+                    , map_lst]
+        go e = e
+
+splitAnds :: PathConds -> PathConds
+splitAnds = PC.concatMapHashedPCs go
+    where go pc
+            | ExtCond e True <- PC.unhashedPC pc
+            , [Prim And _, e1, e2] <- unApp e = [ PC.hashedPC $ ExtCond e1 True
+                                                , PC.hashedPC $ ExtCond e2 True ]
+            | otherwise = [pc]
+
+mkSeqNth :: KnownValues -> TyVarEnv -> Expr -> Expr -> Expr
+mkSeqNth kv tv_env lst ind =
+    let
+        t_lst = typeOf tv_env lst
+        t = TyFun t_lst (TyFun TyLitInt (G2.Language.tyBool kv))
+
+        -- Seq.nth returns a unicode character when applied to a String, so have to wrap in a SeqUnit to compare
+        -- to strings
+        wrap = case t_lst of
+                    TyApp _ (TyCon n _) | n == KV.tyChar kv -> \e -> mkApp [Prim SeqUnit TyUnknown, e]
+                    TyLitChar -> \e -> mkApp [Prim SeqUnit TyUnknown, e]
+                    _ -> id
+    in
+    wrap $ mkApp [Prim SeqNth t, lst, ind]
