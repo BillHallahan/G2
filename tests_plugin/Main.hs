@@ -18,8 +18,9 @@ tests :: TestTree
 tests = testGroup "All Tests"
         [ checkG2Package "tests/G2Plugin/Simple" ["f", "g", "recCall"]
         , checkG2PackageEquiv "tests/G2Plugin/Strings"
-                                [ 
-                                  -- Strings  
+                                -- Equivalent functions
+                                [
+                                  -- Strings
                                   ("f", "f2")
                                 , ("myApp", "app")
                                 , ("appMult", "smtAppMult")
@@ -41,9 +42,15 @@ tests = testGroup "All Tests"
                                 , ("myZip", "smtMyZip")
                                 , ("myA", "smtMyA")
                                 , ("myUnzip", "smtMyUnzip")
+
+                                -- Regex
+                                , ("isNum", "smtIsNum")
+                                , ("containsFour", "smtContainsFour")
+                                , ("noPat", "smtNoPat")
                                 ]
-                                [ 
-                                  -- Strings  
+                                -- Non-equivalent functions
+                                [
+                                  -- Strings
                                   ("corr", "smtCorr")
                                 , ("incorr", "smtIncorr")
                                 , ("addTwoAll", "smtAddTwoAll")
@@ -52,12 +59,17 @@ tests = testGroup "All Tests"
                                 , ("myIntersperseBeginBad", "smtMyIntersperseBeginBad")
                                 , ("myRevBad", "smtMyRevBad")
                                 , ("myRevApp1Bad", "smtMyRevApp1Bad")
-                                
+
                                 -- Tuples
                                 , ("appTupleBad", "smtAppTupleBad")
                                 , ("pairABad", "smtPairA")
                                 , ("myZipBad", "smtMyZip")
                                 , ("myLookupBad", "smtMyLookupBad")
+
+                                -- Regex
+                                , ("isNumBad", "smtIsNumBad")
+                                , ("containsFourBad", "smtContainsFourBad")
+                                , ("noPatBad", "smtNoPatBad")
                                 ]
         , checkNebulaPackage "tests/RewriteVerify/PluginTests/Simple" ["add_assoc", "fg", "fg_toint"] ["f_one"]]
 
@@ -105,9 +117,9 @@ ranFuncEquiv io_out =
                 (f1 ++ " and " ++ f2)
                 (do
                     out <- io_out
-                    assertBool (if checkInequiv f1 f2 out
-                                    then "Found inequivalent " ++ f1 ++ " and " ++ f2
-                                    else "Not run " ++ f1 ++ " and " ++ f2)
+                    assertBool ((if checkInequiv f1 f2 out
+                                     then "Found inequivalent " ++ f1 ++ " and " ++ f2
+                                     else "Not run " ++ f1 ++ " and " ++ f2) ++ "\nFull output:\n" ++ out)
                                (checkEquiv f1 f2 out))
         )
 
@@ -118,8 +130,8 @@ ranFuncInequiv io_out =
                 (do
                     out <- io_out
                     assertBool ((if checkEquiv f1 f2 out
-                                    then "Found equivalent " ++ f1 ++ " and " ++ f2
-                                    else "Not run " ++ f1 ++ " and " ++ f2) ++ "\n" ++ out)
+                                     then "Found equivalent " ++ f1 ++ " and " ++ f2
+                                     else "Not run " ++ f1 ++ " and " ++ f2) ++ "\nFull output:\n" ++ out)
                                (checkInequiv f1 f2 out))
         )
 
