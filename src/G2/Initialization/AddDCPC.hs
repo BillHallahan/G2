@@ -28,10 +28,10 @@ addToDCPC (Config { smt_prim_lists = UseSMTSeq { add_to_dcs = True } }) (IT.Simp
       dcpc_map = F.foldl' (addArbDC kv) dcpc_prim dcs
       
       tenv' = F.foldl' (flip (HM.adjust setToSMT)) tenv [ KV.tyInt kv
-                                                      , KV.tyInteger kv
-                                                      , KV.tyFloat kv
-                                                      , KV.tyDouble kv
-                                                      , KV.tyChar kv ]
+                                                        , KV.tyInteger kv
+                                                        , KV.tyFloat kv
+                                                        , KV.tyDouble kv
+                                                        , KV.tyChar kv ]
     in
     (dcpc_map, tenv')
 addToDCPC _ s dcpc = (dcpc, IT.type_env s)
