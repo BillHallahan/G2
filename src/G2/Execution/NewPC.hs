@@ -72,8 +72,10 @@ reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state 
 
                     new_stack = if not $ isTyFun (typeOf tv_env $ unwrapped_ce) then expl_pushed else exec_stack first_s
 
-                    glob_pc' = foldr PC.insert (global_lit_table_pc state) force_specific_cons_args
-                in return (ng', [first_s { exec_stack = new_stack, global_lit_table_pc = glob_pc' }])
+                    (ng'', eenv', simp_pc) = simplifyAllPCs simplifier first_s ng' force_specific_cons_args
+                    glob_pc' = foldr PC.insert (global_lit_table_pc state) simp_pc
+
+                in return (ng'', [first_s { expr_env = eenv', exec_stack = new_stack, global_lit_table_pc = glob_pc' }])
             Nothing -> return (ng, [])
     | otherwise =
         mapAccumMaybeM (\ng' sd -> reduceStateDiff discard_unknown_states solver simplifier ng' state sd) ng state_diffs
@@ -195,18 +197,12 @@ addPCsToState :: (Solver solver, Simplifier simplifier)
                 -> [PathCond]
                 -> IO (Maybe (NameGen, State t))
 addPCsToState discard_unknown_states solver simplifier ng
-             s@(State { expr_env = eenv
-                      , path_conds = state_pc })
+             s@(State { path_conds = state_pc })
              conc_ids pc
     | not (null pc) || not (null conc_ids) = do
-        let ((ng', eenv'), pc') =
-                mapAccumR (\(ng_, eenv_) pc_ ->
-                                let (ng_', eenv_', pc_') = simplifyPCWithExprEnv simplifier s ng_ eenv_ pc_ in
-                                ((ng_', eenv_'), pc_')) (ng, eenv) pc
+        let (ng', eenv', pc') = simplifyAllPCs simplifier s ng pc
 
-        let pc'' = concat pc'
-
-        let new_pc = foldr PC.insert state_pc pc''
+        let new_pc = foldr PC.insert state_pc pc'
             new_pc' = foldr (simplifyPCs simplifier s) new_pc pc
 
             s' = s { expr_env = eenv', path_conds = new_pc' }
@@ -220,7 +216,7 @@ addPCsToState discard_unknown_states solver simplifier ng
         -- For this reason, we extract names for the original (unsimplified) path constraints
         let ns = (concatMap PC.varNamesInPC pc) ++ namesList conc_ids
             rel_pc = case ns of
-                [] -> PC.fromList pc''
+                [] -> PC.fromList pc'
                 _ -> PC.scc' (Nothing:map Just ns) new_pc'
 
         res <- check solver s rel_pc
@@ -231,6 +227,16 @@ addPCsToState discard_unknown_states solver simplifier ng
             Unknown _ _ | discard_unknown_states == KeepUnknown -> return $ Just (ng', s')
                         | otherwise -> return Nothing
     | otherwise = return $ Just (ng, s)
+
+simplifyAllPCs :: Simplifier simplifier => simplifier -> State t -> NameGen -> [PathCond] -> (NameGen, ExprEnv, [PathCond])
+simplifyAllPCs simplifier s@(State { expr_env = eenv }) ng pc =
+    let
+        ((ng', eenv'), pc') =
+                mapAccumR (\(ng_, eenv_) pc_ ->
+                                let (ng_', eenv_', pc_') = simplifyPCWithExprEnv simplifier s ng_ eenv_ pc_ in
+                                ((ng_', eenv_'), pc_')) (ng, eenv) pc
+    in
+    (ng', eenv', concat pc')
 
 mapAccumMaybeM :: Monad m => (s -> a -> m (Maybe (s, b))) -> s -> [a] -> m (s, [b])
 mapAccumMaybeM f s xs = do

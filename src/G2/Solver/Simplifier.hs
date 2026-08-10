@@ -272,9 +272,9 @@ instance Simplifier LitConc where
             
             -- If a variable is NOT bound by a lambda, we want to reflect the concretization in the expression environment.
             lams = HS.map idName $ lamIds pc
-            eenv' = foldr (\(Id nC t, nL) -> E.insert nC (concApprop t nL) . E.insertSymbolic nL) eenv (filter (\(Id n _, _) -> n `notElem` lams) conc_c)
+            eenv' = foldr (\(Id nC t, nL) -> E.alter (concAppropEEnv t (Var nL)) nC . E.insertSymbolic nL) eenv (filter (\(Id n _, _) -> n `notElem` lams) conc_c)
             
-            pc' = foldr (\(Id nC t, nL) -> modifyContainedASTs elimWrapper . replaceVarAndLam nC (concApprop t nL) nL) pc conc_c
+            pc' = foldr (\(Id nC t, nL) -> modifyContainedASTs elimWrapper . replaceVarAndLam nC (concApprop t (Var nL)) nL) pc conc_c
         in
         (ng', eenv', [pc'])
         where
@@ -288,13 +288,16 @@ instance Simplifier LitConc where
                 where
                     t' = tyVarSubst tv_env t
 
-            concApprop t i
-                | t' == T.tyInt kv = concInt i
-                | t' == T.tyInteger kv = concInteger i
-                | t' == T.tyWord kv = concWord i
-                | t' == T.tyFloat kv = concFloat i
-                | t' == T.tyDouble kv = concDouble i
-                | t' == T.tyChar kv = concChar i
+            concAppropEEnv t _ (Just (E.ExprObj e)) = Just . E.ExprObj $ concApprop t e
+            concAppropEEnv t e _ = Just . E.ExprObj $ concApprop t e
+
+            concApprop t e
+                | t' == T.tyInt kv = concInt e
+                | t' == T.tyInteger kv = concInteger e
+                | t' == T.tyWord kv = concWord e
+                | t' == T.tyFloat kv = concFloat e
+                | t' == T.tyDouble kv = concDouble e
+                | t' == T.tyChar kv = concChar e
                 | otherwise = error $ "concApprop: impossible - unhandled type"
                 where
                     t' = tyVarSubst tv_env t
@@ -310,12 +313,12 @@ instance Simplifier LitConc where
                 where
                     t' = tyVarSubst tv_env t
 
-            concInt n = App (mkDCInt kv tenv) (Var n)
-            concInteger n = App (mkDCInteger kv tenv) (Var n)
-            concWord n = App (mkDCWord kv tenv) (Var n)
-            concFloat n = App (mkDCFloat kv tenv) (Var n)
-            concDouble n = App (mkDCDouble kv tenv) (Var n)
-            concChar n = App (mkDCChar kv tenv) (Var n)
+            concInt e = App (mkDCInt kv tenv) e
+            concInteger e = App (mkDCInteger kv tenv) e
+            concWord e = App (mkDCWord kv tenv) e
+            concFloat e = App (mkDCFloat kv tenv) e
+            concDouble e = App (mkDCDouble kv tenv) e
+            concChar e = App (mkDCChar kv tenv) e
 
             elimWrapper (App (Data dc) e2) | elimName $ dc_name dc = e2
             elimWrapper (App (Prim (Selector dc _) _) e2) | elimName $ dc_name dc = e2
