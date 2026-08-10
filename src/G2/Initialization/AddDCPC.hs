@@ -21,21 +21,12 @@ addToDCPC (Config { smt_prim_lists = UseSMTSeq { add_to_dcs = True } }) (IT.Simp
       tys = filter (to_smt . snd) $ HM.toList tenv
       dcs = concatMap (\(_, adt) -> data_cons adt) tys
 
-      dcpc_prim = addGenericListToDCPCMap kv
-                . addWrappedListToDCPCMap kv (mkDCDouble kv tenv) TyLitDouble
-                . addWrappedListToDCPCMap kv (mkDCFloat kv tenv) TyLitFloat
-                . addWrappedListToDCPCMap kv (mkDCInteger kv tenv) TyLitInt
-                . addWrappedListToDCPCMap kv (mkDCInt kv tenv) TyLitInt $ dcpc
+      dcpc_prim = addGenericListToDCPCMap kv dcpc
       
       dcpc_map = F.foldl' (addArbDC kv) dcpc_prim dcs
     in
     dcpc_map
 addToDCPC _ _ dcpc = dcpc
-
-addWrappedListToDCPCMap :: KV.KnownValues -> Expr -> Type -> DataConPCMap -> DataConPCMap
-addWrappedListToDCPCMap kv dc t =
-      addToDCPCMap (KV.dcEmpty kv) [T.returnType $ T.typeOf TV.empty dc] (listEmpty t kv TV.empty)
-    . addToDCPCMap (KV.dcCons kv) [T.returnType $ T.typeOf TV.empty dc] (wrapperListCons dc t kv TV.empty)
 
 addGenericListToDCPCMap :: KV.KnownValues -> DataConPCMap -> DataConPCMap
 addGenericListToDCPCMap kv dcpc =

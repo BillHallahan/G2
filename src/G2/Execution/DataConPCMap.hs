@@ -9,9 +9,9 @@ module G2.Execution.DataConPCMap ( DCArgBind (..)
                                  , applyDCPC
 
                                  -- * Helpers for constructing the DCPC Map
-                                 , wrapperListCons
                                  , listCons
                                  , listEmpty
+                                 , wrapper
                                  , arbDC
 
                                  , getDCPCInfo
@@ -82,9 +82,6 @@ dcpcMap tv kv tenv = HM.fromList [
 strCons :: KnownValues -> TypeEnv -> TyVarEnv -> DataConPCInfo
 strCons kv tenv = wrapperListCons' id (mkDCChar kv tenv) TyLitChar kv
 
-wrapperListCons :: Expr -> Type -> KnownValues -> TyVarEnv -> DataConPCInfo
-wrapperListCons = wrapperListCons' (App (Prim SeqUnit TyUnknown))
-
 wrapperListCons' :: (Expr -> Expr) -> Expr -> Type -> KnownValues -> TyVarEnv -> DataConPCInfo
 wrapperListCons' f dc t kv tv = let
                         hn = Name "h" Nothing 0 Nothing
@@ -127,6 +124,27 @@ listCons t kv tv = let
                                     }
                       in
                       dcpc
+
+wrapper :: Expr -> Type -> DataConPCInfo
+wrapper dc t = let
+                        hn = Name "h" Nothing 0 Nothing
+                        cn = Name "c" Nothing 0 Nothing
+                        ci = Id cn t
+                        asn = Name "as" Nothing 0 Nothing
+                        dc_e = App dc (Var ci)
+                        dcpc = DCPC { dc_as_pattern = asn
+                                    , dc_args = [ArgConcretize { binder_name = hn
+                                                               , fresh_vars = [ ci ]
+                                                               , arg_expr = dc_e
+                                                            }
+                                                ]
+                                    , dc_pc = []
+                                    , dc_bindee_exprs = [Var ci]
+                                    }
+                      in
+                      dcpc
+
+
 
 arbDC :: KnownValues -> TyVarEnv -> DataCon -> DataConPCInfo
 arbDC kv tv_env dc =
