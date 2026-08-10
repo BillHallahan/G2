@@ -317,17 +317,20 @@ instance Simplifier LitConc where
             concDouble n = App (mkDCDouble kv tenv) (Var n)
             concChar n = App (mkDCChar kv tenv) (Var n)
 
-            elimWrapper (App (Data dc) e2)
-                |  dcName dc == dcInt kv
-                || dcName dc == dcInteger kv
-                || dcName dc == dcWord kv
-                || dcName dc == dcFloat kv
-                || dcName dc == dcDouble kv
-                || dcName dc == dcChar kv = e2
+            elimWrapper (App (Data dc) e2) | elimName $ dc_name dc = e2
+            elimWrapper (App (Prim (Selector dc _) _) e2) | elimName $ dc_name dc = e2
             elimWrapper e
                 | Data dc:_ <- unApp e
                 , dcName dc == dcCons kv = e
                 | otherwise = modifyChildren elimWrapper e
+
+            elimName n =
+                   n == dcInt kv
+                || n == dcInteger kv
+                || n == dcWord kv
+                || n == dcFloat kv
+                || n == dcDouble kv
+                || n == dcChar kv
 
     reverseSimplification _ _ _ m = m
 
