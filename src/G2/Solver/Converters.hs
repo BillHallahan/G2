@@ -52,6 +52,7 @@ import System.Process
 
 import G2.Language hiding (Assert, vars)
 import qualified G2.Language.ExprEnv as E
+import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.PathConds as PC
 import G2.Solver.Language
 import G2.Solver.Solver
@@ -109,9 +110,9 @@ class Solver con => SMTConverter con where
 addHeaders :: SMTConverter con => con -> [SMTHeader] -> IO ()
 addHeaders = addFormula
 
-checkConstraintsPC :: SMTConverter con => TV.TyVarEnv -> TypeEnv -> con -> PathConds -> IO (Result () () ())
-checkConstraintsPC tv tenv con pc = do
-    let headers = toSMTHeaders tv tenv pc
+checkConstraintsPC :: SMTConverter con => KnownValues -> TV.TyVarEnv -> TypeEnv -> con -> PathConds -> IO (Result () () ())
+checkConstraintsPC kv tv tenv con pc = do
+    let headers = toSMTHeaders kv tv tenv pc
     checkConstraints con headers
 
 checkConstraints :: SMTConverter con => con -> [SMTHeader] -> IO (Result () () ())
@@ -153,7 +154,7 @@ getModelVal avf con s@(State { expr_env = eenv, type_env = tenv, known_values = 
 
 solveNumericConstraintsPC :: SMTConverter con => TV.TyVarEnv -> con -> KnownValues -> TypeEnv -> PathConds -> NameGen -> IO (Result SatRes () ())
 solveNumericConstraintsPC tv con kv tenv pc ng = do
-    let headers = toSMTHeaders tv tenv pc
+    let headers = toSMTHeaders kv tv tenv pc
     let vs = map (\(n', srt) -> (nameToStr n', srt)) . HS.toList . pcVars tv $ pc
     let ty_map = HM.fromList . map (\(Id n t) -> (nameToStr n, t)) . HS.toList $ PC.allIds pc
 
@@ -178,17 +179,17 @@ constraintsToModelOrUnsatCoreNoReset = checkSatGetModelOrUnsatCoreNoReset
 -- we need only consider the types and path constraints of that state.
 -- We can also pass in some other Expr Container to instantiate names from, which is
 -- important if you wish to later be able to scrape variables from those Expr's
-toSMTHeaders :: TV.TyVarEnv -> TypeEnv -> PathConds -> [SMTHeader]
-toSMTHeaders tv tenv pc = addSetLogic  (toSMTHeaders' tv tenv pc)
+toSMTHeaders :: KnownValues -> TV.TyVarEnv -> TypeEnv -> PathConds -> [SMTHeader]
+toSMTHeaders kv tv tenv pc = addSetLogic  (toSMTHeaders' kv tv tenv pc)
 
-toSMTHeaders' :: TV.TyVarEnv -> TypeEnv -> PathConds -> [SMTHeader]
-toSMTHeaders' tv tenv pc =
+toSMTHeaders' :: KnownValues -> TV.TyVarEnv -> TypeEnv -> PathConds -> [SMTHeader]
+toSMTHeaders' kv tv tenv pc =
     let
         dc_types = evalASTs getADTTypes pc
         tenv' = HM.toList $ HM.filterWithKey (\n adt-> n `elem` dc_types && to_smt adt) tenv        
         pc' = PC.toList pc
     in
-    map (uncurry (datatypeDecls tv)) tenv'
+    mapMaybe (uncurry (datatypeDecls kv tv)) tenv'
     ++
     pcVarDecls tv pc
     ++
@@ -785,8 +786,13 @@ createUniqVarDecls ((n,SortChar):xs) =
 createUniqVarDecls ((n,SortFunc srt_args sort_ret):xs) = DeclareFun (nameToStr n) srt_args sort_ret:createUniqVarDecls xs
 createUniqVarDecls ((n,s):xs) = VarDecl (nameToBuilder n) s:createUniqVarDecls xs
 
-datatypeDecls :: TV.TyVarEnv -> Name -> AlgDataTy -> SMTHeader
-datatypeDecls tv_env n (DataTyCon { bound_ids = is, data_cons = dcs }) =
+datatypeDecls :: KnownValues -> TV.TyVarEnv -> Name -> AlgDataTy -> Maybe SMTHeader
+datatypeDecls kv tv_env n (DataTyCon { bound_ids = is, data_cons = dcs })
+    | n /= KV.tyInt kv
+    , n /= KV.tyInteger kv
+    , n /= KV.tyFloat kv
+    , n /= KV.tyDouble kv
+    , n /= KV.tyChar kv =
     let
         dts = map (\dc ->
                         let
@@ -797,8 +803,8 @@ datatypeDecls tv_env n (DataTyCon { bound_ids = is, data_cons = dcs }) =
                   ) dcs
         smt_dt = SmtDT { dt_name = nameToStr n, dt_tyvars = map (nameToStr . idName) is, dt_constructors = dts}
     in
-    DeclareDatatypes [ smt_dt ]
-datatypeDecls _ _ _ = error "datatypeDecls: unsupported"
+    Just $ DeclareDatatypes [ smt_dt ]
+datatypeDecls _ _ _ _ = Nothing
 
 selectorName :: String -> Int -> String
 selectorName n i 
