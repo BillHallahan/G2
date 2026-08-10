@@ -319,6 +319,7 @@ instance Simplifier LitConc where
 
             elimWrapper (App (Data dc) e2) | elimName $ dc_name dc = e2
             elimWrapper (App (Prim (Selector dc _) _) e2) | elimName $ dc_name dc = e2
+            elimWrapper (App (Prim (IsConstructor dc) _) _) | elimName $ dc_name dc = mkTrue kv
             elimWrapper e
                 | Data dc:_ <- unApp e
                 , dcName dc == dcCons kv = e
