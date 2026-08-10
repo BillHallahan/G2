@@ -55,7 +55,7 @@ smtContainsFourBad s =
         has_four = any_chars `smtReConcat` four `smtReConcat` any_chars
     in smtInRe s has_four
 
-{-# ANN noPat (SMTEquivIsWithConfig "smtNoPat" "--smt cvc5 --print-smt")
+{-# ANN noPat (SMTEquivIsWithConfig "smtNoPat" "--smt cvc5")
     #-}
 noPat :: String -> Bool
 noPat [] = True
