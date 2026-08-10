@@ -19,13 +19,6 @@ addToDCPC :: Config -> IT.SimpleState -> DataConPCMap -> DataConPCMap
 addToDCPC (Config { smt_prim_lists = UseSMTSeq { add_to_dcs = True } }) (IT.SimpleState { IT.known_values = kv, IT.type_env = tenv }) dcpc =
     let
       tys = filter (to_smt . snd) $ HM.toList tenv
-      ty_cons = map (\(n, adt) ->
-                        let
-                          bi = bound_ids adt
-                          kind = T.mkTyFun (map (\(Id _ t) -> t) bi ++ [TYPE])
-                        in
-                        T.mkTyApp $ TyCon n kind:map TyVar bi
-                    ) tys
       dcs = concatMap (\(_, adt) -> data_cons adt) tys
 
       dcpc_prim = addGenericListToDCPCMap kv
@@ -34,10 +27,9 @@ addToDCPC (Config { smt_prim_lists = UseSMTSeq { add_to_dcs = True } }) (IT.Simp
                 . addWrappedListToDCPCMap kv (mkDCInteger kv tenv) TyLitInt
                 . addWrappedListToDCPCMap kv (mkDCInt kv tenv) TyLitInt $ dcpc
       
-      dcpc_map' = F.foldl' (addListToDCPCMap kv) dcpc_prim ty_cons
-      dcpc_map'' = F.foldl' (addArbDC kv) dcpc_map' dcs
+      dcpc_map = F.foldl' (addArbDC kv) dcpc_prim dcs
     in
-    dcpc_map''
+    dcpc_map
 addToDCPC _ _ dcpc = dcpc
 
 addWrappedListToDCPCMap :: KV.KnownValues -> Expr -> Type -> DataConPCMap -> DataConPCMap
@@ -48,12 +40,6 @@ addWrappedListToDCPCMap kv dc t =
 addGenericListToDCPCMap :: KV.KnownValues -> DataConPCMap -> DataConPCMap
 addGenericListToDCPCMap kv dcpc =
     let t = TyVar (Id (Name "__!!__G2_TYVAR" Nothing 0 Nothing) TYPE) in
-      addToDCPCMap (KV.dcEmpty kv) [t] (listEmpty t kv TV.empty)
-    . addToDCPCMap (KV.dcCons kv) [t] (listCons t kv TV.empty)
-    $ dcpc
-
-addListToDCPCMap :: KV.KnownValues -> DataConPCMap -> Type -> DataConPCMap
-addListToDCPCMap kv dcpc t =
       addToDCPCMap (KV.dcEmpty kv) [t] (listEmpty t kv TV.empty)
     . addToDCPCMap (KV.dcCons kv) [t] (listCons t kv TV.empty)
     $ dcpc
