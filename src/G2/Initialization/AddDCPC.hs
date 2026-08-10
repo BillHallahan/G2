@@ -27,7 +27,7 @@ addToDCPC (Config { smt_prim_lists = UseSMTSeq { add_to_dcs = True } }) (IT.Simp
       
       dcpc_map = F.foldl' (addArbDC kv) dcpc_prim dcs
       
-      tenv' = foldl' (flip (HM.adjust setToSMT)) tenv [ KV.tyInt kv
+      tenv' = F.foldl' (flip (HM.adjust setToSMT)) tenv [ KV.tyInt kv
                                                       , KV.tyInteger kv
                                                       , KV.tyFloat kv
                                                       , KV.tyDouble kv
