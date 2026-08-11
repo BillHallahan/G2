@@ -22,7 +22,7 @@ addToDCPC (Config { smt_prim_lists = UseSMTSeq { add_to_dcs = True } }) (IT.Simp
       dcs = concatMap (\(_, adt) -> data_cons adt) tys
 
       dcpc_prim = addGenericListToDCPCMap kv
-                . addToDCPCMap (KV.dcInt kv) [] (wrapper (mkDCInt kv tenv) TyLitInt)
+                . addToDCPCMap (KV.dcInt kv) [] (wrapper kv TV.empty (mkDCInt kv tenv) TyLitInt)
                 $ dcpc
       
       dcpc_map = F.foldl' (addArbDC kv) dcpc_prim dcs

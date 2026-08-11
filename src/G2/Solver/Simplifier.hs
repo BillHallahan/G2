@@ -274,9 +274,10 @@ instance Simplifier LitConc where
             lams = HS.map idName $ lamIds pc
             eenv' = foldr (\(Id nC t, nL) -> E.alter (concAppropEEnv t (Var nL)) nC . E.insertSymbolic nL) eenv (filter (\(Id n _, _) -> n `notElem` lams) conc_c)
             
-            pc' = foldr (\(Id nC t, nL) -> modifyContainedASTs elimWrapper . replaceVarAndLam nC (concApprop t (Var nL)) nL) pc conc_c
+            pc' = foldr (\(Id nC t, nL) -> replaceVarAndLam nC (concApprop t (Var nL)) nL) pc conc_c
+            pc'' = modifyContainedASTs elimWrapper pc'
         in
-        (ng', eenv', [pc'])
+        (ng', eenv', [pc''])
         where
             replacable_type (Id _ t) =
                    t' == T.tyChar kv
@@ -288,7 +289,7 @@ instance Simplifier LitConc where
                 where
                     t' = tyVarSubst tv_env t
 
-            concAppropEEnv t _ (Just (E.ExprObj e)) = Just . E.ExprObj $ concApprop t e
+            concAppropEEnv _ _ (Just (E.ExprObj e)) = Just . E.ExprObj $ e
             concAppropEEnv t e _ = Just . E.ExprObj $ concApprop t e
 
             concApprop t e
@@ -320,8 +321,8 @@ instance Simplifier LitConc where
             concDouble e = App (mkDCDouble kv tenv) e
             concChar e = App (mkDCChar kv tenv) e
 
-            elimWrapper (App (Data dc) e2) | elimName $ dc_name dc = e2
-            elimWrapper (App (Prim (Selector dc _) _) e2) | elimName $ dc_name dc = e2
+            elimWrapper (App (Data dc) e2) | elimName $ dc_name dc = modifyChildren elimWrapper e2
+            elimWrapper (App (Prim (Selector dc _) _) e2) | elimName $ dc_name dc = modifyChildren elimWrapper e2
             elimWrapper (App (Prim (IsConstructor dc) _) _) | elimName $ dc_name dc = mkTrue kv
             elimWrapper e
                 | Data dc:_ <- unApp e

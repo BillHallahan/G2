@@ -92,3 +92,10 @@ map1 xs =
         (B:_) -> (6, ys)
         [] -> (7, ys)
 
+
+takeWhile10 :: Maybe AB -> [Int] -> [Int]
+takeWhile10 m xs =
+    let
+        ys = takeWhile (\x -> x < 2) xs
+    in
+    ys
