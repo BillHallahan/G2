@@ -173,6 +173,7 @@ import G2.Config
 import G2.Data.Utils
 import qualified G2.Language.ExprEnv as E
 import G2.Execution.NormalForms
+import G2.Execution.Internals.NrpcPaths
 import G2.Execution.Internals.Reducer
 import G2.Execution.Rules
 import G2.Interface.ExecRes
@@ -463,6 +464,32 @@ nonRedLibFuncs exec_names no_nrpc_names
     , isNonRedBlockerTick nl
     , Just e <- E.lookup n eenv = return (Finished, [(s { curr_expr = CurrExpr Evaluate e }, rv)], b)
     | otherwise = return (Finished, [(s, rv)], b)
+
+
+-- | A reducer to add library functions to non reduced path constraints for solving later  
+nonRedPathConsReducer :: (MonadIO m, Solver solver) =>
+                        solver
+                      -> Config
+                      -> Reducer m Int t
+nonRedPathConsReducer solver config =
+    (mkSimpleReducer (\_ -> 0)
+        (nonRedPathCons solver))
+        { onAccept = \s b nrpc_count -> do
+            if print_num_nrpc config
+                then liftIO . putStrLn $ "NRPCs Generated: " ++ show nrpc_count
+                else return ()
+            return (s, b) }
+
+nonRedPathCons :: (MonadIO m, Solver solver )=> solver -> RedRules m Int t
+nonRedPathCons solver rv@(nrpc_count)
+                s@(State { expr_env = eenv
+                         , curr_expr = CurrExpr _ ce
+                         }) 
+                b@(Bindings { name_gen = ng })
+    | Case _ _ _ _ <- ce = 
+        let 
+    | otherwise = return (Finished, [(s, rv)], b)
+
 
 -- | A reducer to add higher order functions to non reduced path constraints for solving later  
 nonRedHigherOrderReducer :: MonadIO m =>
