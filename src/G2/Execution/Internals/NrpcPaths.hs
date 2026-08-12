@@ -12,21 +12,20 @@ import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 import G2.Solver
 
-paths :: Solver solver => Expr -> Expr -> State t -> Bindings -> solver -> NameGen -> IO Int
+paths :: Solver solver => Expr -> Expr -> State t -> Bindings -> solver -> IO Int
 paths nrpc_e_lhs nrpc_e_rhs
         s@(State {expr_env = eenv, path_conds = originalPc})
-        bindings
+        bindings@(Bindings {name_gen= ng})
         solver 
-        ng
     | App (Lam _ i e) e2 <- nrpc_e_lhs = let
             old = idName i
             (x', ng') = freshSeededName old ng
             e1' = renameExpr old x' e
             eenv' = E.insert x' e2 eenv
         in 
-            paths e1' nrpc_e_rhs (s {expr_env = eenv'}) bindings solver ng'
+            paths e1' nrpc_e_rhs (s {expr_env = eenv'}) (bindings {name_gen = ng'}) solver
     | Var (Id n _) : es <- unApp nrpc_e_lhs
-    , Just e <- E.lookup n eenv = paths (mkApp (e:es)) nrpc_e_rhs s bindings solver ng
+    , Just e <- E.lookup n eenv = paths (mkApp (e:es)) nrpc_e_rhs s bindings solver
     | Let b e' <- nrpc_e_lhs =
         -- TO-DO: move it to a function. This is adding redundant code.
         let 
@@ -40,13 +39,13 @@ paths nrpc_e_lhs nrpc_e_rhs
 
             eenv' = E.insertExprs (zip news binds_rhs') eenv
 
-        in paths e'' nrpc_e_rhs (s {expr_env = eenv'}) bindings solver ng'
+        in paths e'' nrpc_e_rhs (s {expr_env = eenv'}) (bindings {name_gen = ng'}) solver
     | Case (Var (Id n _)) _ _ alts <- nrpc_e_lhs
     , reachabilityCheck ng eenv nrpc_e_lhs
     , Just n' <- E.deepLookupVar n eenv
     , E.isSymbolic n' eenv = do
         let altExprs = map altExpr alts
-        num_of_paths <- mapM (\ e' -> paths e' nrpc_e_rhs s bindings solver ng) altExprs
+        num_of_paths <- mapM (\ e' -> paths e' nrpc_e_rhs s bindings solver) altExprs
         let count = sum num_of_paths
         return count
     | Case _ _ _ _ <- nrpc_e_lhs = return 1

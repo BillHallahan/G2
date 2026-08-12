@@ -64,6 +64,7 @@ module G2.Execution.Reducer (
                             , stdRed
                             , nonRedPCSymFuncRed
                             , nonRedLibFuncsReducer
+                            , nonRedPathsReducer
                             , nonRedHigherOrderReducer
                             , nonRedPCRed
                             , nonRedPCRedNoPrune
@@ -466,12 +467,12 @@ nonRedLibFuncs exec_names no_nrpc_names
     | otherwise = return (Finished, [(s, rv)], b)
 
 
--- | A reducer to add library functions to non reduced path constraints for solving later  
-nonRedPathConsReducer :: (MonadIO m, Solver solver) =>
+-- | A reducer to skip execution of code that can have branch more than two branches  
+nonRedPathsReducer :: (MonadIO m, Solver solver) =>
                         solver
                       -> Config
                       -> Reducer m Int t
-nonRedPathConsReducer solver config =
+nonRedPathsReducer solver config =
     (mkSimpleReducer (\_ -> 0)
         (nonRedPathCons solver))
         { onAccept = \s b nrpc_count -> do
@@ -482,12 +483,16 @@ nonRedPathConsReducer solver config =
 
 nonRedPathCons :: (MonadIO m, Solver solver )=> solver -> RedRules m Int t
 nonRedPathCons solver rv@(nrpc_count)
-                s@(State { expr_env = eenv
-                         , curr_expr = CurrExpr _ ce
+                s@(State { curr_expr = CurrExpr _ ce
                          }) 
                 b@(Bindings { name_gen = ng })
-    | Case _ _ _ _ <- ce = 
-        let 
+    | Case _ _ _ _ <- ce
+    , Just (s'@(State { curr_expr = CurrExpr _ _ }), _, NRPC { nrpc_lhs = left, nrpc_rhs = right }, ng') <- createNonRed ng Focused s = 
+        do
+            num_paths <- liftIO $ paths left right s' (b {name_gen = ng'}) solver
+            if num_paths > 1 
+                then return (Finished, [(s', nrpc_count + 1)], b {name_gen = ng'})
+                else return (Finished, [(s, rv)], b)
     | otherwise = return (Finished, [(s, rv)], b)
 
 

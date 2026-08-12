@@ -404,12 +404,16 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
         nrpc_higher_red f = case symbolic_func_nrpc config of
                                 Nrpc -> SomeReducer (nonRedHigherOrderReducer config approx_no_inline) .== Finished .--> nrpc_lib_red f
                                 NoNrpc -> nrpc_lib_red f
+
+        nrpc_paths_red f = case paths_nrpc config of
+                                Nrpc -> SomeReducer (nonRedPathsReducer solver config) .== Finished .--> nrpc_higher_red f
+                                NoNrpc -> nrpc_higher_red f
         
         func_const_red f = liftSomeReducer $ case higherOrderSolver config of
                                 SymConstraints -> SomeReducer (limitSolvingFuncConstraintPieces $ fc_arg_step_limit config) .~>
                                     (SomeReducer (addFuncConstraintReducer solver simplifier approx_no_inline config) .== Finished
-                                                                                        .--> nrpc_higher_red f)
-                                _ -> nrpc_higher_red f
+                                                                                        .--> nrpc_paths_red f)
+                                _ -> nrpc_paths_red f
 
         accept_time_red f = case accept_times config of
                                 True -> SomeReducer time_logger .~> func_const_red f
