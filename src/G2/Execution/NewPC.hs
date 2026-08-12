@@ -93,6 +93,8 @@ reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state 
                             _ -> False
         
         conc_entry_to_selector n e
+            | [Data dc, e'] <- unApp e
+            , isPrimWrapperDC kv dc = [(n, e')]
             | Data dc:es <- unApp e =
                 let
                     dc_t = typeOf tv_env e
@@ -134,7 +136,7 @@ reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state 
                     eq_dc = mkApp [ Prim Eq TyUnknown, v, e]
                 in
                 Just $ ExtCond ( mkApp [Prim Implies TyUnknown, has_cons, eq_dc]) True 
-            | otherwise = error "Expected constructor"
+            | otherwise = Nothing -- error "Expected constructor"
 
         wrap diff = LitTableFrame (Diff diff (path_conds state)) True
 

@@ -127,18 +127,12 @@ listCons t kv tv = let
 
 wrapper :: KnownValues -> TyVarEnv -> Expr -> Type -> DataConPCInfo
 wrapper kv tv_env dc t = let
-                        hn = Name "h" Nothing 0 Nothing
                         cn = Name "c" Nothing 0 Nothing
                         ci = Id cn t
                         asn = Name "as" Nothing 0 Nothing
                         asi = Id asn (T.returnType $ T.typeOf tv_env dc)
-                        dc_e = App dc (Var ci)
                         dcpc = DCPC { dc_as_pattern = asn
-                                    , dc_args = [ArgConcretize { binder_name = hn
-                                                               , fresh_vars = [ ci ]
-                                                               , arg_expr = dc_e
-                                                            }
-                                                ]
+                                    , dc_args = [ ArgSymb cn ]
                                     , dc_pc = [ExtCond (mkEqExpr tv_env kv
                                                     (Var ci)
                                                     (Var asi)) True]
