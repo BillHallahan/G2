@@ -197,8 +197,8 @@ applyDCPC ng new_ids as_expr (DCPC { dc_as_pattern = as_p, dc_args = ars, dc_pc 
 mkDCArg :: ([PathCond], NameGen, [Expr], [(Name, Expr)], [Id]) -> (DCArgBind, Id) -> ([PathCond], NameGen, [Expr], [(Name, Expr)], [Id])
 mkDCArg (pc, ng, be, concs, syms) (ArgSymb bi, i) =
     let
-        pc' = rename bi (idName i) pc
-        be' = map (rename bi (idName i)) be
+        pc' = replaceVar bi (Var i) pc
+        be' = map (replaceVar bi (Var i)) be
     in
     (pc', ng, be', concs, i:syms)
 mkDCArg (pc, ng, be, concs, syms) (ArgConcretize { binder_name = bn, fresh_vars = fv, arg_expr = e}, i) =
