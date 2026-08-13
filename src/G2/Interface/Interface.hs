@@ -542,11 +542,11 @@ initSolver' avf config = do
 initSimplifier :: Config -> SomeSimplifier
 initSimplifier config =
     let
-        const_lit_simp = ConstSimplifier :>> LitConc
+        const_lit_simp = ConstSimplifier
         rest_simp = FloatSimplifier :>> ArithSimplifier
                     :>> BoolSimplifier :>> StringSimplifier
         base_simp = rest_simp :>> EqualitySimplifier :>> const_lit_simp
-        lam_simp = HigherOrderSimplifier :>> LamVarSimplifier :>> rest_simp :>> const_lit_simp
+        lam_simp =  LitConc :>> HigherOrderSimplifier :>> LamVarSimplifier :>> rest_simp :>> const_lit_simp
     in
     case using_smt_lams config of
         UseSMTLams -> SomeSimplifier lam_simp
