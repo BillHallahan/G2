@@ -275,9 +275,8 @@ instance Simplifier LitConc where
             eenv' = foldr (\(Id nC t, nL) -> E.alter (concAppropEEnv t (Var nL)) nC . E.insertSymbolic nL) eenv (filter (\(Id n _, _) -> n `notElem` lams) conc_c)
             
             pc' = foldr (\(Id nC t, nL) -> replaceVarAndLam nC (concApprop t (Var nL)) nL) pc conc_c
-            pc'' = modifyContainedASTs elimWrapper pc'
         in
-        (ng', eenv', [pc''])
+        (ng', eenv', [pc'])
         where
             replacable_type (Id _ t) =
                    t' == T.tyChar kv
@@ -320,24 +319,30 @@ instance Simplifier LitConc where
             concFloat e = App (mkDCFloat kv tenv) e
             concDouble e = App (mkDCDouble kv tenv) e
             concChar e = App (mkDCChar kv tenv) e
-
-            elimWrapper (App (Data dc) e2) | elimName $ dc_name dc = modifyChildren elimWrapper e2
-            elimWrapper (App (Prim (Selector dc _) _) e2) | elimName $ dc_name dc = modifyChildren elimWrapper e2
-            elimWrapper (App (Prim (IsConstructor dc) _) _) | elimName $ dc_name dc = mkTrue kv
-            elimWrapper e
-                | Data dc:_ <- unApp e
-                , dcName dc == dcCons kv = e
-                | otherwise = modifyChildren elimWrapper e
-
-            elimName n =
-                   n == dcInt kv
-                || n == dcInteger kv
-                || n == dcWord kv
-                || n == dcFloat kv
-                || n == dcDouble kv
-                || n == dcChar kv
+    
+    simplifyPCs _ (State { known_values = kv, expr_env = eenv }) _ = modifyContainedASTs (elimWrapper kv eenv)
 
     reverseSimplification _ _ _ m = m
+
+elimWrapper :: KnownValues -> ExprEnv -> Expr -> Expr
+elimWrapper kv eenv = go
+    where
+        go (App (Data dc) e2) | elimName $ dc_name dc = modifyChildren go e2
+        go(App (Prim (Selector dc _) _) e2) | elimName $ dc_name dc = modifyChildren go e2
+        go (App (Prim (IsConstructor dc) _) _) | elimName $ dc_name dc = mkTrue kv
+        go (Var (Id n _)) | Just (E.Conc e_) <- E.lookupConcOrSym n eenv = go e_
+        go e
+            -- | Data dc:_ <- unApp e
+            -- , dcName dc == dcCons kv = e
+            | otherwise = modifyChildren go e
+
+        elimName n =
+                n == dcInt kv
+            || n == dcInteger kv
+            || n == dcWord kv
+            || n == dcFloat kv
+            || n == dcDouble kv
+            || n == dcChar kv
 
 replaceVarAndLam :: ASTContainer m Expr => Name -> Expr -> Id -> m -> m
 replaceVarAndLam n e i = modifyASTs go
