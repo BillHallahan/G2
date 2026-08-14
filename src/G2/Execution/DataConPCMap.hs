@@ -133,9 +133,7 @@ wrapper kv tv_env dc t = let
                         asi = Id asn (T.returnType $ T.typeOf tv_env dc)
                         dcpc = DCPC { dc_as_pattern = asn
                                     , dc_args = [ ArgSymb cn ]
-                                    , dc_pc = [ExtCond (mkEqExpr tv_env kv
-                                                    (Var ci)
-                                                    (Var asi)) True]
+                                    , dc_pc = []
                                     , dc_bindee_exprs = [Var ci]
                                     }
                       in
