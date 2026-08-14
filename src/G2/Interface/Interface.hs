@@ -542,15 +542,17 @@ initSolver' avf config = do
 initSimplifier :: Config -> SomeSimplifier
 initSimplifier config =
     let
-        const_lit_simp = ConstSimplifier
+        const_lit_simp = case smt_strings config == UseSMTStrings || useSMTSeqFuncs (smt_prim_lists config) of
+                            True -> SomeSimplifier (LitConc :>> ConstSimplifier)
+                            False -> SomeSimplifier ConstSimplifier
         rest_simp = FloatSimplifier :>> ArithSimplifier
                     :>> BoolSimplifier :>> StringSimplifier
-        base_simp = rest_simp :>> EqualitySimplifier :>> const_lit_simp
-        lam_simp = HigherOrderSimplifier :>> LamVarSimplifier :>> rest_simp :>> LitConc :>> const_lit_simp
+        base_simp = SomeSimplifier (rest_simp :>> EqualitySimplifier) .>> const_lit_simp
+        lam_simp = SomeSimplifier (HigherOrderSimplifier :>> LamVarSimplifier :>> rest_simp) .>> const_lit_simp
     in
     case using_smt_lams config of
-        UseSMTLams -> SomeSimplifier lam_simp
-        NoSMTLams -> SomeSimplifier base_simp
+        UseSMTLams -> lam_simp
+        NoSMTLams -> base_simp
 
 mkTypeEnv :: HM.HashMap Name AlgDataTy -> TypeEnv
 mkTypeEnv = id
