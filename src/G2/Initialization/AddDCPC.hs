@@ -6,7 +6,6 @@ import G2.Config
 import G2.Execution.DataConPCMap
 import G2.Initialization.Types as IT
 import G2.Language.AlgDataTy
-import G2.Language.Expr
 import qualified G2.Language.KnownValues as KV
 import G2.Language.Syntax
 import qualified G2.Language.TyVarEnv as TV
@@ -22,16 +21,22 @@ addToDCPC (Config { smt_prim_lists = UseSMTSeq { add_to_dcs = True } }) (IT.Simp
       dcs = concatMap (\(_, adt) -> data_cons adt) tys
 
       dcpc_prim = addGenericListToDCPCMap kv
-                . addToDCPCMap (KV.dcInt kv) [] (wrapper kv TV.empty (mkDCInt kv tenv) TyLitInt)
+                . addToDCPCMap (KV.dcChar kv) [] (wrapper TyLitChar)
+                . addToDCPCMap (KV.dcInt kv) [] (wrapper TyLitInt)
+                . addToDCPCMap (KV.dcInteger kv) [] (wrapper TyLitInt)
+                . addToDCPCMap (KV.dcWord kv) [] (wrapper TyLitWord)
+                . addToDCPCMap (KV.dcFloat kv) [] (wrapper TyLitFloat)
+                . addToDCPCMap (KV.dcDouble kv) [] (wrapper TyLitDouble)
                 $ dcpc
       
       dcpc_map = F.foldl' (addArbDC kv) dcpc_prim dcs
       
-      tenv' = F.foldl' (flip (HM.adjust setToSMT)) tenv [ KV.tyInt kv
+      tenv' = F.foldl' (flip (HM.adjust setToSMT)) tenv [ KV.tyChar kv
+                                                        , KV.tyInt kv
                                                         , KV.tyInteger kv
+                                                        , KV.tyWord kv
                                                         , KV.tyFloat kv
-                                                        , KV.tyDouble kv
-                                                        , KV.tyChar kv ]
+                                                        , KV.tyDouble kv ]
     in
     (dcpc_map, tenv')
 addToDCPC _ s dcpc = (dcpc, IT.type_env s)

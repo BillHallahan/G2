@@ -125,19 +125,18 @@ listCons t kv tv = let
                       in
                       dcpc
 
-wrapper :: KnownValues -> TyVarEnv -> Expr -> Type -> DataConPCInfo
-wrapper kv tv_env dc t = let
-                        cn = Name "c" Nothing 0 Nothing
-                        ci = Id cn t
-                        asn = Name "as" Nothing 0 Nothing
-                        asi = Id asn (T.returnType $ T.typeOf tv_env dc)
-                        dcpc = DCPC { dc_as_pattern = asn
-                                    , dc_args = [ ArgSymb cn ]
-                                    , dc_pc = []
-                                    , dc_bindee_exprs = [Var ci]
-                                    }
-                      in
-                      dcpc
+wrapper :: Type -> DataConPCInfo
+wrapper t = let
+                cn = Name "c" Nothing 0 Nothing
+                ci = Id cn t
+                asn = Name "as" Nothing 0 Nothing
+                dcpc = DCPC { dc_as_pattern = asn
+                            , dc_args = [ ArgSymb cn ]
+                            , dc_pc = []
+                            , dc_bindee_exprs = [Var ci]
+                            }
+            in
+            dcpc
 
 
 
@@ -163,7 +162,6 @@ arbDC kv tv_env dc =
                     }
     in
     (ty_args, dcpc)
-
 
 strEmpty :: KnownValues -> TyVarEnv -> DataConPCInfo
 strEmpty kv = listEmpty (T.tyChar kv) kv
