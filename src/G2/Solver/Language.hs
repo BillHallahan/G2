@@ -185,6 +185,7 @@ data SMTAST = (:>=) !SMTAST !SMTAST
 
             | V SMTName Sort
             | DataSMT SMTName [SMTAST]
+            | As SMTAST Sort
             | IsConstructorSMT SMTName SMTAST
             | SelectorSMT SMTName Int SMTAST
 
@@ -389,6 +390,7 @@ instance AST SMTAST where
     children (ToCode x) = [x]
 
     children (DataSMT _ xs) = xs
+    children (As x _) = [x]
 
     children (FloatToIntSMT x) = [x]
     children (DoubleToIntSMT x) = [x]
@@ -516,6 +518,7 @@ instance AST SMTAST where
     modifyChildren f (ToCode x) = ToCode (f x)
 
     modifyChildren f (DataSMT n xs) = DataSMT n (map f xs)
+    modifyChildren f (As x srt) = As (f x) srt
 
     modifyChildren f (FloatToIntSMT x) = FloatToIntSMT (f x)
     modifyChildren f (DoubleToIntSMT x) = DoubleToIntSMT (f x)

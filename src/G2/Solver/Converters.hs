@@ -551,8 +551,19 @@ funcToSMT tv (Data dc) es =
     let
         isType (Type _) = True
         isType _ = False
+
+        -- We need to use an `as` to specify the sort if all sort parameters do not appear in arguments
+        univ_ts = map idName $ dc_univ_tyvars dc
+        used_ty_vars = tyVarNames . anonArgumentTypes $ dc_type dc
+        all_used = all (`elem` used_ty_vars) univ_ts
+
+        srt = typeToSMT tv (returnType . typeOf tv . mkApp $ Data dc:es)
+
+        data_smt = DataSMT (nameToStr $ dc_name dc) . map (exprToSMT tv) $ filter (not . isType) es
     in
-    DataSMT (nameToStr $ dc_name dc) . map (exprToSMT tv) $ filter (not . isType) es
+    case all_used of
+        True -> data_smt
+        False -> As data_smt srt
 funcToSMT tv (Var (Id n _)) es = -- Uninterpreted function
     Func (nameToStr n) $ map (exprToSMT tv) es
 funcToSMT tv (Lam _ (Id n t) e) [e'] =
@@ -1052,6 +1063,7 @@ toSolverAST str_seq = go
         go (V n _) = TB.string n
         go (DataSMT n []) = TB.string n
         go (DataSMT n as) = "(" <> TB.string n <> " " <> TB.intercalate " " (map go as) <> ")"
+        go (As x srt) = "(as " <> go x <> " " <> sortName srt <> ")"
         go (IsConstructorSMT n e) | '|':ns <- n = "(|is-" <> TB.string ns <> " " <> go e <> ")"
                                   | otherwise = "(is-" <> TB.string n <> " " <> go e <> ")"
         go (SelectorSMT n i e) = "(" <> TB.string (selectorName n i) <> " " <> go e <> ")"

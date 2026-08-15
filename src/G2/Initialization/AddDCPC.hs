@@ -44,7 +44,9 @@ addGenericListToDCPCMap kv dcpc =
     $ dcpc
 
 addArbDC :: KV.KnownValues -> DataConPCMap -> DataCon -> DataConPCMap
-addArbDC kv dcpc dc = addToDCPCMap (dc_name dc) (map TyVar $ dc_univ_tyvars dc) (arbDC kv TV.empty dc) dcpc
+addArbDC kv dcpc dc =
+  let (ty_args, dcpi) = arbDC kv TV.empty dc in
+  addToDCPCMap (dc_name dc) (map TyVar ty_args) dcpi dcpc
 
 setToSMT :: AlgDataTy -> AlgDataTy
 setToSMT adt@(DataTyCon {}) = adt { to_smt = True }

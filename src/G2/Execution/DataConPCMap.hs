@@ -141,9 +141,13 @@ wrapper kv tv_env dc t = let
 
 
 
-arbDC :: KnownValues -> TyVarEnv -> DataCon -> DataConPCInfo
+arbDC :: KnownValues -> TyVarEnv -> DataCon -> ([Id], DataConPCInfo)
 arbDC kv tv_env dc =
     let
+        named_ts = dc_univ_tyvars dc
+        ty_arg_ns = map (\i -> Name ("!!_G2_!!_TYVAR_" <> T.pack (show i)) Nothing 0 Nothing) [0..length named_ts]
+        ty_args = zipWith (\n (Id _ t) -> Id n t) ty_arg_ns named_ts
+
         ts = T.anonArgumentTypes $ dc_type dc
         is = zipWith (\i t -> Id (Name ("x" <> T.pack (show i)) Nothing 0 Nothing) t) [1 :: Integer ..] ts
 
@@ -153,12 +157,12 @@ arbDC kv tv_env dc =
         dcpc = DCPC { dc_as_pattern = asn
                     , dc_args = map (ArgSymb . idName) is
                     , dc_pc = [ExtCond (mkEqExpr tv_env kv
-                                    (mkApp $ Data dc:map Var is)
+                                    (mkApp $ Data dc:map (Type . TyVar) ty_args ++ map Var is)
                                     (Var asi)) True]
                     , dc_bindee_exprs = map Var is
                     }
     in
-    dcpc
+    (ty_args, dcpc)
 
 
 strEmpty :: KnownValues -> TyVarEnv -> DataConPCInfo
