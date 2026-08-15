@@ -129,6 +129,8 @@ reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state 
         force_specific_cons_args = mapMaybe (uncurry consImpliesEq) (concatMap new_conc_entries state_diffs)
         consImpliesEq n e
             | typeOf tv_env e == tyBool kv = Nothing
+            | Data dc <- appCenter e
+            , isPrimWrapperName kv (dc_name dc) = Nothing
             | Data dc <- appCenter e =
                 let
                     v = Var (Id n $ typeOf tv_env e)

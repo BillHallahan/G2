@@ -47,6 +47,7 @@ module G2.Language.Expr ( module G2.Language.Casts
 
                         , getPrimWrapperAndPrim
                         , isPrimWrapperDC
+                        , isPrimWrapperName
 
                         , isData
                         , isLit
@@ -329,7 +330,10 @@ getPrimWrapperAndPrim kv (App (Data dc) lit_e) | isPrimWrapperDC kv dc = Just (d
 getPrimWrapperAndPrim _ _ = Nothing
 
 isPrimWrapperDC :: KnownValues -> DataCon -> Bool
-isPrimWrapperDC kv (DataCon { dc_name = n }) =
+isPrimWrapperDC kv (DataCon { dc_name = n }) = isPrimWrapperName kv n
+
+isPrimWrapperName :: KnownValues -> Name -> Bool
+isPrimWrapperName kv n =
        n == KV.dcInt kv
     || n == KV.dcInteger kv
     || n == KV.dcWord kv
