@@ -204,10 +204,11 @@ addPCsToState discard_unknown_states solver simplifier ng
     | not (null pc) || not (null conc_ids) = do
         let (ng', eenv', pc') = simplifyAllPCs simplifier s ng pc
 
-        let new_pc = foldr PC.insert state_pc pc'
-            new_pc' = foldr (simplifyPCs simplifier s) new_pc pc
+        let s' = s { expr_env = eenv' }
+            new_pc = foldr PC.insert state_pc pc'
+            new_pc' = foldr (simplifyPCs simplifier s') new_pc pc
 
-            s' = s { expr_env = eenv', path_conds = new_pc' }
+            s'' = s' { path_conds = new_pc' }
 
         -- Optimization
         -- We replace the path_conds with only those that are directly affected by the new path constraints.
@@ -224,9 +225,9 @@ addPCsToState discard_unknown_states solver simplifier ng
         res <- check solver s rel_pc
 
         case res of
-            SAT () -> return $ Just (ng', s')
+            SAT () -> return $ Just (ng', s'')
             UNSAT () -> return Nothing
-            Unknown _ _ | discard_unknown_states == KeepUnknown -> return $ Just (ng', s')
+            Unknown _ _ | discard_unknown_states == KeepUnknown -> return $ Just (ng', s'')
                         | otherwise -> return Nothing
     | otherwise = return $ Just (ng, s)
 
