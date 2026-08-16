@@ -132,7 +132,7 @@ wrapper t = let
                 asn = Name "as" Nothing 0 Nothing
                 dcpc = DCPC { dc_as_pattern = asn
                             , dc_args = [ ArgSymb cn ]
-                            , dc_pc = []
+                            , dc_pc = [ ExtCond (mkApp [ Prim Eq TyUnknown, Var ci, Var (Id asn t)]) True ]
                             , dc_bindee_exprs = [Var ci]
                             }
             in
