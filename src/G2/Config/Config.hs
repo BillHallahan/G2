@@ -19,6 +19,7 @@ module G2.Config.Config ( Mode (..)
                         , UseSMTSeq (..)
                         , UseSMTDC (..)
 
+                        , useSMTSeqs
                         , useSMTSeqDCs
                         , useSMTSeqFuncs
 
@@ -97,6 +98,10 @@ data UseSMTDC = UseSMTDC | NoSMTDC deriving (Eq, Show, Read)
 data UseLiteralTables = UseLiteralTables | NoLiteralTables deriving (Eq, Show, Read)
 
 data FCLogging = FCLogging | NoFCLogging deriving (Eq, Show)
+
+useSMTSeqs ::  UseSMTSeq -> Bool
+useSMTSeqs (UseSMTSeq _ _) = True
+useSMTSeqs NoSMTSeq = False
 
 useSMTSeqDCs ::  UseSMTSeq -> Bool
 useSMTSeqDCs (UseSMTSeq { add_to_dcs = a }) = a

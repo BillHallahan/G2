@@ -542,7 +542,7 @@ initSolver' avf config = do
 initSimplifier :: Config -> SomeSimplifier
 initSimplifier config =
     let
-        const_lit_simp = case smt_strings config == UseSMTStrings || useSMTSeqFuncs (smt_prim_lists config) of
+        const_lit_simp = case smt_strings config == UseSMTStrings || useSMTSeqs (smt_prim_lists config) of
                             True -> SomeSimplifier (LitConc :>> ConstSimplifier)
                             False -> SomeSimplifier ConstSimplifier
         rest_simp = FloatSimplifier :>> ArithSimplifier
