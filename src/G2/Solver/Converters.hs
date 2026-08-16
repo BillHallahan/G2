@@ -450,7 +450,7 @@ exprToSMT _ (Data (DataCon n (TyCon (Name "Bool" _ _ _) _ ) _ _)) =
         "True" -> VBool True
         "False" -> VBool False
         _ -> error "Invalid bool in exprToSMT"
-exprToSMT _ (Data (DataCon n _ _ _)) = DataSMT (nameToStr n) []
+exprToSMT _ (Data (DataCon n _ _ _)) = DataSMT (nameToStr n) [] Nothing
 exprToSMT tv (App (Data (DataCon (Name "[]" _ _ _) _ _ _)) type_t@(Type t))
     | Just (TyCon (Name "Char" _ _ _) _) <- TV.deepLookup tv type_t = VString ""
     | Just (TyApp (TyCon (Name "Any" (Just "GHC.Types") _ _) _) _) <- TV.deepLookup tv type_t = VString ""
@@ -562,8 +562,8 @@ funcToSMT tv (Data dc) es =
         data_smt = DataSMT (nameToStr $ dc_name dc) . map (exprToSMT tv) $ filter (not . isType) es
     in
     case all_used of
-        True -> data_smt
-        False -> As data_smt srt
+        True -> data_smt Nothing
+        False -> data_smt (Just srt)
 funcToSMT tv (Var (Id n _)) es = -- Uninterpreted function
     Func (nameToStr n) $ map (exprToSMT tv) es
 funcToSMT tv (Lam _ (Id n t) e) [e'] =
@@ -1061,9 +1061,10 @@ toSolverAST str_seq = go
                             | otherwise = "\"\\u{" <> TB.string (showHex (fromEnum c) "") <> "}\""
         go (VBool b) = if b then "true" else "false"
         go (V n _) = TB.string n
-        go (DataSMT n []) = TB.string n
-        go (DataSMT n as) = "(" <> TB.string n <> " " <> TB.intercalate " " (map go as) <> ")"
-        go (As x srt) = "(as " <> go x <> " " <> sortName srt <> ")"
+        go (DataSMT n [] Nothing) = TB.string n
+        go (DataSMT n [] (Just srt)) = "(as " <> TB.string n <> " " <> sortName srt <> ")"
+        go (DataSMT n as Nothing) = "(" <> TB.string n <> " " <> TB.intercalate " " (map go as) <> ")"
+        go (DataSMT n as (Just srt)) = "((as " <> TB.string n <> " " <> sortName srt <> ") " <> TB.intercalate " " (map go as) <> ")"
         go (IsConstructorSMT n e) | '|':ns <- n = "(|is-" <> TB.string ns <> " " <> go e <> ")"
                                   | otherwise = "(is-" <> TB.string n <> " " <> go e <> ")"
         go (SelectorSMT n i e) = "(" <> TB.string (selectorName n i) <> " " <> go e <> ")"
@@ -1300,7 +1301,7 @@ smtastToExpr kv tenv tv_env arg_tys t (StrAppendSMT xs) =
     where
         fromUnit (SeqUnitSMT s) = s
         fromUnit _ = error "fromUnit: unsupported case"
-smtastToExpr kv tenv tv_env arg_tys t (DataSMT dc_smt_n as)
+smtastToExpr kv tenv tv_env arg_tys t (DataSMT dc_smt_n as _)
     | let dc_n = certainStrToName dc_smt_n
     
     , TyCon tycon_n _:ts <- unTyApp $ tyVarSubst tv_env t
