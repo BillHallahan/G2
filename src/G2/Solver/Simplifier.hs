@@ -200,7 +200,6 @@ instance Simplifier FloatSimplifier where
 
     reverseSimplification _ _ _ m = m
 
-
 -- When we get a path constraint that is an equality between a variable and a small expression,
 -- inline the small expression in all path constraints and in the ExprEnv.
 data EqualitySimplifier = EqualitySimplifier
@@ -330,7 +329,12 @@ elimWrapper kv eenv = go
         go (App (Data dc) e2) | elimName $ dc_name dc = modifyChildren go e2
         go(App (Prim (Selector dc _) _) e2) | elimName $ dc_name dc = modifyChildren go e2
         go (App (Prim (IsConstructor dc) _) _) | elimName $ dc_name dc = mkTrue kv
-        go (Var (Id n _)) | Just (E.Conc e_) <- E.lookupConcOrSym n eenv = go e_
+        go v@(Var (Id n _))
+            | Just (E.Conc e_) <- E.deepLookupConcOrSym n eenv =
+                case appCenter e_ of
+                    Data dc | isPrimWrapperDC kv dc -> go e_
+                            | otherwise -> v
+                    _ -> go e_
         go e
             -- | Data dc:_ <- unApp e
             -- , dcName dc == dcCons kv = e
