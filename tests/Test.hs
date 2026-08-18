@@ -677,7 +677,7 @@ testFileTests = testGroup "TestFiles"
 
     , checkInputOutputs "tests/TestFiles/Seq/ADTLitTableStrict.hs" [ ("takeWhile1", 10000, [Exactly 2])
                                                                    , ("takeWhile2", 10000, [Exactly 2])
-                                                                   , ("map1", 10000, [AtLeast 7]) ]
+                                                                   , ("map1", 10000, [Exactly 3]) ]
 
     , checkInputOutputsSMTListsWith "tests/TestFiles/Seq/Seq1.hs" "floatListEq" [ ("conFloat", 1000, [Exactly 1])
                                                                                 , ("conDouble", 1000, [Exactly 1])]
