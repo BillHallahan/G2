@@ -99,9 +99,11 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
         
         s5 = s4 { type_env = tenv2 }
 
-        dcpc = addToDCPC config s5 (dcpcMap TV.empty kv tenv2)
+        (dcpc, tenv3) = addToDCPC config s5 (dcpcMap TV.empty kv tenv2)
+
+        s6 = s5 { type_env = tenv3 }
     in
-    (s5, dcpc)
+    (s6, dcpc)
     where
         adjTyH = E.insert (typeIndex kv) . modifyASTs adjTyH' $ eenv E.! typeIndex kv
 

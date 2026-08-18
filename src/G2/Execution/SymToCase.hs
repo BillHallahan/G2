@@ -2,16 +2,14 @@ module G2.Execution.SymToCase (createCaseExpr) where
 
 import G2.Execution.DataConPCMap
 import G2.Language
-import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 
+
 -- | Creates and applies new symbolic variables for arguments of Data Constructor
-concretizeSym :: Expr -> TyVarEnv -> [(Id, Type)] -> Maybe Coercion -> Id
+concretizeSym :: Expr -> TypeEnv -> TyVarEnv -> [(Id, Type)] -> Maybe Coercion
               -> DataConPCMap -> ([(Name, Expr)], [Id], NameGen) -> DataCon -> (([(Name, Expr)], [Id], NameGen), ([PathCond], Expr))
-concretizeSym mexpr tv bi maybeC binder dcpcm (concs, syms, ng) dc@(DataCon _ ts _ _)
-    | Just dcpcs <- HM.lookup (dcName dc) dcpcm
-    , _:ty_args <- unTyApp $ typeOf tv binder
-    , Just dcpc <- L.lookup ty_args dcpcs =
+concretizeSym mexpr tenv tv bi maybeC dcpcm (concs, syms, ng) dc@(DataCon _ ts _ _)
+    | Just dcpc <- getDCPCInfo dc (typeOf tv mexpr) tenv tv dcpcm =
         let (pcs, ng'', _, dcpc_concs, dcpc_syms) = applyDCPC ng' new_params mexpr dcpc
         in ((concs ++ dcpc_concs, syms ++ new_params ++ dcpc_syms, ng''), (pcs, dc''))
 
@@ -44,20 +42,20 @@ createCaseExpr' kv _ _ [] = (Prim Undefined TyBottom, [ExtCond (mkFalse kv) True
 
 -- Make a case expression, returning lists of what to insert instead of inserting
 createCaseExpr :: Expr
+               -> TypeEnv
                -> TyVarEnv
                -> [(Id, Type)]
                -> Maybe Coercion
-               -> Id
                -> Type -- ^ Return type of case expression
                -> KnownValues
                -> DataConPCMap
                -> NameGen
                -> [DataCon]
                -> (Id, Expr, [PathCond], NameGen, [(Name, Expr)], [Id])
-createCaseExpr mexpr tv bi maybeC binder ti kv dcpcm ng dcs =
+createCaseExpr mexpr tenv tv bi maybeC ti kv dcpcm ng dcs =
     let
         (new_id, ng') = freshId TyLitInt ng
-        ((concs, syms, ng''), dcs') = L.mapAccumL (concretizeSym mexpr tv bi maybeC binder dcpcm) ([], [], ng') dcs
+        ((concs, syms, ng''), dcs') = L.mapAccumL (concretizeSym mexpr tenv tv bi maybeC dcpcm) ([], [], ng') dcs
 
         -- Create a case expression to choose on of viable DCs
         (mexpr', assume_pc) = createCaseExpr' kv new_id ti dcs'

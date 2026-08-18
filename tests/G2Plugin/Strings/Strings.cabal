@@ -19,6 +19,7 @@ common warnings
 library
     import:           warnings
     exposed-modules:    Strings
+                      , MoreTuples
                       , Tuples
                       , Regex
     -- other-modules:
