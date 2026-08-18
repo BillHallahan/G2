@@ -176,7 +176,7 @@ varExpr :: Parser SMTAST
 varExpr = do
     v <- identifier
     case v of
-        c:_ | isUpper c -> return $ DataSMT v []
+        c:_ | isUpper c -> return $ DataSMT v [] Nothing
         _ -> return . V v $ ParSort "UNKNOWN"
 
 
@@ -184,7 +184,7 @@ dcExpr :: Parser SMTAST
 dcExpr = parens $ do
     ex <- identifier
     as <- many1 (sExpr Nothing)
-    return $ DataSMT ex as
+    return $ DataSMT ex as Nothing
 
 lambdaExpr :: Parser SMTAST
 lambdaExpr = do

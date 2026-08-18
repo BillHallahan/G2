@@ -45,6 +45,9 @@ tests = testGroup "All Tests"
                                 , ("myA", "smtMyA")
                                 , ("myUnzip", "smtMyUnzip")
 
+                                -- MoreTuples
+                                , ("pairInt", "smtPairInt")
+
                                 -- Regex
                                 , ("isNum", "smtIsNum")
                                 , ("containsFour", "smtContainsFour")

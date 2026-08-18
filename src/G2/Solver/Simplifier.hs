@@ -200,7 +200,6 @@ instance Simplifier FloatSimplifier where
 
     reverseSimplification _ _ _ m = m
 
-
 -- When we get a path constraint that is an equality between a variable and a small expression,
 -- inline the small expression in all path constraints and in the ExprEnv.
 data EqualitySimplifier = EqualitySimplifier
@@ -272,9 +271,9 @@ instance Simplifier LitConc where
             
             -- If a variable is NOT bound by a lambda, we want to reflect the concretization in the expression environment.
             lams = HS.map idName $ lamIds pc
-            eenv' = foldr (\(Id nC t, nL) -> E.insert nC (concApprop t nL) . E.insertSymbolic nL) eenv (filter (\(Id n _, _) -> n `notElem` lams) conc_c)
+            eenv' = foldr (\(Id nC t, nL) -> E.alter (concAppropEEnv t (Var nL)) nC . E.insertSymbolic nL) eenv (filter (\(Id n _, _) -> n `notElem` lams) conc_c)
             
-            pc' = foldr (\(Id nC t, nL) -> modifyContainedASTs elimWrapper . replaceVarAndLam nC (concApprop t nL) nL) pc conc_c
+            pc' = foldr (\(Id nC t, nL) -> replaceVarAndLam nC (concApprop t (Var nL)) nL) pc conc_c
         in
         (ng', eenv', [pc'])
         where
@@ -288,13 +287,16 @@ instance Simplifier LitConc where
                 where
                     t' = tyVarSubst tv_env t
 
-            concApprop t i
-                | t' == T.tyInt kv = concInt i
-                | t' == T.tyInteger kv = concInteger i
-                | t' == T.tyWord kv = concWord i
-                | t' == T.tyFloat kv = concFloat i
-                | t' == T.tyDouble kv = concDouble i
-                | t' == T.tyChar kv = concChar i
+            concAppropEEnv _ _ (Just (E.ExprObj e)) = Just . E.ExprObj $ e
+            concAppropEEnv t e _ = Just . E.ExprObj $ concApprop t e
+
+            concApprop t e
+                | t' == T.tyInt kv = concInt e
+                | t' == T.tyInteger kv = concInteger e
+                | t' == T.tyWord kv = concWord e
+                | t' == T.tyFloat kv = concFloat e
+                | t' == T.tyDouble kv = concDouble e
+                | t' == T.tyChar kv = concChar e
                 | otherwise = error $ "concApprop: impossible - unhandled type"
                 where
                     t' = tyVarSubst tv_env t
@@ -310,26 +312,41 @@ instance Simplifier LitConc where
                 where
                     t' = tyVarSubst tv_env t
 
-            concInt n = App (mkDCInt kv tenv) (Var n)
-            concInteger n = App (mkDCInteger kv tenv) (Var n)
-            concWord n = App (mkDCWord kv tenv) (Var n)
-            concFloat n = App (mkDCFloat kv tenv) (Var n)
-            concDouble n = App (mkDCDouble kv tenv) (Var n)
-            concChar n = App (mkDCChar kv tenv) (Var n)
-
-            elimWrapper (App (Data dc) e2)
-                |  dcName dc == dcInt kv
-                || dcName dc == dcInteger kv
-                || dcName dc == dcWord kv
-                || dcName dc == dcFloat kv
-                || dcName dc == dcDouble kv
-                || dcName dc == dcChar kv = e2
-            elimWrapper e
-                | Data dc:_ <- unApp e
-                , dcName dc == dcCons kv = e
-                | otherwise = modifyChildren elimWrapper e
+            concInt e = App (mkDCInt kv tenv) e
+            concInteger e = App (mkDCInteger kv tenv) e
+            concWord e = App (mkDCWord kv tenv) e
+            concFloat e = App (mkDCFloat kv tenv) e
+            concDouble e = App (mkDCDouble kv tenv) e
+            concChar e = App (mkDCChar kv tenv) e
+    
+    simplifyPCs _ (State { known_values = kv, expr_env = eenv }) _ = modifyContainedASTs (elimWrapper kv eenv)
 
     reverseSimplification _ _ _ m = m
+
+elimWrapper :: KnownValues -> ExprEnv -> Expr -> Expr
+elimWrapper kv eenv = go
+    where
+        go (App (Data dc) e2) | elimName $ dc_name dc = modifyChildren go e2
+        go(App (Prim (Selector dc _) _) e2) | elimName $ dc_name dc = modifyChildren go e2
+        go (App (Prim (IsConstructor dc) _) _) | elimName $ dc_name dc = mkTrue kv
+        go v@(Var (Id n _))
+            | Just (E.Conc e_) <- E.deepLookupConcOrSym n eenv =
+                case appCenter e_ of
+                    Data dc | isPrimWrapperDC kv dc -> go e_
+                            | otherwise -> v
+                    _ -> go e_
+        go e
+            -- | Data dc:_ <- unApp e
+            -- , dcName dc == dcCons kv = e
+            | otherwise = modifyChildren go e
+
+        elimName n =
+                n == dcInt kv
+            || n == dcInteger kv
+            || n == dcWord kv
+            || n == dcFloat kv
+            || n == dcDouble kv
+            || n == dcChar kv
 
 replaceVarAndLam :: ASTContainer m Expr => Name -> Expr -> Id -> m -> m
 replaceVarAndLam n e i = modifyASTs go

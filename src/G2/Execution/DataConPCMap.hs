@@ -9,9 +9,9 @@ module G2.Execution.DataConPCMap ( DCArgBind (..)
                                  , applyDCPC
 
                                  -- * Helpers for constructing the DCPC Map
-                                 , wrapperListCons
                                  , listCons
                                  , listEmpty
+                                 , wrapper
                                  , arbDC
 
                                  , getDCPCInfo
@@ -82,9 +82,6 @@ dcpcMap tv kv tenv = HM.fromList [
 strCons :: KnownValues -> TypeEnv -> TyVarEnv -> DataConPCInfo
 strCons kv tenv = wrapperListCons' id (mkDCChar kv tenv) TyLitChar kv
 
-wrapperListCons :: Expr -> Type -> KnownValues -> TyVarEnv -> DataConPCInfo
-wrapperListCons = wrapperListCons' (App (Prim SeqUnit TyUnknown))
-
 wrapperListCons' :: (Expr -> Expr) -> Expr -> Type -> KnownValues -> TyVarEnv -> DataConPCInfo
 wrapperListCons' f dc t kv tv = let
                         hn = Name "h" Nothing 0 Nothing
@@ -128,9 +125,28 @@ listCons t kv tv = let
                       in
                       dcpc
 
-arbDC :: KnownValues -> TyVarEnv -> DataCon -> DataConPCInfo
+wrapper :: Type -> DataConPCInfo
+wrapper t = let
+                cn = Name "c" Nothing 0 Nothing
+                ci = Id cn t
+                asn = Name "as" Nothing 0 Nothing
+                dcpc = DCPC { dc_as_pattern = asn
+                            , dc_args = [ ArgSymb cn ]
+                            , dc_pc = [ ExtCond (mkApp [ Prim Eq TyUnknown, Var ci, Var (Id asn t)]) True ]
+                            , dc_bindee_exprs = [Var ci]
+                            }
+            in
+            dcpc
+
+
+
+arbDC :: KnownValues -> TyVarEnv -> DataCon -> ([Id], DataConPCInfo)
 arbDC kv tv_env dc =
     let
+        named_ts = dc_univ_tyvars dc
+        ty_arg_ns = map (\i -> Name ("!!_G2_!!_TYVAR_" <> T.pack (show i)) Nothing 0 Nothing) [0..length named_ts]
+        ty_args = zipWith (\n (Id _ t) -> Id n t) ty_arg_ns named_ts
+
         ts = T.anonArgumentTypes $ dc_type dc
         is = zipWith (\i t -> Id (Name ("x" <> T.pack (show i)) Nothing 0 Nothing) t) [1 :: Integer ..] ts
 
@@ -140,13 +156,12 @@ arbDC kv tv_env dc =
         dcpc = DCPC { dc_as_pattern = asn
                     , dc_args = map (ArgSymb . idName) is
                     , dc_pc = [ExtCond (mkEqExpr tv_env kv
-                                    (mkApp $ Data dc:map Var is)
+                                    (mkApp $ Data dc:map (Type . TyVar) ty_args ++ map Var is)
                                     (Var asi)) True]
                     , dc_bindee_exprs = map Var is
                     }
     in
-    dcpc
-
+    (ty_args, dcpc)
 
 strEmpty :: KnownValues -> TyVarEnv -> DataConPCInfo
 strEmpty kv = listEmpty (T.tyChar kv) kv
@@ -182,8 +197,8 @@ applyDCPC ng new_ids as_expr (DCPC { dc_as_pattern = as_p, dc_args = ars, dc_pc 
 mkDCArg :: ([PathCond], NameGen, [Expr], [(Name, Expr)], [Id]) -> (DCArgBind, Id) -> ([PathCond], NameGen, [Expr], [(Name, Expr)], [Id])
 mkDCArg (pc, ng, be, concs, syms) (ArgSymb bi, i) =
     let
-        pc' = rename bi (idName i) pc
-        be' = map (rename bi (idName i)) be
+        pc' = replaceVar bi (Var i) pc
+        be' = map (replaceVar bi (Var i)) be
     in
     (pc', ng, be', concs, i:syms)
 mkDCArg (pc, ng, be, concs, syms) (ArgConcretize { binder_name = bn, fresh_vars = fv, arg_expr = e}, i) =
