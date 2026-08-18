@@ -46,7 +46,12 @@ tests = testGroup "All Tests"
                                 , ("myUnzip", "smtMyUnzip")
 
                                 -- MoreTuples
+                                , ("listTuple", "smtListTuple")
                                 , ("pairInt", "smtPairInt")
+                                , ("pairInt'", "smtPairInt'")
+                                , ("myZipInt", "smtMyZipInt")
+                                , ("myUnzipInt", "smtMyUnzipInt")
+                                , ("myRevInt", "smtMyRevInt")
 
                                 -- Regex
                                 , ("isNum", "smtIsNum")
@@ -70,6 +75,9 @@ tests = testGroup "All Tests"
                                 , ("pairABad", "smtPairA")
                                 , ("myZipBad", "smtMyZip")
                                 , ("myLookupBad", "smtMyLookupBad")
+
+                                -- MoreTuples
+                                , ("myZipBadInt", "smtMyZipBadInt")
 
                                 -- Regex
                                 , ("isNumBad", "smtIsNumBad")
