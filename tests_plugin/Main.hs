@@ -44,14 +44,14 @@ tests = testGroup "All Tests"
                                 , ("myZip", "smtMyZip")
                                 , ("myA", "smtMyA")
                                 , ("myUnzip", "smtMyUnzip")
-                                , ("myUnzipInt", "smtMyUnzipInt")
-                                , ("myRevInt", "smtMyRevInt")
 
                                 -- MoreTuples
                                 , ("listTuple", "smtListTuple")
                                 , ("pairInt", "smtPairInt")
                                 , ("pairInt'", "smtPairInt'")
                                 , ("myZipInt", "smtMyZipInt")
+                                , ("myUnzipInt", "smtMyUnzipInt")
+                                , ("myRevInt", "smtMyRevInt")
 
                                 -- Regex
                                 , ("isNum", "smtIsNum")
