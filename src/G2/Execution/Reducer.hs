@@ -471,18 +471,19 @@ nonRedLibFuncs exec_names no_nrpc_names
 nonRedPathsReducer :: (MonadIO m, Solver solver) =>
                         solver
                       -> Config
-                      -> Reducer m Int t
+                      -> Reducer m (Int, Int) t
 nonRedPathsReducer solver config =
-    (mkSimpleReducer (\_ -> 0)
+    (mkSimpleReducer (\_ -> (0, 0))
         (nonRedPathCons solver))
-        { onAccept = \s b nrpc_count -> do
+        { onAccept = \s b (nrpc_count, path_count) -> do
             if print_num_nrpc config
                 then liftIO . putStrLn $ "NRPCs Generated: " ++ show nrpc_count
                 else return ()
+            when (print_paths config) $ liftIO . putStrLn $ "Paths value: " ++ show path_count
             return (s, b) }
 
-nonRedPathCons :: (MonadIO m, Solver solver )=> solver -> RedRules m Int t
-nonRedPathCons solver rv@(nrpc_count)
+nonRedPathCons :: (MonadIO m, Solver solver )=> solver -> RedRules m (Int, Int) t
+nonRedPathCons solver rv@(nrpc_count, _)
                 s@(State { curr_expr = CurrExpr _ ce
                          }) 
                 b@(Bindings { name_gen = ng })
@@ -491,7 +492,7 @@ nonRedPathCons solver rv@(nrpc_count)
         do
             num_paths <- liftIO $ paths left right s' (b {name_gen = ng'}) solver
             if num_paths > 1 
-                then return (Finished, [(s', nrpc_count + 1)], b {name_gen = ng'})
+                then return (Finished, [(s', (nrpc_count + 1, num_paths))], b {name_gen = ng'})
                 else return (Finished, [(s, rv)], b)
     | otherwise = return (Finished, [(s, rv)], b)
 

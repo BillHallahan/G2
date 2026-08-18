@@ -7,6 +7,7 @@ module G2.Execution.Internals.NrpcPaths
         reachabilityCheck
     ) where
 
+import qualified Data.HashSet as HS
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
@@ -41,7 +42,7 @@ paths nrpc_e_lhs nrpc_e_rhs
 
         in paths e'' nrpc_e_rhs (s {expr_env = eenv'}) (bindings {name_gen = ng'}) solver
     | Case (Var (Id n _)) _ _ alts <- nrpc_e_lhs
-    , reachabilityCheck ng eenv nrpc_e_lhs
+    , reachabilityCheck HS.empty ng eenv nrpc_e_lhs
     , Just n' <- E.deepLookupVar n eenv
     , E.isSymbolic n' eenv = do
         let altExprs = map altExpr alts
@@ -63,23 +64,25 @@ paths nrpc_e_lhs nrpc_e_rhs
     | otherwise = error $ "paths: expr not allowed \n" ++ show nrpc_e_lhs
 
 
-reachabilityCheck :: NameGen -> ExprEnv -> Expr -> Bool
-reachabilityCheck ng eenv e
+reachabilityCheck :: HS.HashSet Name -> NameGen -> ExprEnv -> Expr ->  Bool
+reachabilityCheck seen ng eenv e
     | Var (Id n _) <- e
     , (nameOcc n == "assert") || (nameOcc n == "error") = True
+    | Var (Id n _) <- e,
+    HS.member n seen = False
     | Var (Id n _) <- e
-    , Just e' <- E.lookup n eenv = reachabilityCheck ng eenv e'
+    , Just e' <- E.lookup n eenv = reachabilityCheck (HS.insert n seen) ng eenv e'
     | Case e' _ _ alts <- e = let altExprs = map altExpr alts
-                        in reachabilityCheck ng eenv e' || any (reachabilityCheck ng eenv) altExprs
+                        in reachabilityCheck seen ng eenv e' || any (reachabilityCheck seen ng eenv) altExprs
     | App (Lam _ i e1) e2 <- e = let
             old = idName i
             (x', ng') = freshSeededName old ng
             e1' = renameExpr old x' e1
             eenv' = E.insert x' e2 eenv
         in 
-            reachabilityCheck ng' eenv' e1'
-    | App e1 e2 <- e = reachabilityCheck ng eenv e1 || reachabilityCheck ng eenv e2
-    | Lam _ _ e' <- e = reachabilityCheck ng eenv e'
+            reachabilityCheck seen ng' eenv' e1'
+    | App e1 e2 <- e = reachabilityCheck seen ng eenv e1 || reachabilityCheck seen ng eenv e2
+    | Lam _ _ e' <- e = reachabilityCheck seen ng eenv e'
     | Let b e' <- e =  
         let
             (binds_lhs, binds_rhs) = unzip b
@@ -90,6 +93,6 @@ reachabilityCheck ng eenv e
             e'' = renameExprs (zip olds news) e'
             binds_rhs' = renameExprs (zip olds news) binds_rhs
             eenv' = E.insertExprs (zip news binds_rhs') eenv
-        in reachabilityCheck ng' eenv' e''
+        in reachabilityCheck seen ng' eenv' e''
     | otherwise = False
 
