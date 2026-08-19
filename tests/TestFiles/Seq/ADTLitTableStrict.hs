@@ -35,6 +35,6 @@ map1 ab xs =
                             B -> A) (xs ++ [ab])
     in
     case ys of
-        [] -> (1, ys)
+        [] -> (1, ys) -- Unreachable
         [_] -> (2, ys)
         (_:_) -> (3, ys)
