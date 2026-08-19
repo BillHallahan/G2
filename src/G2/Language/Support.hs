@@ -85,6 +85,8 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , lit_table_stack :: Stack LitTable -- ^ Stack for nested literal tables
                      , global_lit_table_pc :: PathConds -- ^ Extra PCs to add to the main PCs after we are done building a literal table
 
+                     , forcing_var :: Bool -- ^ Are we currently forcing deep evaluation of a variable? See Note [Forcing Sharing] in G2.Execution.Rules
+
                      , track :: t
                      } deriving (Show, Eq, Read, Generic, Data)
 
@@ -215,6 +217,7 @@ instance Hashable Frame
 data CEAction = EnsureEq Expr -- ^ `EnsureEq focus e1` means that we should check if the `curr_expr` is equal to `e1`
               | UpdateSolvingFCs FCStatus -- ^ Update the Ids/Lits in the solving_sym_func_constraints field
               | DiscardIfNoError -- ^ Discard the state if it has not hit an error
+              | DisableForcingVar -- ^ Set the forcing_var field of the state to False
               | NoAction -- ^ Just replace the curr_expr, no other actions are needed
               deriving (Show, Eq, Read, Generic, Data)
 
@@ -344,6 +347,7 @@ instance Named t => Named (State t) where
                , lit_tables = rename old new $ lit_tables s
                , lit_table_stack = rename old new $ lit_table_stack s
                , global_lit_table_pc = rename old new $ global_lit_table_pc s
+               , forcing_var = forcing_var s
                , reached_fc_ticks = rename old new $ reached_fc_ticks s
                , log_path = log_path s }
 
@@ -379,6 +383,7 @@ instance Named t => Named (State t) where
                , lit_tables = renames hm $ lit_tables s
                , lit_table_stack = renames hm $ lit_table_stack s
                , global_lit_table_pc = renames hm $ global_lit_table_pc s
+               , forcing_var = forcing_var s 
                , reached_fc_ticks = renames hm $ reached_fc_ticks s
                , log_path = log_path s }
 
