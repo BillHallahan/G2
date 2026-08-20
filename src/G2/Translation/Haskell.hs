@@ -292,7 +292,11 @@ envModSumModGutsFromFile hsc proj src tr_con =
       return . EnvModSumModGuts env msums $ map coreModule desug_mods
 
 envModSumModGutsImports :: EnvModSumModGuts -> [String]
+#if MIN_VERSION_GLASGOW_HASKELL(9,14,0,0)
+envModSumModGutsImports (EnvModSumModGuts _ ms _) = concatMap (map (\(_, _, L _ m) -> moduleNameString m) . ms_textual_imps) ms
+#else
 envModSumModGutsImports (EnvModSumModGuts _ ms _) = concatMap (map (\(_, L _ m) -> moduleNameString m) . ms_textual_imps) ms
+#endif
 
 -- | Extract information from GHC into a form that G2 can process.
 mkCgGutsModDetailsClosures :: G2.TranslationConfig -> HscEnv -> [ModGuts] -> IO [( G2.CgGutsClosure, G2.ModDetailsClosure)]
@@ -546,7 +550,11 @@ createTickish :: Maybe ModBreaks -> GenTickish i -> Maybe G2.Tickish
 createTickish :: Maybe ModBreaks -> Tickish i -> Maybe G2.Tickish
 #endif
 createTickish (Just mb) (Breakpoint {breakpointId = bid}) =
+#if MIN_VERSION_GLASGOW_HASKELL(9,14,0,0)
+    case mkSpan $ modBreaks_locs mb A.! bi_tick_index bid of
+#else
     case mkSpan $ modBreaks_locs mb A.! bid of
+#endif
         Just s -> Just $ G2.Breakpoint $ s
         Nothing -> Nothing
 createTickish _ (HpcTick { tickModule = md, tickId = i}) =

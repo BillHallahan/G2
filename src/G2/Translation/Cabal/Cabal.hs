@@ -14,14 +14,18 @@ import Distribution.PackageDescription.Parse
 
 import Distribution.Verbosity
 #if MIN_VERSION_Cabal(3,6,0)
-import Distribution.Utils.Path ( getSymbolicPath )
+import Distribution.Utils.Path ( getSymbolicPath, makeSymbolicPath )
 #endif
 
 -- | Takes the filepath to a Cabal file, and returns a list of FilePaths to red
 -- from.
 cabalSrcDirs :: FilePath -> IO [FilePath]
 cabalSrcDirs fp = do
+#if MIN_VERSION_Cabal(3,14,0)
+    gpd <- readGenericPackageDescription silent Nothing $ makeSymbolicPath fp
+#else
     gpd <- readGenericPackageDescription silent fp
+#endif
     return $ genericPackageDescriptionSrcDirs gpd
 
 genericPackageDescriptionSrcDirs :: GenericPackageDescription -> [FilePath]
