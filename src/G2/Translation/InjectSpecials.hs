@@ -51,7 +51,11 @@ specialConstructors =
     HM.fromList $ integerConstructor:map (\(DataCon nm@(Name n m _ _) _ _ _)-> ((n, m), nm)) specialConstructors'
 
 integerConstructor :: ((T.Text, Maybe T.Text), Name)
+#if MIN_VERSION_GLASGOW_HASKELL(9,14,0,0)
+integerConstructor = (("IS", Just "GHC.Internal.Bignum.Integer"), Name "Z#" (Just "GHC.Num.Integer") 0 Nothing)
+#else
 integerConstructor = (("IS", Just "GHC.Num.Integer"), Name "Z#" (Just "GHC.Num.Integer") 0 Nothing)
+#endif
 
 specialConstructors' :: [DataCon]
 specialConstructors' =
