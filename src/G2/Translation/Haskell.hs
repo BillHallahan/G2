@@ -296,10 +296,14 @@ envModSumModGutsFromFile hsc proj src tr_con =
       typed_mods <- mapM typecheckModule parsed_mods
       desug_mods <- mapM desugarModule typed_mods
       let core_mods = map coreModule desug_mods
+#if MIN_VERSION_GLASGOW_HASKELL(9,14,0,0)
       final_mods <- SM.liftIO $ mapM (callAddImplicitBinds env) core_mods
-
+#else
+      let final_mods = core_mods
+#endif
       return $ EnvModSumModGuts env msums final_mods
 
+#if MIN_VERSION_GLASGOW_HASKELL(9,14,0,0)
 callAddImplicitBinds :: HscEnv -> ModGuts -> IO ModGuts
 callAddImplicitBinds env mg = do
     let conf = initCorePrepPgmConfig (hsc_dflags env) []
@@ -309,6 +313,7 @@ callAddImplicitBinds env mg = do
     
     imp_binds <- addImplicitBinds conf m_loc tyCons $ binds
     return $ mg { mg_binds = imp_binds }
+#endif
 
 envModSumModGutsImports :: EnvModSumModGuts -> [String]
 #if MIN_VERSION_GLASGOW_HASKELL(9,14,0,0)
