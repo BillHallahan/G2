@@ -426,6 +426,15 @@ takeWhile1 xs = case takeWhile (== 4) xs of
                     [4] -> "Only one four? I'm disappointed."
                     _ -> "Either you gave me way too many fours, or none at all. How could you do this?"
 
+takeWhile2 :: [Int] -> (Int, [Int])
+takeWhile2 xs =
+    let
+        ys = takeWhile (\x -> x < 2) xs
+    in
+    case length ys > 4 of
+        True -> (1, ys)
+        False -> (2, ys)
+
 find1 :: [Int] -> Char
 find1 xs = case find (== 4) xs of
                 Just x -> if length xs > 2 then 'a' else 'b'
