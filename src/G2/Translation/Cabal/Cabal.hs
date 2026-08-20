@@ -13,8 +13,10 @@ import Distribution.PackageDescription.Parse
 #endif
 
 import Distribution.Verbosity
-#if MIN_VERSION_Cabal(3,6,0)
+#if MIN_VERSION_Cabal(3,14,0)
 import Distribution.Utils.Path ( getSymbolicPath, makeSymbolicPath )
+#elif MIN_VERSION_Cabal(3,6,0)
+import Distribution.Utils.Path ( getSymbolicPath )
 #endif
 
 -- | Takes the filepath to a Cabal file, and returns a list of FilePaths to red
