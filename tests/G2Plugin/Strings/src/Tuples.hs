@@ -52,7 +52,7 @@ smtPairABad :: [A] -> [(A, A)]
 smtPairABad xs = exists (\ys -> xs `smtEq` smtMap fst ys
                              && smtFoldLeft (\acc y -> acc && snd y == A) True ys)
 
-{-# ANN myZip (SMTEquivIsWithConfig "smtMyZip" "--print-smt")
+{-# ANN myZip (SMTEquivIsWithConfig "smtMyZip" "")
     #-}
 myZip :: [A] -> [A] -> [(A, A)]
 myZip [] _ = []
