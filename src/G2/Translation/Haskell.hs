@@ -4,13 +4,7 @@
 module G2.Translation.Haskell
     ( loadProj
     , guessProj
-    , hskToG2ViaModGuts
-    , hskToG2ViaModGutsFromFile
-    , hskToG2ViaCgGuts
     , hskToG2ViaCgGutsFromFile
-    , mkCgGutsClosure
-    , mkModDetailsClosure
-    , mkModGutsClosure
 
     , EnvModSumModGuts (..)
     , envModSumModGutsFromFile
@@ -349,29 +343,7 @@ mkModDetailsClosure deps moddet =
     , G2.mdcc_deps = getModuleNames deps
     }
 
-
-
 -- Compilation pipeline with ModGuts
-hskToG2ViaModGutsFromFile :: Maybe HscTarget
-  -> [FilePath]
-  -> [FilePath]
-  -> G2.NameMap
-  -> G2.TypeNameMap
-  -> G2.TranslationConfig
-  -> IO (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
-hskToG2ViaModGutsFromFile hsc proj src nm tm tr_con = do
-  closures <- mkModGutsClosuresFromFile hsc proj src tr_con
-  let (ex_g2, (nm', tm')) = SM.runState (hskToG2ViaModGuts closures tr_con) (nm, tm)
-  return (nm', tm', ex_g2)
-   
-
-hskToG2ViaModGuts :: [G2.ModGutsClosure]
-                  -> G2.TranslationConfig
-                  -> G2.NamesM G2.ExtractedG2
-hskToG2ViaModGuts modgutss tr_con = do
-    exg2s <- mapM (\m -> modGutsClosureToG2 m tr_con) modgutss
-    return $ mergeExtractedG2s exg2s
-
 modGutsClosureToG2 :: G2.ModGutsClosure
                    -> G2.TranslationConfig
                    -> G2.NamesM G2.ExtractedG2
@@ -414,63 +386,10 @@ modGutsClosureToG2 mgcc tr_con = do
             , G2.exg2_exports = exports
             , G2.exg2_deps = deps
             , G2.exg2_rules = catMaybes rules })
-  
-
-mkModGutsClosuresFromFile :: Maybe HscTarget
-  -> [FilePath]
-  -> [FilePath]
-  -> G2.TranslationConfig
-  -> IO [G2.ModGutsClosure]
-mkModGutsClosuresFromFile hsc proj src tr_con = do
-  (env, modgutss) <- runGhc (Just libdir) $ do
-      _ <- loadProj hsc proj src [] tr_con
-      env <- getSession
-
-      mod_graph <- getModuleGraph
-
-      let msums = convertModuleGraph mod_graph
-      parsed_mods <- mapM parseModule msums
-
-      typed_mods <- mapM typecheckModule parsed_mods
-      desug_mods <- mapM desugarModule typed_mods
-      return (env, map coreModule desug_mods)
-
-  if G2.simpl tr_con then do
-    simpls <- mapM (hscSimplifyC env) modgutss
-    mapM (mkModGutsClosure env) simpls
-  else do
-    mapM (mkModGutsClosure env) modgutss
 
 {-# INLINE convertModuleGraph #-}
 convertModuleGraph :: ModuleGraph -> [ModSummary]
 convertModuleGraph = mgModSummaries
-
-{-# INLINE hscSimplifyC #-}
-hscSimplifyC :: HscEnv -> ModGuts -> IO ModGuts
-hscSimplifyC env = hscSimplify env []
-
--- This one will need to do the Tidy program stuff
-mkModGutsClosure :: HscEnv -> ModGuts -> IO G2.ModGutsClosure
-mkModGutsClosure env modguts = do
-#if MIN_VERSION_GLASGOW_HASKELL(9,3,0,0)
-  tidy_opts <- initTidyOpts env
-  (cgguts, moddets) <- tidyProgram tidy_opts modguts
-#else
-  (cgguts, moddets) <- tidyProgram env modguts
-#endif
-  return
-    G2.ModGutsClosure
-      { G2.mgcc_mod_name = Just $ moduleNameString $ moduleName $ cg_module cgguts
-      , G2.mgcc_binds = cg_binds cgguts
-      , G2.mgcc_tycons = cg_tycons cgguts
-      , G2.mgcc_breaks = cg_modBreaks cgguts
-      , G2.mgcc_cls_insts = getClsInst moddets
-      , G2.mgcc_fam_insts = mg_fam_insts modguts
-      , G2.mgcc_type_env = md_types moddets
-      , G2.mgcc_exports = exportedNames moddets
-      , G2.mgcc_deps = getModuleNames $ mg_deps modguts
-      , G2.mgcc_rules = mg_rules modguts
-      }
 
 getClsInst :: ModDetails -> [ClsInst]
 #if MIN_VERSION_GLASGOW_HASKELL(9,3,0,0)
