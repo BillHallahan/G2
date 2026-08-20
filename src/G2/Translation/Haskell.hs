@@ -201,7 +201,7 @@ loadProj hsc proj src gflags tr_con = do
                              , maxSimplIterations = if G2.simpl tr_con then maxSimplIterations beta_flags' else 0
 
                              , hpcDir = headError proj }
-        dflags' = setIncludePaths proj dflags
+        dflags' = dflags { includePaths = addQuoteInclude (includePaths dflags) proj }
 
     _ <- setSessionDynFlags dflags'
 #if MIN_VERSION_GLASGOW_HASKELL(9,3,0,0)
@@ -211,9 +211,6 @@ loadProj hsc proj src gflags tr_con = do
 #endif
     _ <- setTargets targets
     load LoadAllTargets
-
-setIncludePaths :: [FilePath] -> DynFlags -> DynFlags
-setIncludePaths proj dflags = dflags { includePaths = addQuoteInclude (includePaths dflags) proj }
 
 -- Compilation pipeline with CgGuts
 hskToG2ViaCgGutsFromFile :: Maybe HscTarget
@@ -233,21 +230,27 @@ hskToG2ViaEMS :: G2.TranslationConfig
               -> G2.TypeNameMap
               -> IO (G2.NameMap, G2.TypeNameMap, G2.ExtractedG2)
 hskToG2ViaEMS tr_con (EnvModSumModGuts env _ modgutss) nm tm = do
-  closures <- mkCgGutsModDetailsClosures tr_con env modgutss
-  let (ex_g2, (nm', tm')) = SM.runState (hskToG2ViaCgGuts closures tr_con) (nm, tm)
-  return (nm', tm', ex_g2)
+  simplgutss <- mapM (if G2.simpl tr_con then hscSimplify env [] else return . id) modgutss
 
-hskToG2ViaCgGuts :: [(G2.CgGutsClosure, G2.ModDetailsClosure)]
-                 -> G2.TranslationConfig
-                 -> G2.NamesM G2.ExtractedG2
-hskToG2ViaCgGuts pairs tr_con = do
-    exg2s <- mapM (\(c, m) -> do
+#if MIN_VERSION_GLASGOW_HASKELL(9,3,0,0)
+  tidy_opts <- initTidyOpts env
+  tidys <- mapM (tidyProgram tidy_opts) simplgutss
+#else
+  tidys <- mapM (tidyProgram env) simplgutss
+#endif
+
+  let pairs = map (\((cg, md), mg) -> ( mkCgGutsClosure (mg_binds mg) cg md
+                                      , mkModDetailsClosure (mg_deps mg) md)) $ zip tidys simplgutss
+
+  let (ex_g2, (nm', tm')) = SM.runState (do
+        exg2s <- mapM (\(c, m) -> do
                             let mgcc = cgGutsModDetailsClosureToModGutsClosure c m
                             g2 <- modGutsClosureToG2 mgcc tr_con
                             return g2)
-                            pairs
-    return $ mergeExtractedG2s exg2s
-
+                 pairs
+        return $ mergeExtractedG2s exg2s
+        ) (nm, tm)
+  return (nm', tm', ex_g2)
 
 cgGutsModDetailsClosureToModGutsClosure :: G2.CgGutsClosure -> G2.ModDetailsClosure -> G2.ModGutsClosure
 cgGutsModDetailsClosureToModGutsClosure cg md =
@@ -287,22 +290,6 @@ envModSumModGutsFromFile hsc proj src tr_con =
 
 envModSumModGutsImports :: EnvModSumModGuts -> [String]
 envModSumModGutsImports (EnvModSumModGuts _ ms _) = concatMap (map (\(_, L _ m) -> moduleNameString m) . ms_textual_imps) ms
-
--- | Extract information from GHC into a form that G2 can process.
-mkCgGutsModDetailsClosures :: G2.TranslationConfig -> HscEnv -> [ModGuts] -> IO [( G2.CgGutsClosure, G2.ModDetailsClosure)]
-mkCgGutsModDetailsClosures tr_con env modgutss = do
-  simplgutss <- mapM (if G2.simpl tr_con then hscSimplify env [] else return . id) modgutss
-
-#if MIN_VERSION_GLASGOW_HASKELL(9,3,0,0)
-  tidy_opts <- initTidyOpts env
-  tidys <- mapM (tidyProgram tidy_opts) simplgutss
-#else
-  tidys <- mapM (tidyProgram env) simplgutss
-#endif
-
-  let pairs = map (\((cg, md), mg) -> ( mkCgGutsClosure (mg_binds mg) cg md
-                                      , mkModDetailsClosure (mg_deps mg) md)) $ zip tidys simplgutss
-  return pairs
 
 -- | Extract information from GHC into a form that G2 can process.
 mkCgGutsClosure :: CoreProgram -> CgGuts -> ModDetails -> G2.CgGutsClosure
