@@ -20,7 +20,8 @@ jobs:
                     { ghc: '9.6.1', cabal: '3.10' },
                     { ghc: '9.8.4', cabal: '3.10' },
                     { ghc: '9.10.3', cabal: '3.10' },
-                    { ghc: '9.12.2', cabal: '3.12' } ]
+                    { ghc: '9.12.2', cabal: '3.12' },
+                    { ghc: '9.14.1', cabal: '3.12' } ]
         test: [ { test: test, lh: '-support-lh' },
                 { test: test-g2q, lh: '-support-lh' } ]
     steps:

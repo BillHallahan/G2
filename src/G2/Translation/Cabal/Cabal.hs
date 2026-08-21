@@ -13,7 +13,9 @@ import Distribution.PackageDescription.Parse
 #endif
 
 import Distribution.Verbosity
-#if MIN_VERSION_Cabal(3,6,0)
+#if MIN_VERSION_Cabal(3,14,0)
+import Distribution.Utils.Path ( getSymbolicPath, makeSymbolicPath )
+#elif MIN_VERSION_Cabal(3,6,0)
 import Distribution.Utils.Path ( getSymbolicPath )
 #endif
 
@@ -21,7 +23,11 @@ import Distribution.Utils.Path ( getSymbolicPath )
 -- from.
 cabalSrcDirs :: FilePath -> IO [FilePath]
 cabalSrcDirs fp = do
+#if MIN_VERSION_Cabal(3,14,0)
+    gpd <- readGenericPackageDescription silent Nothing $ makeSymbolicPath fp
+#else
     gpd <- readGenericPackageDescription silent fp
+#endif
     return $ genericPackageDescriptionSrcDirs gpd
 
 genericPackageDescriptionSrcDirs :: GenericPackageDescription -> [FilePath]

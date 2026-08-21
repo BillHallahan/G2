@@ -55,6 +55,12 @@ module G2.Translation.GHC ( module GHC
 #if MIN_VERSION_GLASGOW_HASKELL(9,8,0,0)
                           , module GHC.Utils.Word64
 #endif
+#if MIN_VERSION_GLASGOW_HASKELL(9,14,0,0)
+                          , module GHC.Driver.Config.CoreToStg.Prep
+                          , module GHC.CoreToStg.AddImplicitBinds
+                          , module GHC.Driver.Env.Types
+#endif
+
                           ) where
 import GHC
 import GHC.Core ( Alt (..)
@@ -114,6 +120,12 @@ import GHC.Unit.Module.Name
 import GHC.Driver.Config.Tidy
 #endif
 
+#if MIN_VERSION_GLASGOW_HASKELL(9,14,0,0)
+import GHC.Driver.Config.CoreToStg.Prep
+import GHC.CoreToStg.AddImplicitBinds
+import GHC.Driver.Env.Types
+#endif
+
 #if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
 import GHC.Platform.Ways
 import GHC.Types.Tickish
@@ -127,7 +139,6 @@ type HscTarget = Backend
 import GHC.Driver.Types
 import GHC.Driver.Ways
 #endif
-
 
 #else
 

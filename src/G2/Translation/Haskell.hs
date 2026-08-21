@@ -78,10 +78,17 @@ mkG2TyCon n ts k = mkG2TyApp $ G2.TyCon n k:ts
 equivMods :: HM.HashMap T.Text T.Text
 equivMods = HM.fromList
             [ ("GHC.BaseMonad", "GHC.Base")
+#if MIN_VERSION_GLASGOW_HASKELL(9,14,0,0)
+            , ("GHC.Classes2", "GHC.Internal.Classes")
+            , ("GHC.Internal.Prim", "GHC.Prim")
+            , ("GHC.Internal.Tuple", "GHC.Tuple")
+            , ("GHC.Internal.Types", "GHC.Types")
+#else
             , ("GHC.Classes2", "GHC.Classes")
+#endif
+            , ("GHC.Types2", "GHC.Types")
             , ("GHC.Exception.Type", "GHC.Exception")
             , ("GHC.Stack.Types2", "GHC.Stack.Types")
-            , ("GHC.Types2", "GHC.Types")
             , ("GHC.Integer2", "GHC.Integer")
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
             , ("GHC.Integer.Type2", "GHC.Num.Integer")
@@ -286,10 +293,32 @@ envModSumModGutsFromFile hsc proj src tr_con =
       parsed_mods <- mapM parseModule msums
       typed_mods <- mapM typecheckModule parsed_mods
       desug_mods <- mapM desugarModule typed_mods
-      return . EnvModSumModGuts env msums $ map coreModule desug_mods
+      let core_mods = map coreModule desug_mods
+#if MIN_VERSION_GLASGOW_HASKELL(9,14,0,0)
+      final_mods <- SM.liftIO $ mapM (callAddImplicitBinds env) core_mods
+#else
+      let final_mods = core_mods
+#endif
+      return $ EnvModSumModGuts env msums final_mods
+
+#if MIN_VERSION_GLASGOW_HASKELL(9,14,0,0)
+callAddImplicitBinds :: HscEnv -> ModGuts -> IO ModGuts
+callAddImplicitBinds env mg = do
+    let conf = initCorePrepPgmConfig (hsc_dflags env) []
+        binds = mg_binds mg
+        m_loc = undefined
+        tyCons = mg_tcs mg
+    
+    imp_binds <- addImplicitBinds conf m_loc tyCons $ binds
+    return $ mg { mg_binds = imp_binds }
+#endif
 
 envModSumModGutsImports :: EnvModSumModGuts -> [String]
+#if MIN_VERSION_GLASGOW_HASKELL(9,14,0,0)
+envModSumModGutsImports (EnvModSumModGuts _ ms _) = concatMap (map (\(_, _, L _ m) -> moduleNameString m) . ms_textual_imps) ms
+#else
 envModSumModGutsImports (EnvModSumModGuts _ ms _) = concatMap (map (\(_, L _ m) -> moduleNameString m) . ms_textual_imps) ms
+#endif
 
 -- | Extract information from GHC into a form that G2 can process.
 mkCgGutsClosure :: CoreProgram -> CgGuts -> ModDetails -> G2.CgGutsClosure
@@ -297,7 +326,7 @@ mkCgGutsClosure binds cgguts md =
   let
       binds_rules = concatMap ruleInfoRules
                   . map ruleInfo
-                  . map idInfo 
+                  . map idInfo
                   . concatMap bindersOf $ binds
   in
   G2.CgGutsClosure
@@ -424,7 +453,7 @@ mkBindTuple :: Monad m => Maybe ModBreaks -> Var -> CoreExpr -> G2.NamesT m (G2.
 mkBindTuple mb var expr = do
     i <- mkIdLookup var
     e <- mkExpr mb expr
-    return $ (G2.idName i, e)
+    return (G2.idName i, e)
 
 mkExpr :: Monad m => Maybe ModBreaks -> CoreExpr -> G2.NamesT m G2.Expr
 mkExpr _ (Var var) = return . G2.Var =<< mkIdLookup var
@@ -452,7 +481,11 @@ createTickish :: Maybe ModBreaks -> GenTickish i -> Maybe G2.Tickish
 createTickish :: Maybe ModBreaks -> Tickish i -> Maybe G2.Tickish
 #endif
 createTickish (Just mb) (Breakpoint {breakpointId = bid}) =
+#if MIN_VERSION_GLASGOW_HASKELL(9,14,0,0)
+    case mkSpan $ modBreaks_locs mb A.! bi_tick_index bid of
+#else
     case mkSpan $ modBreaks_locs mb A.! bid of
+#endif
         Just s -> Just $ G2.Breakpoint $ s
         Nothing -> Nothing
 createTickish _ (HpcTick { tickModule = md, tickId = i}) =
@@ -697,6 +730,11 @@ mkTyCon t = do
                   TupleTyCon { data_con = dc } -> do
                     dc' <- mkData dc
                     return . Just $ G2.DataTyCon bv [dc'] ADTSourceCode False
+#if MIN_VERSION_GLASGOW_HASKELL(9,14,0,0)
+                  UnaryClassTyCon { data_con = dc } -> do
+                    dc' <- mkData dc
+                    return . Just $ G2.DataTyCon bv [dc'] ADTSourceCode False
+#endif
                   SumTyCon {} -> error "Unhandled TyCon SumTyCon"
         | otherwise ->
             case isTypeSynonymTyCon t of
