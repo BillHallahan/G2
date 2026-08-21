@@ -5,7 +5,6 @@ module G2.Language.Monad.AST where
 
 import G2.Language.AST
 import G2.Language.Syntax
-import G2.Language.PathConds
 
 import qualified Data.Text as T
 

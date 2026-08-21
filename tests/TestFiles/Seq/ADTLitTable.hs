@@ -1,6 +1,6 @@
 module ADTLitTable where
 
--- CONFIG: --smt-lists --smt-lams --lit-tables --smt-adts AB,Maybe
+-- CONFIG: --smt-lists --smt-lams --lit-tables --smt-tuples --smt-adts AB,Maybe
 
 data AB = A | B deriving Eq
 
@@ -74,6 +74,21 @@ takeWhile5 m xs =
                     | _:_ <- xs -> (3, ys)
                     | otherwise -> (4, ys)
                 [] -> (5, ys)
+        _ -> (6, ys)
+
+takeWhile6 :: AB -> [(Int, Int)] -> (Int, [(Int, Int)])
+takeWhile6 m xs =
+    let
+        ys = takeWhile (\(x, _) -> case m of
+                                        A -> x > 4
+                                        B -> x < 2) xs
+    in
+    case ys of
+        ((7, 5):_) -> (1, ys)
+        ((7, _):_) -> (2, ys)
+        ((_, 5):_) -> (3, ys)
+        ((1, _):_) -> (4, ys)
+        [] -> (5, ys)
         _ -> (6, ys)
 
 map1 :: [AB] -> (Int, [AB])

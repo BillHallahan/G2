@@ -350,6 +350,8 @@ moveOutStatePieces tenv_name s = do
              , lit_table_stack = $(lit_table_stack_exp)
              , lit_tables = $(lit_tables_exp)
 
+             , forcing_var = False
+
              , global_lit_table_pc = PC.fromList $(global_lit_table_pc_exp)
              
              , log_path = [] } |]

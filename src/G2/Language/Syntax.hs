@@ -336,6 +336,9 @@ data Primitive = -- Mathematical and logical operators
                -- 0: Any other type
                | TypeIndex TypeHandling
 
+               -- (force x y) forces deep evaluation of x and then returns y
+               | Force -- ^ Force :: a -> b -> b
+
                -- Errors
                | Error
                | Undefined

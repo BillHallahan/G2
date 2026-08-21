@@ -600,6 +600,7 @@ mkPrimHaskell pg = pr
         pr EvalsToSMTRep = "evalsToSMTRep"
 
         pr (TypeIndex _) = "typeIndex"
+        pr Force = "force"
 
         pr ForAllBoundPr = "forall_bound"
 
@@ -892,6 +893,7 @@ prettyCEAction :: PrettyGuide -> CEAction -> T.Text
 prettyCEAction pg (EnsureEq e) = "EnsureEq " <> mkDirtyExprHaskell pg e
 prettyCEAction pg (UpdateSolvingFCs fc_stat) = "UpdateSolving " <> prettyFCStatus pg fc_stat
 prettyCEAction _ DiscardIfNoError = "DiscardIfNoError"
+prettyCEAction _ DisableForcingVar = "DisableForcingVar"
 prettyCEAction _ NoAction = "NoAction"
 
 prettyEEnv :: TV.TyVarEnv -> PrettyGuide -> CurrExpr -> Stack Frame -> ExprEnv -> T.Text
