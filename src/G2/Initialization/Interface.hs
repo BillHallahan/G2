@@ -55,7 +55,7 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
                                 then (E.insert (typeIndex kv) 
                                             (Lam TypeL t . Lam TermL x . Lit $ LitInt 0) eenv4, ng2)
                                 else mapFst adjTyH $ trivializeDCs TV.empty ng2 kv eenv4
-        eenv6 = if smt_strings config == NoSMTStrings
+        eenv6 = if smt_strings config == NoSMTStrings && smt_prim_lists config == NoSMTSeq
                         then E.insert (adjStr kv) 
                                       (Lam TypeL t . Lam TermL x . Lam TermL str $ Var x) eenv5
                         else eenv5
