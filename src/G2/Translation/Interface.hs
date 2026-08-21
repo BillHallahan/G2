@@ -88,7 +88,7 @@ translateLoaded proj src tr_con config = do
   (base_exg2, b_nm, b_tnm) <- translateBase tr_con' config extra_imp' Nothing
 
   -- Now the stuff with the actual target
-  (f_nm, f_tm, exg2) <- hskToG2ViaEMS tr_con'  tar_ems b_nm b_tnm
+  (f_nm, f_tm, exg2) <- hskToG2ViaEMS tr_con' tar_ems b_nm b_tnm
   let mb_modname = exg2_mod_names exg2
   let exg2' = adjustAssertG2Symbolic f_nm
             . adjustAssertGHC f_nm
