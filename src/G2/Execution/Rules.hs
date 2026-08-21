@@ -163,6 +163,17 @@ getValidStates config no_inline solver simplifier ng new_pc = do
                     FCUnsat -> return (ng_, Nothing)
             | otherwise = return (ng_, Just s_)
 
+-- Note [Forcing Sharing]
+-- The force primitive allows forcing deep evaluation of a value. Suppose we have the following heap mapping:
+-- @
+--   x -> (1 + 2, 7 + 9)
+-- @
+-- and wish to force deep evaluation of x. We would then want, after deep evaluation, a heap mapping
+-- where the first value in x is `3` and the second value in x is `16`.
+-- However, x is already in SWHNF, so by the normal rules for sharing, it's value would not be updated.
+-- We thus ignore these normal rules, and ALWAYS add update frames, when we are forcing evaluation of
+-- some expression.
+
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing init_s ng i
@@ -231,7 +242,8 @@ evalVarSharing init_s ng i
     -- expression that it points to. After the evaluation,
     -- we pop the stack to add a redirection pointer into the heap.
     | Just e' <- e
-    , isExprValueForm eenv e' =
+    , isExprValueForm eenv e'
+    , not (forcing_var s) = -- See Note [Forcing Sharing]
       ( RuleEvalVarVal (idName i), [s { curr_expr = CurrExpr Evaluate e' }] ++ lt_extra, ng)
     | Just e' <- e = -- e' is NOT in SWHNF
       ( RuleEvalVarNonVal (idName i)
@@ -308,6 +320,19 @@ evalApp s@(State { expr_env = eenv
         let lam' = simplifyExprs eenv eenv lam
             e1' = mkApp [Prim MapConcatI t, lam']
         in forceEval (App e1' e2) eenv tenv tv_env kv tc s ng
+
+    | [Prim Force _, _ {- type -}, e_force {- expression to force eval of -}] <- unApp e1 =
+        let
+            stck' = Stck.push (CurrExprFrame DisableForcingVar (CurrExpr Evaluate e2)) (exec_stack s)
+            s' = s { curr_expr = CurrExpr Evaluate e_force
+                   , exec_stack = stck'
+                   , forcing_var = True }
+            new_pc = SingleState s'
+        in
+        (RuleEvalPrimToNorm, new_pc, ng)
+    | (Prim Force _:_) <- unApp e1 =
+        (RuleEvalPrimToNorm, SingleState $ s { curr_expr = CurrExpr Return (App e1 e2) }, ng)
+
     -- Float ticks to the top of a prim
     | Prim _ _:es <- unApp (App e1 e2)
     , ts <- concatMap getTickish es
@@ -1379,6 +1404,12 @@ retCurrExpr s _ DiscardIfNoError orig_ce stck ng =
                 , ng )
         False -> (RuleReturnCurrExprFr, NoState, ng)
 
+retCurrExpr s _ DisableForcingVar orig_ce stck ng =
+    ( RuleReturnCurrExprFr
+    , newPCEmpty $ s { curr_expr = orig_ce
+                     , exec_stack = stck
+                     , forcing_var = False }
+    , ng )
 retCurrExpr s _ NoAction orig_ce stck ng =
     let
         s'= noActionUpdateState s orig_ce stck
