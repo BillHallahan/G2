@@ -1723,7 +1723,7 @@ solveLitVals solver simplifier fcs = do
     case r of
             Just (ng', s') -> do
                 SM.put (s', ng')
-                whenLogging "solvLitVals" $ return ()
+                whenLogging "solveLitVals" $ return ()
                 return True
             _ -> do
                 -- We did not find a solution, revert to old ExprEnv
@@ -1744,9 +1744,13 @@ unifyAllRetSymVars fcs@(fc_first:_) = do
     ty_bool <- tyBoolT
 
     let ret_ty = typeOf tv_env $ fc_ret fc_first
-    let m_unify_i = firstJust (\fc -> isSymbolicVar (fc_ret fc) eenv) fcs
+    let m_unify_conc = find (\fc -> not (isJust $ isSymbolicVar (fc_ret fc) eenv)) fcs
+    let m_unify_sym = firstJust (\fc -> isSymbolicVar (fc_ret fc) eenv) fcs
+    let m_unify_i = case m_unify_conc of
+                        Just fc -> Just $ fc_ret fc
+                        Nothing -> fmap Var m_unify_sym
     case m_unify_i of
-        Just unify_i@(Id unify_n _) | not (isPrimType ret_ty) && not (ret_ty == ty_bool) -> do
+        Just (Var unify_i@(Id unify_n _)) | not (isPrimType ret_ty) && not (ret_ty == ty_bool) -> do
                 fcs' <- mapM (\fc -> case fc_ret fc of
                                         (Var (Id n _))
                                             | Just (E.Sym (Id sym_n _)) <- E.deepLookupConcOrSym n eenv
