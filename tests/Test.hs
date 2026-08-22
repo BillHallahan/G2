@@ -29,7 +29,6 @@ import System.FilePath
 import PeanoTest
 import HigherOrderMathTest
 import DefuncTest
-import FuzzExecution
 import CaseTest
 import Expr
 import ExecSkip

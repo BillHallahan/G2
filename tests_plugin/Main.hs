@@ -63,6 +63,9 @@ tests = testGroup "All Tests"
                                 , ("isNum", "smtIsNum")
                                 , ("containsFour", "smtContainsFour")
                                 , ("noPat", "smtNoPat")
+
+                                -- Zeno
+                                , ("len", "lenSMT")
                                 ]
                                 -- Non-equivalent functions
                                 [
