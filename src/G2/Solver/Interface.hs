@@ -16,6 +16,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Solver.Converters
 import G2.Solver.Solver
 
+import qualified Data.Foldable as F
 import qualified Data.List as L
 import Data.Maybe (mapMaybe, isJust, fromJust)
 import qualified Data.HashMap.Lazy as HM
@@ -177,7 +178,7 @@ pushCaseAppArgIn' e = e
 addFCToExprEnv :: State t -> State t
 addFCToExprEnv s =
     let
-        eenv' = foldl' go (expr_env s) (concatMap (\(n, fc) -> map (n,) fc) . HM.toList $ sym_func_constraints s)
+        eenv' = F.foldl' go (expr_env s) (concatMap (\(n, fc) -> map (n,) fc) . HM.toList $ sym_func_constraints s)
     in
     s { expr_env = eenv' }
     where
