@@ -3,6 +3,7 @@
 
 module ReverseArgs where
 
+import G2.Plugin
 
 omega :: Int
 omega = omega

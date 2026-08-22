@@ -1744,13 +1744,13 @@ unifyAllRetSymVars fcs@(fc_first:_) = do
     ty_bool <- tyBoolT
 
     let ret_ty = typeOf tv_env $ fc_ret fc_first
-    let m_unify_conc = find (\fc -> not (isJust $ isSymbolicVar (fc_ret fc) eenv)) fcs
-    let m_unify_sym = firstJust (\fc -> isSymbolicVar (fc_ret fc) eenv) fcs
-    let m_unify_i = case m_unify_conc of
-                        Just fc -> Just $ fc_ret fc
-                        Nothing -> fmap Var m_unify_sym
-    case m_unify_i of
-        Just (Var unify_i@(Id unify_n _)) | not (isPrimType ret_ty) && not (ret_ty == ty_bool) -> do
+    let m_unify_i = firstJust (\fc -> isSymbolicVar (fc_ret fc) eenv) fcs
+    fr_unify_i <- freshSeededIdN (Name "unify" Nothing 0 Nothing) ret_ty
+    insertSymbolicE fr_unify_i
+    let m_use_unify_i = if isTyFun ret_ty then m_unify_i else Just fr_unify_i
+
+    case m_use_unify_i of
+        Just unify_i@(Id unify_n _) | not (isPrimType ret_ty) && not (ret_ty == ty_bool) -> do
                 fcs' <- mapM (\fc -> case fc_ret fc of
                                         (Var (Id n _))
                                             | Just (E.Sym (Id sym_n _)) <- E.deepLookupConcOrSym n eenv
