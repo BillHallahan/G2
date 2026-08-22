@@ -76,24 +76,24 @@ _    && _    = False
 x === y = x == y
 
 -- List functions
-null :: [Nat] -> Bool
+null :: [a] -> Bool
 null [] = True
 null _  = False
 
-(++) :: [Nat] -> [Nat] -> [Nat]
+(++) :: [a] -> [a] -> [a]
 [] ++ ys = ys
 (x:xs) ++ ys = x : (xs ++ ys)
 
-rev :: [Nat] -> [Nat]
+rev :: [a] -> [a]
 rev [] = []
 rev (x:xs) = rev xs ++ [x]
 
-zip :: [Nat] -> [Nat] -> [(Nat, Nat)]
+zip :: [a] -> [b] -> [(a, b)]
 zip [] _ = []
 zip _ [] = []
 zip (x:xs) (y:ys) = (x, y) : (zip xs ys)
 
-delete :: Nat -> [Nat] -> [Nat]
+delete :: Eq a => a -> [a] -> [a]
 delete _ [] = []
 delete n (x:xs) =
   case n === x of
@@ -101,63 +101,63 @@ delete n (x:xs) =
     False -> x : (delete n xs)
 
 {-# ANN len (SMTEquivIs "lenSMT") #-}
-len :: [Nat] -> Nat
+len :: [a] -> Nat
 len [] = 0
 len (_:xs) = 1 + (len xs)
 
-lenSMT :: [Nat] -> Nat
-lenSMT = smtLen
+lenSMT :: [a] -> Nat
+lenSMT xs = smtLen xs
 
-elem :: Nat -> [Nat] -> Bool
+elem :: Eq a => a -> [a] -> Bool
 elem _ [] = False
 elem n (x:xs) =
   case n === x of
     True -> True
     False -> elem n xs
 
-drop :: Nat -> [Nat] -> [Nat]
+drop :: Nat -> [a] -> [a]
 drop 0 xs = xs
 drop _ [] = []
 drop x (_:xs) = drop (x - 1) xs
 
-take :: Nat -> [Nat] -> [Nat]
+take :: Nat -> [a] -> [a]
 take 0 _ = []
 take _ [] = []
 take x (y:ys) = y : (take (x - 1) ys)
 
-count :: Nat -> [Nat] -> Nat
+count :: Eq a => a -> [a] -> Nat
 count x [] = 0
 count x (y:ys) =
   case x === y of
     True -> 1 + (count x ys)
     _ -> count x ys
 
-map :: (Nat -> Nat) -> [Nat] -> [Nat]
+map :: (a -> b) -> [a] -> [b]
 map f [] = []
 map f (x:xs) = (f x) : (map f xs)
 
-takeWhile :: (Nat -> Bool) -> [Nat] -> [Nat]
+takeWhile :: (a -> Bool) -> [a] -> [a]
 takeWhile _ [] = []
 takeWhile p (x:xs) =
   case p x of
     True -> x : (takeWhile p xs)
     _ -> []
 
-dropWhile :: (Nat -> Bool) -> [Nat] -> [Nat]
+dropWhile :: (a -> Bool) -> [a] -> [a]
 dropWhile _ [] = []
 dropWhile p (x:xs) =
   case p x of
     True -> dropWhile p xs
     _ -> x:xs
 
-filter :: (Nat -> Bool) -> [Nat] -> [Nat]
+filter :: (a -> Bool) -> [a] -> [a]
 filter _ [] = []
 filter p (x:xs) =
   case p x of
     True -> x : (filter p xs)
     _ -> filter p xs
 
-butlast :: [Nat] -> [Nat]
+butlast :: [a] -> [a]
 butlast [] = []
 butlast [x] = []
 butlast (x:xs) = x:(butlast xs)
@@ -197,7 +197,7 @@ sort :: [Nat] -> [Nat]
 sort [] = []
 sort (x:xs) = insort x (sort xs)
 
-butlastConcat :: [Nat] -> [Nat] -> [Nat]
+butlastConcat :: [a] -> [a] -> [a]
 butlastConcat xs [] = butlast xs
 butlastConcat xs ys = xs ++ butlast ys
 
@@ -205,19 +205,19 @@ lastOfTwo :: [Nat] -> [Nat] -> Nat
 lastOfTwo xs [] = last xs
 lastOfTwo _ ys = last ys
 
-zipConcat :: Nat -> [Nat] -> [Nat] -> [(Nat, Nat)]
+zipConcat :: a -> [a] -> [b] -> [(a, b)]
 zipConcat _ _ [] = []
 zipConcat x xs (y:ys) = (x, y) : zip xs ys
 
-height :: Tree Nat -> Nat
+height :: Tree a -> Nat
 height Leaf = 0
 height (Node l x r) = 1 + (max (height l) (height r))
 
-mirror :: Tree Nat -> Tree Nat
+mirror :: Tree a -> Tree a
 mirror Leaf = Leaf
 mirror (Node l x r) = Node (mirror r) x (mirror l)
 
-prop_01 :: Nat -> [Nat] -> Bool
+prop_01 :: Eq a => Nat -> [a] -> Bool
 prop_01 n xs
   = (take n xs ++ drop n xs =:= xs)
 
@@ -257,19 +257,19 @@ prop_10 :: Nat -> Bool
 prop_10 m
   = (m - m =:= 0)
 
-prop_11 :: [Nat] -> Bool
+prop_11 :: Eq a => [a] -> Bool
 prop_11 xs
   = (drop 0 xs =:= xs)
 
-prop_12 :: Nat -> (Nat -> Nat) -> [Nat] -> Bool
+prop_12 :: Eq a => Eq a1 => Nat -> (a1 -> a) -> [a1] -> Bool
 prop_12 n f xs
   = (drop n (map f xs) =:= map f (drop n xs))
 
-prop_13 :: Nat -> Nat -> [Nat] -> Bool
+prop_13 :: Eq a => Nat -> a -> [a] -> Bool
 prop_13 n x xs
   = (drop (1 + n) (x : xs) =:= drop n xs)
 
-prop_14 :: (Nat -> Bool) -> [Nat] -> [Nat] -> Bool
+prop_14 :: Eq a => (a -> Bool) -> [a] -> [a] -> Bool
 prop_14 p xs ys
   = (filter p (xs ++ ys) =:= (filter p xs) ++ (filter p ys))
 
@@ -289,7 +289,7 @@ prop_18 :: Nat -> Nat -> Bool
 prop_18 i m
   = proveBool (i < 1 + (i + m))
 
-prop_19 :: Nat -> [Nat] -> Bool
+prop_19 :: Eq a => Nat -> [a] -> Bool
 prop_19 n xs
   = (len (drop n xs) =:= len xs - n)
 
@@ -355,11 +355,11 @@ prop_34 :: Nat -> Nat -> Bool
 prop_34 a b
   = (min a b === b =:= b <= a)
 
-prop_35 :: [Nat] -> Bool
+prop_35 :: Eq a => [a] -> Bool
 prop_35 xs
   = (dropWhile (\_ -> False) xs =:= xs)
 
-prop_36 :: [Nat] -> Bool
+prop_36 :: Eq a => [a] -> Bool
 prop_36 xs
   = (takeWhile (\_ -> True) xs =:= xs)
 
@@ -375,35 +375,35 @@ prop_39 :: Nat -> Nat -> [Nat] -> Bool
 prop_39 n x xs
   = (count n [x] + count n xs =:= count n (x:xs))
 
-prop_40 :: [Nat] -> Bool
+prop_40 :: Eq a => [a] -> Bool
 prop_40 xs
   = (take 0 xs =:= [])
 
-prop_41 :: Nat -> (Nat -> Nat) -> [Nat] -> Bool
+prop_41 :: Eq a => Eq a1 => Nat -> (a1 -> a) -> [a1] -> Bool
 prop_41 n f xs
   = (take n (map f xs) =:= map f (take n xs))
 
-prop_42 :: Nat -> Nat -> [Nat] -> Bool
+prop_42 :: Eq a => Nat -> a -> [a] -> Bool
 prop_42 n x xs
   = (take n (x:xs) =:= x : (take (n - 1) xs))
 
-prop_43 :: (Nat -> Bool) -> [Nat] -> Bool
+prop_43 :: Eq a => (a -> Bool) -> [a] -> Bool
 prop_43 p xs
   = (takeWhile p xs ++ dropWhile p xs =:= xs)
 
-prop_44 :: Nat -> [Nat] -> [Nat] -> Bool
+prop_44 :: Eq a => Eq b => a -> [a] -> [b] -> Bool
 prop_44 x xs ys
   = (zip (x:xs) ys =:= zipConcat x xs ys)
 
-prop_45 :: Nat -> Nat -> [Nat] -> [Nat] -> Bool
+prop_45 :: Eq a => Eq b => a -> b -> [a] -> [b] -> Bool
 prop_45 x y xs ys
   = (zip (x:xs) (y:ys) =:= (x, y) : zip xs ys)
 
-prop_46 :: [Nat] -> Bool
+prop_46 :: Eq b => [b] -> Bool
 prop_46 xs
   = (zip ([] :: [Nat]) xs =:= [])
 
-prop_47 :: Tree Nat -> Bool
+prop_47 :: Eq a => Tree a -> Bool
 prop_47 a
   = (height (mirror a) =:= height a)
 
@@ -412,15 +412,15 @@ prop_48 xs
   = givenBool (not (null xs))
   ( (butlast xs ++ [last xs] =:= xs) )
 
-prop_49 :: [Nat] -> [Nat] -> Bool
+prop_49 :: Eq a => [a] -> [a] -> Bool
 prop_49 xs ys
   = (butlast (xs ++ ys) =:= butlastConcat xs ys)
 
-prop_50 :: [Nat] -> Bool
+prop_50 :: Eq a => [a] -> Bool
 prop_50 xs
   = (butlast xs =:= take (len xs - 1) xs)
 
-prop_51 :: [Nat] -> Nat -> Bool
+prop_51 :: Eq a => [a] -> a -> Bool
 prop_51 xs x
   = (butlast (xs ++ [x]) =:= xs)
 
@@ -436,19 +436,19 @@ prop_54 :: Nat -> Nat -> Bool
 prop_54 n m
   = ((m + n) - n =:= m)
 
-prop_55 :: Nat -> [Nat] -> [Nat] -> Bool
+prop_55 :: Eq a => Nat -> [a] -> [a] -> Bool
 prop_55 n xs ys
   = (drop n (xs ++ ys) =:= drop n xs ++ drop (n - len xs) ys)
 
-prop_56 :: Nat -> Nat -> [Nat] -> Bool
+prop_56 :: Eq a => Nat -> Nat -> [a] -> Bool
 prop_56 n m xs
   = (drop n (drop m xs) =:= drop (n + m) xs)
 
-prop_57 :: Nat -> Nat -> [Nat] -> Bool
+prop_57 :: Eq a => Nat -> Nat -> [a] -> Bool
 prop_57 n m xs
   = (drop n (take m xs) =:= take (m - n) (drop n xs))
 
-prop_58 :: Nat -> [Nat] -> [Nat] -> Bool
+prop_58 :: Eq a => Eq b => Nat -> [a] -> [b] -> Bool
 prop_58 n xs ys
   = (drop n (zip xs ys) =:= zip (drop n xs) (drop n ys))
 
@@ -483,15 +483,15 @@ prop_65 :: Nat -> Nat -> Bool
 prop_65 i m =
   proveBool (i < 1 + (m + i))
 
-prop_66 :: (a -> Bool) -> [Nat] -> Bool
+prop_66 :: Eq a => (a -> Bool) -> [a] -> Bool
 prop_66 p xs
   = proveBool (len (filter p xs) <= len xs)
 
-prop_67 :: [Nat] -> Bool
+prop_67 :: Eq a => [a] -> Bool
 prop_67 xs
   = (len (butlast xs) =:= len xs - 1)
 
-prop_68 :: Nat -> [Nat] -> Bool
+prop_68 :: Eq a => a -> [a] -> Bool
 prop_68 n xs
   = proveBool (len (delete n xs) <= len xs)
 
@@ -509,15 +509,15 @@ prop_71 x y xs
   = given (x === y =:= False)
   ( (elem x (ins y xs) =:= elem x xs) )
 
-prop_72 :: Nat -> [Nat] -> Bool
+prop_72 :: Eq a => Nat -> [a] -> Bool
 prop_72 i xs
   = (rev (drop i xs) =:= take (len xs - i) (rev xs))
 
-prop_73 :: (Nat -> Bool) -> [Nat] -> Bool
+prop_73 :: Eq a => (a -> Bool) -> [a] -> Bool
 prop_73 p xs
   = (rev (filter p xs) =:= filter p (rev xs))
 
-prop_74 :: Nat -> [Nat] -> Bool
+prop_74 :: Eq a => Nat -> [a] -> Bool
 prop_74 i xs
   = (rev (take i xs) =:= drop (len xs - i) (rev xs))
 
@@ -543,29 +543,29 @@ prop_79 :: Nat -> Nat -> Nat -> Bool
 prop_79 m n k
   = ((1 + m - n) - (1 + k) =:= (m - n) - k)
 
-prop_80 :: Nat -> [Nat] -> [Nat] -> Bool
+prop_80 :: Eq a => Nat -> [a] -> [a] -> Bool
 prop_80 n xs ys
   = (take n (xs ++ ys) =:= take n xs ++ take (n - len xs) ys)
 
-prop_81 :: Nat -> Nat -> [Nat] -> Bool
+prop_81 :: Eq a => Nat -> Nat -> [a] -> Bool
 prop_81 n m xs {- ys -}
   = (take n (drop m xs) =:= drop m (take (n + m) xs))
 
-prop_82 :: Nat -> [Nat] -> [Nat] -> Bool
+prop_82 :: Eq a => Eq b => Nat -> [a] -> [b] -> Bool
 prop_82 n xs ys
   = (take n (zip xs ys) =:= zip (take n xs) (take n ys))
 
-prop_83 :: [Nat] -> [Nat] -> [Nat] -> Bool
+prop_83 :: Eq a => Eq b => [a] -> [a] -> [b] -> Bool
 prop_83 xs ys zs
   = (zip (xs ++ ys) zs =:=
            zip xs (take (len xs) zs) ++ zip ys (drop (len xs) zs))
 
-prop_84 :: [Nat] -> [Nat] -> [Nat] -> Bool
+prop_84 :: Eq a => Eq a1 => [a] -> [a1] -> [a1] -> Bool
 prop_84 xs ys zs
   = (zip xs (ys ++ zs) =:=
            zip (take (len ys) xs) ys ++ zip (drop (len ys) xs) zs)
 
-prop_85 :: [Nat] -> [Nat] -> Bool
+prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 prop_85 xs ys
   = (len xs =:= len ys) ===>
     (zip (rev xs) (rev ys) =:= rev (zip xs ys))
