@@ -678,6 +678,11 @@ testFileTests = testGroup "TestFiles"
                                                                    , ("takeWhile2", 10000, [Exactly 2])
                                                                    , ("map1", 10000, [Exactly 2]) ]
 
+    , checkInputOutputs "tests/TestFiles/Seq/Uninterpreted.hs" [ ("call1", 10000, [Exactly 4])
+                                                               , ("call2", 10000, [Exactly 8])
+                                                               , ("map1", 10000, [Exactly 4])
+                                                               , ("map2", 10000, [Exactly 6]) ]
+
     , checkInputOutputsSMTListsWith "tests/TestFiles/Seq/Seq1.hs" "floatListEq" [ ("conFloat", 1000, [Exactly 1])
                                                                                 , ("conDouble", 1000, [Exactly 1])]
 
