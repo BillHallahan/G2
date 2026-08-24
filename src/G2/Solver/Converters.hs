@@ -1429,4 +1429,7 @@ certainStrToName :: String -> Name
 certainStrToName s =
     case maybe_StrToName s of
         Just n -> n
-        Nothing -> Name (T.pack s) Nothing 0 Nothing
+        Nothing -> Name (T.pack $ repExclamation s) Nothing 0 Nothing
+
+repExclamation :: String -> String
+repExclamation = map (\c -> if c == '!' then '_' else c)
