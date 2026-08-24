@@ -1396,7 +1396,7 @@ smtastToExpr kv tenv tv_env arg_tys t@(TyFun _ _) (ArrayStore arr ind val) =
 smtastToExpr kv tenv tv_env arg_tys t@(TyFun _ _) (ArrayConst v _ _) =
     let
         arg_ty = anonArgumentTypes t
-        bound_i = zipWith (\i -> Id (Name "lam__!!_G2_arr_store" Nothing i Nothing)) [1..] arg_ty
+        bound_i = zipWith (\i -> Id (Name "lam__G2_arr_store" Nothing i Nothing)) [1..] arg_ty
     in
     mkLams (zip (repeat TermL) bound_i) $ smtastToExpr kv tenv tv_env arg_tys (returnType t) v
 

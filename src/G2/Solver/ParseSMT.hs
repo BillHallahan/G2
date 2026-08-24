@@ -408,8 +408,8 @@ parseUni = do
         _ -> fail $ "parseUni': Bad string " ++ str
 
 parseSort :: Parser Sort
-parseSort =
-     (do
+parseSort = do
+     try (do
         _ <- string "Array"
         _ <- whiteSpace
         sorts <- many1 (do srt <- parseSort; _ <- whiteSpace; return srt)
@@ -418,11 +418,11 @@ parseSort =
         return (SortArray inds val)
         )
     <|>
-    (do _ <- string "Int"; return SortInt)
+    try (do _ <- string "Int"; return SortInt)
     <|>
-    (do _ <- string "Bool"; return SortBool)
+    try (do _ <- string "Bool"; return SortBool)
     <|>
-    (do _ <- string "String"; return SortString)
+    try (do _ <- string "String"; return SortString)
     <|>
     (return . ParSort =<< identifier)
     <|>
