@@ -5,6 +5,7 @@ module G2.Solver.Interface
     , subModel
     , subVar
     , subVarFuncCall
+    , addFCToExprEnv
     , SMTConverter (..)
     , Solver (..)
     ) where
@@ -15,6 +16,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Solver.Converters
 import G2.Solver.Solver
 
+import qualified Data.Foldable as F
 import qualified Data.List as L
 import Data.Maybe (mapMaybe, isJust, fromJust)
 import qualified Data.HashMap.Lazy as HM
@@ -172,3 +174,16 @@ pushCaseAppArgIn' :: Expr -> Expr
 pushCaseAppArgIn' (App (Case scrut bind t as) v@(Var _)) =
     Case scrut bind t $ map (\(Alt am e) -> Alt am (App e v) ) as
 pushCaseAppArgIn' e = e
+
+addFCToExprEnv :: State t -> State t
+addFCToExprEnv s =
+    let
+        eenv' = F.foldl' go (expr_env s) (concatMap (\(n, fc) -> map (n,) fc) . HM.toList $ sym_func_constraints s)
+    in
+    s { expr_env = eenv' }
+    where
+        go eenv (fc_n, fc) 
+            | Var (Id n _) <- fc_ret fc
+            , Just (E.Sym _) <- E.deepLookupConcOrSym n eenv =
+                E.insert n (mkApp $ Var (Id fc_n TyUnknown):fc_args fc) eenv
+            | otherwise = eenv
