@@ -29,7 +29,6 @@ import System.FilePath
 import PeanoTest
 import HigherOrderMathTest
 import DefuncTest
-import FuzzExecution
 import CaseTest
 import Expr
 import ExecSkip
@@ -793,6 +792,8 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("repIte1", 1000 * 1000, [AtLeast 2, AtMost 3])
                                                                        , ("repIte2", 1000 * 1000, [AtLeast 2, AtMost 3])
                                                                        , ("duplicate", 1000, [Exactly 2])
+                                                                       , ("map1", 500, [AtLeast 10])
+                                                                       , ("map2", 500, [AtLeast 10])
                                                                        ]                                                                                         
 
     , checkInputOutputsSymFuncConstraints "tests/HigherOrder/FAHigherOrder.hs"

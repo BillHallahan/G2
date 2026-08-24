@@ -284,3 +284,28 @@ duplicate2 f xs =
     case f infInt2 xs of
         1 -> 1
         _ -> 2 -- If called from duplicate, this is unreachable
+
+data UV = U | V deriving Eq
+
+map1 :: (UV -> UV) -> [UV] -> (Int, [UV])
+map1 f xs =
+    let
+        ys = map f xs
+    in
+    case ys of
+        [] -> (1, ys)
+        (U:_) -> (2, ys)
+        _ -> (3, ys)
+
+map2 :: (UV -> UV) -> [UV] -> [UV] -> (Int, [UV], [UV])
+map2 f xs ys =
+    let
+        xs' = map f xs
+        ys' = map f ys
+    in
+    case xs' of
+        [] -> (1, xs', ys')
+        (U:_) -> case ys' of
+                    (V:_) -> (2, xs', ys')
+                    _ -> (3, xs', ys')
+        _ -> (4, xs', ys')
