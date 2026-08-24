@@ -23,6 +23,7 @@ module G2.Execution.Rules ( module G2.Execution.RuleTypes
                           , freshSymFuncTicks
                           , defSymFuncTicks
                           , retReplaceSymbFuncVar
+                          , retReplaceSymbFuncPC
                           , retReplaceSymbFuncTemplate
 
                           , buildHigherOrderCaseAlts
@@ -1982,6 +1983,38 @@ retReplaceSymbFuncVar _
     where
         notApplyFrame | Just (frm, _) <- S.pop stck = not (isApplyFrame frm)
                       | otherwise = True
+
+-- If the expression is a symbolic higher order function application, we force evaluation of all arguments.
+-- If all arguments have been evaluated, the expression is replaced with a symbolic variable of the correct type,
+-- and a REGULAR path constraint is added, to record the mapping
+retReplaceSymbFuncPC :: SymFuncTicks ->  State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
+retReplaceSymbFuncPC _
+                     s@(State { expr_env = eenv
+                              , exec_stack = stck
+                              , tyvar_env = tvnv
+                              , path_conds = pcs })
+                     ng ce
+    | notApplyFrame
+    , (Var (Id f idt):_) <- unApp ce
+    , E.isSymbolic f eenv
+    , isTyFun idt
+    , t <- typeOf tvnv ce
+    , not (isTyFun t) =
+        let
+            (new_sym, ng') = freshSeededString "sym" ng
+            new_sym_id = Id new_sym t
+            new_pc = ExtCond (mkApp [Prim Eq TyUnknown, Var new_sym_id, ce]) True
+        in
+        Just (RuleReturnReplaceSymbFunc,
+            [s { expr_env = E.insertSymbolic new_sym_id eenv
+               , curr_expr = CurrExpr Return (Var new_sym_id)
+               , path_conds = PC.insert new_pc pcs }]
+            , ng')
+    | otherwise = Nothing
+    where
+        notApplyFrame | Just (frm, _) <- S.pop stck = not (isApplyFrame frm)
+                      | otherwise = True
+
 
 isApplyFrame :: Frame -> Bool
 isApplyFrame (ApplyFrame _) = True
