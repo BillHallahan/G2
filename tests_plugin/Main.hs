@@ -66,6 +66,14 @@ tests = testGroup "All Tests"
 
                                 -- Zeno
                                 , ("len", "lenSMT")
+                                , ("rev", "revSMT")
+                                , ("null", "nullSMT")
+                                , ("delete", "deleteSMT")
+                                , ("++", "appendSMT")
+                                , ("elem", "elemSMT")
+                                , ("drop", "dropSMT")
+                                , ("take", "takeSMT")
+                                , ("count", "countSMT")
                                 ]
                                 -- Non-equivalent functions
                                 [
