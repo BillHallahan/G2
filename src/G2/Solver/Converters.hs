@@ -1401,7 +1401,8 @@ smtastToExpr kv tenv tv_env arg_tys t@(TyFun _ _) (ArrayConst v _ _) =
     in
     mkLams (zip (repeat TermL) bound_i) $ smtastToExpr kv tenv tv_env arg_tys (returnType t) v
 
-smtastToExpr _ _ _ _ _ smt = error $ "smtastToExpr: Conversion of this SMTAST to an Expr not supported." ++ "\n" ++ show smt
+smtastToExpr _ _ tv_env _ t smt =
+    error $ "smtastToExpr: Conversion of this SMTAST to an Expr not supported." ++ "\n" ++ show smt ++ "\n" ++ show t ++ "\n" ++ show (tyVarSubst tv_env t)
 
 getTypeForList :: TyVarEnv -> Type -> Type
 getTypeForList tv_env (TyApp _ t) = tyVarSubst tv_env t
