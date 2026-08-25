@@ -1,6 +1,6 @@
 module Uninterpreted where
 
--- CONFIG: --smt-lists --smt-lams --lit-tables --smt-tuples --smt-adts AB,Maybe --higher-order uninterpreted --print-smt
+-- CONFIG: --smt-lists --smt-lams --lit-tables --smt-tuples --smt-adts AB,Maybe --higher-order uninterpreted
 
 data AB = A | B deriving Eq
 
@@ -57,6 +57,23 @@ map2 f xs ys =
     case zs of
         [] -> (1, zs)
         (A:_) -> case xs of
+                    B:_ -> (2, zs)
+                    [] -> case ys of
+                            B:_ -> (3, zs)
+                            _ -> (4, zs)
+                    _ -> (5, zs)
+        _ -> (6, zs)
+
+map3 :: (AB -> AB) -> (AB -> AB) -> [AB] -> [AB] -> (Int, [AB])
+map3 f g xs ys =
+    let
+        ws = map f (xs ++ ys)
+        zs = map g (xs ++ ys)
+        ws_zs = map (f . g) xs
+    in
+    case zs of
+        [] -> (1, zs)
+        (A:_) -> case ws_zs of
                     B:_ -> (2, zs)
                     [] -> case ys of
                             B:_ -> (3, zs)

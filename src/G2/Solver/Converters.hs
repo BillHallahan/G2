@@ -1316,6 +1316,13 @@ smtastToExpr kv tenv tv_env arg_tys t (DataSMT dc_smt_n as _)
         es = zipWith (smtastToExpr kv tenv tv_env arg_tys) anon_t_inst as
     in
     mkApp $ Data dc:map Type ts ++ es
+smtastToExpr kv tenv tv_env arg_tys t (DataSMT dc_smt_n as _)
+    | let dc_n = certainStrToName dc_smt_n =
+    let
+        es = map (smtastToExpr kv tenv tv_env arg_tys TyUnknown) as
+    in
+    mkApp $ Data (DataCon { dc_name = dc_n, dc_type = TyUnknown, dc_univ_tyvars = [], dc_exist_tyvars = [] }):es
+
 smtastToExpr kv tenv tv_env arg_tys t (LambdaSMT bound body) =
     let
         ts = anonArgumentTypes t
