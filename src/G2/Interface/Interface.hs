@@ -496,7 +496,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                 , io_timed_out
                 , func_const_time)
             Uninterpreted ->
-                ( nrpc_approx_red retReplaceSymbFuncPC .== Finished .--> taggerRed state_name :== Finished
+                ( nrpc_approx_red retReplaceSymbFuncUninterp .== Finished .--> taggerRed state_name :== Finished
                             .--> (SomeReducer nonRedPCRed .== Finished .--> func_constraint_res')
                 , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_func_arg
                 , orderer
