@@ -683,7 +683,8 @@ testFileTests = testGroup "TestFiles"
                                                                , ("call3", 10000, [Exactly 4])
                                                                , ("map1", 10000, [Exactly 4])
                                                                , ("map2", 10000, [Exactly 6])
-                                                               , ("map3", 10000, [Exactly 6]) ]
+                                                               , ("map3", 10000, [Exactly 6])
+                                                               , ("mapInt1", 10000, [Exactly 12]) ]
 
     , checkInputOutputsSMTListsWith "tests/TestFiles/Seq/Seq1.hs" "floatListEq" [ ("conFloat", 1000, [Exactly 1])
                                                                                 , ("conDouble", 1000, [Exactly 1])]

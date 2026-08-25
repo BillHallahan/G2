@@ -80,3 +80,24 @@ map3 f g xs ys =
                             _ -> (4, zs)
                     _ -> (5, zs)
         _ -> (6, zs)
+
+mapInt1 :: (Int -> Int) -> [Int] -> (Int, [Int])
+mapInt1 f xs =
+    case map f xs of
+        [] -> (1, xs)
+        0:1:_ -> case xs of
+                    0:_ -> (2, xs)
+                    _ -> (3, xs)
+        0:_:_ -> case xs of
+                    0:_ -> (4, xs)
+                    _ -> (5, xs)
+        0:_ -> case xs of
+                    0:_ -> (6, xs)
+                    _ -> (7, xs)
+        1:_ -> case xs of
+                    1:_ -> (8, xs)
+                    _ -> (9, xs)
+        _ -> case xs of
+                0:_ -> (10, xs)
+                1:_ -> (11, xs)
+                _ -> (12, xs)
