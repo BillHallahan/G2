@@ -1316,7 +1316,7 @@ smtastToExpr kv tenv tv_env arg_tys t (DataSMT dc_smt_n as _)
         es = zipWith (smtastToExpr kv tenv tv_env arg_tys) anon_t_inst as
     in
     mkApp $ Data dc:map Type ts ++ es
-smtastToExpr kv tenv tv_env arg_tys t (DataSMT dc_smt_n as _)
+smtastToExpr kv tenv tv_env arg_tys _ (DataSMT dc_smt_n as _)
     | let dc_n = certainStrToName dc_smt_n =
     let
         es = map (smtastToExpr kv tenv tv_env arg_tys TyUnknown) as
