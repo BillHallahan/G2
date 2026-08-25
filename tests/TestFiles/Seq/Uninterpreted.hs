@@ -1,6 +1,6 @@
 module Uninterpreted where
 
--- CONFIG: --smt-lists --smt-lams --lit-tables --smt-tuples --smt-adts AB,Maybe --higher-order uninterpreted
+-- CONFIG: --smt-lists --smt-lams --lit-tables --smt-tuples --smt-adts AB,Maybe --higher-order uninterpreted --print-smt
 
 data AB = A | B deriving Eq
 
