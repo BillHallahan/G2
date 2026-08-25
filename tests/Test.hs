@@ -680,6 +680,7 @@ testFileTests = testGroup "TestFiles"
 
     , checkInputOutputs "tests/TestFiles/Seq/Uninterpreted.hs" [ ("call1", 10000, [Exactly 4])
                                                                , ("call2", 10000, [Exactly 8])
+                                                               , ("call3", 10000, [Exactly 4])
                                                                , ("map1", 10000, [Exactly 4])
                                                                , ("map2", 10000, [Exactly 6]) ]
 

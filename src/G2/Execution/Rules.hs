@@ -1991,8 +1991,7 @@ retReplaceSymbFuncPC :: SymFuncTicks ->  State t -> NameGen -> Expr -> Maybe (Ru
 retReplaceSymbFuncPC _
                      s@(State { expr_env = eenv
                               , exec_stack = stck
-                              , tyvar_env = tvnv
-                              , path_conds = pcs })
+                              , tyvar_env = tvnv })
                      ng ce
     | notApplyFrame
     , (Var (Id f idt):ars) <- unApp ce
@@ -2001,11 +2000,20 @@ retReplaceSymbFuncPC _
     , t <- typeOf tvnv ce
     , not (isTyFun t) =
         let
-            new_ce = mkApp $ Prim (UninterpFunc f) idt:ars
+            (is, ng') = freshIds (map (typeOf tvnv) ars) ng
+            eenv' = foldl' (\env (Id n _, e_) -> E.insert n e_ env) eenv $ zip is ars
+            new_ce = mkApp $ Prim (UninterpFunc f) idt:map Var is
+
+            (is_head, is_tail) = fromJust $ L.uncons is
+            stck' = foldl' (\st i -> Stck.push (CurrExprFrame NoAction (CurrExpr Evaluate $ Var i)) st)
+                            (Stck.push (CurrExprFrame NoAction (CurrExpr Return new_ce)) stck )
+                            is_tail
         in
         Just (RuleReturnReplaceSymbFunc,
-            [s { curr_expr = CurrExpr Return new_ce }]
-            , ng)
+            [s { expr_env = eenv'
+               , curr_expr = CurrExpr Evaluate $ Var is_head
+               , exec_stack = stck' }]
+            , ng')
     | otherwise = Nothing
     where
         notApplyFrame | Just (frm, _) <- S.pop stck = not (isApplyFrame frm)

@@ -32,6 +32,11 @@ call2 f ab =
                         A -> 7
                         B -> 8
 
+call3 :: (AB -> AB) -> AB -> Int
+call3 f x = case f (case x of A -> B; B -> A) of
+                A -> 1
+                B -> 2
+
 map1 :: (AB -> AB) -> [AB] -> (Int, [AB])
 map1 f xs =
     let
