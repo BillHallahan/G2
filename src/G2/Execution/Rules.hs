@@ -1995,21 +1995,17 @@ retReplaceSymbFuncPC _
                               , path_conds = pcs })
                      ng ce
     | notApplyFrame
-    , (Var (Id f idt):_) <- unApp ce
+    , (Var (Id f idt):ars) <- unApp ce
     , E.isSymbolic f eenv
     , isTyFun idt
     , t <- typeOf tvnv ce
     , not (isTyFun t) =
         let
-            (new_sym, ng') = freshSeededString "sym" ng
-            new_sym_id = Id new_sym t
-            new_pc = ExtCond (mkApp [Prim Eq TyUnknown, Var new_sym_id, ce]) True
+            new_ce = mkApp $ Prim (UninterpFunc f) idt:ars
         in
         Just (RuleReturnReplaceSymbFunc,
-            [s { expr_env = E.insertSymbolic new_sym_id eenv
-               , curr_expr = CurrExpr Return (Var new_sym_id)
-               , path_conds = PC.insert new_pc pcs }]
-            , ng')
+            [s { curr_expr = CurrExpr Return new_ce }]
+            , ng)
     | otherwise = Nothing
     where
         notApplyFrame | Just (frm, _) <- S.pop stck = not (isApplyFrame frm)

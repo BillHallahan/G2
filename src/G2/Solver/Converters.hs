@@ -543,6 +543,7 @@ lonePrim p = error $ "unhandled Prim in lonePrim: " ++ show p
 
 -- | We split based on whether the passed Expr is a function or known data constructor, or an unknown data constructor
 funcToSMT :: TV.TyVarEnv -> Expr -> [Expr] -> SMTAST
+funcToSMT tv (Prim (UninterpFunc n) _) es = Func (nameToStr n) $ map (exprToSMT tv) es
 funcToSMT tv (Prim p _) [a] = funcToSMT1Prim tv p a
 funcToSMT tv (Prim p _) [a1, a2] = funcToSMT2Prim tv p a1 a2
 funcToSMT tv (Prim p _) [a1, a2, a3] = funcToSMT3Prim tv p a1 a2 a3
