@@ -23,6 +23,7 @@ module G2.Execution.Rules ( module G2.Execution.RuleTypes
                           , freshSymFuncTicks
                           , defSymFuncTicks
                           , retReplaceSymbFuncVar
+                          , retReplaceSymbFuncUninterp
                           , retReplaceSymbFuncTemplate
 
                           , buildHigherOrderCaseAlts
@@ -1982,6 +1983,50 @@ retReplaceSymbFuncVar _
     where
         notApplyFrame | Just (frm, _) <- S.pop stck = not (isApplyFrame frm)
                       | otherwise = True
+
+-- | Handles symbolic higher order function application via uninterpreted functions in the SMT solver.
+-- If the expression is a symbolic higher order function application, we force evaluation of all arguments.
+retReplaceSymbFuncUninterp :: SymFuncTicks ->  State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
+retReplaceSymbFuncUninterp _
+                     s@(State { expr_env = eenv
+                              , exec_stack = stck
+                              , tyvar_env = tvnv })
+                     ng ce
+    | notApplyFrame
+    , (Var (Id f idt):ars) <- unApp ce
+    , E.isSymbolic f eenv
+    , isTyFun idt
+    , t <- typeOf tvnv ce
+    , not (isTyFun t) =
+        let
+            (is, ng') = freshIds (map (typeOf tvnv) ars) ng
+            eenv' = foldl' (\env (Id n _, e_) -> E.insert n e_ env) eenv $ zip is ars
+
+            -- See Note [UninterpFunc Primitive]
+            new_ce = mkApp $ Prim (UninterpFunc f) idt:map Var is
+
+            (is_head, is_tail) = fromJust $ L.uncons is
+            stck' = foldl' (\st i -> Stck.push (CurrExprFrame NoAction (CurrExpr Evaluate $ Var i)) st)
+                            (Stck.push (CurrExprFrame NoAction (CurrExpr Return new_ce)) stck )
+                            is_tail
+        in
+        Just (RuleReturnReplaceSymbFunc,
+            [s { expr_env = eenv'
+               , curr_expr = CurrExpr Evaluate $ Var is_head
+               , exec_stack = stck' }]
+            , ng')
+    | otherwise = Nothing
+    where
+        notApplyFrame | Just (frm, _) <- S.pop stck = not (isApplyFrame frm)
+                      | otherwise = True
+
+
+-- Note [UninterpFunc Primitive]
+-- The temptation is to just leave uninterpreted functions as normal Vars.
+-- However, this creates a large number of difficulties/requires a great deal of special casing elsewhere,
+-- as applications of variables are generally not in SWHNF, and so other parts of G2 expect variable applications
+-- to be reduced via rules, rather then sent to the SMT solver.  On the other hand, primitives ARE expected
+-- to be sent to the solver- so everything just works out nicely if we introduce a primitive for uninterpreted functions.
 
 isApplyFrame :: Frame -> Bool
 isApplyFrame (ApplyFrame _) = True

@@ -377,7 +377,7 @@ instance Simplifier HigherOrderSimplifier where
     simplifyPC _ _ pc = [pc]
 
     simplifyPCs _ (State { type_env = tenv, known_values = kv }) pc =
-        splitAnds . modifyASTs (unfoldAppend tenv kv) . inFoldStringVars pc
+        splitAnds . modifyASTs (unfoldAppend tenv kv) . inFoldStringVars pc . modifyASTs lenOfMap
 
     simplifyPCWithExprEnv _ s@(State { known_values = kv, tyvar_env = tv_env }) ng eenv pc =
         let 
@@ -393,6 +393,12 @@ instance Simplifier HigherOrderSimplifier where
         (ng'', expr_env s', pcs4)
 
     reverseSimplification _ _ _ m = m
+
+lenOfMap :: Expr -> Expr
+lenOfMap e
+    | [Prim StrLen _, e'] <- unApp e
+    , [Prim Map _, _, e''] <- unApp e' = mkApp [Prim StrLen TyUnknown, e'']
+lenOfMap e = e
 
 unfoldAppend :: TypeEnv -> KnownValues -> Expr -> Expr
 -- Split up folds containg appends
