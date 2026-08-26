@@ -211,6 +211,8 @@ import System.Clock
 import System.Directory
 import qualified G2.Language.TyVarEnv as TV 
 
+import Debug.Trace
+
 -- * Reducers
 --
 -- $reducers
@@ -471,29 +473,36 @@ nonRedLibFuncs exec_names no_nrpc_names
 nonRedPathsReducer :: (MonadIO m, Solver solver) =>
                         solver
                       -> Config
-                      -> Reducer m (Int, Int) t
+                      -> Reducer m Int t
 nonRedPathsReducer solver config =
-    (mkSimpleReducer (\_ -> (0, 0))
-        (nonRedPathCons solver))
-        { onAccept = \s b (nrpc_count, path_count) -> do
+    (mkSimpleReducer (\_ -> 0)
+        (nonRedPathCons solver config))
+        { onAccept = \s b nrpc_count -> do
             if print_num_nrpc config
                 then liftIO . putStrLn $ "NRPCs Generated: " ++ show nrpc_count
                 else return ()
-            when (print_paths config) $ liftIO . putStrLn $ "Paths value: " ++ show path_count
             return (s, b) }
 
-nonRedPathCons :: (MonadIO m, Solver solver )=> solver -> RedRules m (Int, Int) t
-nonRedPathCons solver rv@(nrpc_count, _)
+nonRedPathCons :: (MonadIO m, Solver solver )=> solver -> Config -> RedRules m Int t
+nonRedPathCons solver config rv@nrpc_count
                 s@(State { curr_expr = CurrExpr _ ce
-                         }) 
+                         , expr_env = eenv})
                 b@(Bindings { name_gen = ng })
-    | Case _ _ _ _ <- ce
-    , Just (s'@(State { curr_expr = CurrExpr _ _ }), _, NRPC { nrpc_lhs = left, nrpc_rhs = right }, ng') <- createNonRed ng Focused s = 
+    | Case (Var (Id n _)) _ _ _ <- ce
+    , Just n' <- E.deepLookupVar n eenv
+    , E.isSymbolic n' eenv
+    , Just (s'@(State { curr_expr = CurrExpr _ _ }), _, NRPC { nrpc_lhs = left, nrpc_rhs = right }, ng') <- createNonRedForCase ng Focused s = 
         do
-            num_paths <- liftIO $ paths left right s' (b {name_gen = ng'}) solver
+            num_paths <- liftIO $ paths [] left right s' (b {name_gen = ng'}) solver
+            when (print_paths config) $ liftIO . putStrLn $ "Paths count: " ++ show num_paths -- ++ " : expression is:" ++ show left
             if num_paths > 1 
-                then return (Finished, [(s', (nrpc_count + 1, num_paths))], b {name_gen = ng'})
+                then return (Finished, [(s', nrpc_count + 1)], b {name_gen = ng'})
                 else return (Finished, [(s, rv)], b)
+    | Tick t e@(Case {}) <- ce
+    , isNonRedBlockerTick t = do
+        let ce' = removeNonRedBlockerTick e
+            s' = s {curr_expr = CurrExpr Evaluate ce'}
+        return (Finished, [(s', nrpc_count)], b)
     | otherwise = return (Finished, [(s, rv)], b)
 
 
@@ -854,10 +863,49 @@ createNonRed' ng
         (ng''', nrs') = addFirstNRPC ng'' focus' e'' (Var new_sym_id) nrs
 
         s' = s { expr_env = eenv'
-               , non_red_path_conds = nrs' }
+            , non_red_path_conds = nrs' }
     in
     Just (s', new_sym_id, NRPC focus' e'' (Var new_sym_id), ng''')
 createNonRed' _ _ _ _ = Nothing
+
+createNonRedForCase :: NameGen
+             -> GenFocus n
+             -> State t
+             -> Maybe
+                      ( State t -- ^ New state with NRPC applied
+                      , Id -- ^ New symbolic variable
+                      , NRPC -- ^ New NRPC
+                      , NameGen)
+createNonRedForCase ng focus
+              s@(State { curr_expr = CurrExpr _ ce
+              , tyvar_env = tvnv
+              , expr_env = eenv
+              , non_red_path_conds = nrs })
+    | Case {} <- ce
+    , (_, stck) <- allApplyFrames (exec_stack s)
+    , let e_ty = typeOf tvnv ce
+    , not $ hasFuncType e_ty = 
+    let
+        (new_sym, ng') = freshSeededName (Name "sym" Nothing 0 Nothing) ng
+        new_sym_id = Id new_sym e_ty
+        eenv' = E.insertSymbolic new_sym_id eenv
+        
+        (te, ng'') = nonRedBlockerTick ng' ce
+
+        focus' = case focus of
+                    Focused -> Focused
+                    Unfocused _ -> Unfocused (idName new_sym_id)
+
+        (ng''', nrs') = addFirstNRPC ng'' focus' te (Var new_sym_id) nrs
+        cexpr' = CurrExpr Return (Var new_sym_id)
+
+        s' = s { curr_expr = cexpr'
+            , expr_env = eenv'
+            , non_red_path_conds = nrs'
+            , exec_stack = stck }
+    in
+    Just (s', new_sym_id, NRPC focus' te (Var new_sym_id), ng''')
+createNonRedForCase _ _ _ = Nothing
 
 hasMagicTypes :: ASTContainer c Type => KnownValues -> c -> Bool
 hasMagicTypes kv = getAny . evalASTs hmt
@@ -876,6 +924,10 @@ allApplyFrames stck = go [] stck stck
 isNonRedBlockerTick :: Tickish -> Bool
 isNonRedBlockerTick (NamedLoc n) = nameOcc n == "NonRedBlocker"
 isNonRedBlockerTick _ = False
+
+removeNonRedBlockerTick :: Expr -> Expr
+removeNonRedBlockerTick e@(Tick t e') = if isNonRedBlockerTick t then e' else e
+removeNonRedBlockerTick e = e
 
 -- Note [Ignore Update Frames]
 -- In `strictRed`, when deciding whether to split up an expression to force strict evaluation of subexpression,
