@@ -176,6 +176,7 @@ varIds = evalASTs varIds'
 
 varIds' :: Expr -> [Id]
 varIds' (Var i) = [i]
+varIds' (Prim (UninterpFunc i) t) = [Id i t]
 varIds' _ = []
 
 varNames :: (ASTContainer m Expr) => m -> [Name]

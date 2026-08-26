@@ -543,6 +543,7 @@ lonePrim p = error $ "unhandled Prim in lonePrim: " ++ show p
 
 -- | We split based on whether the passed Expr is a function or known data constructor, or an unknown data constructor
 funcToSMT :: TV.TyVarEnv -> Expr -> [Expr] -> SMTAST
+funcToSMT tv (Prim (UninterpFunc n) _) es = Func (nameToStr n) $ map (exprToSMT tv) es
 funcToSMT tv (Prim p _) [a] = funcToSMT1Prim tv p a
 funcToSMT tv (Prim p _) [a1, a2] = funcToSMT2Prim tv p a1 a2
 funcToSMT tv (Prim p _) [a1, a2, a3] = funcToSMT3Prim tv p a1 a2 a3
@@ -1315,6 +1316,13 @@ smtastToExpr kv tenv tv_env arg_tys t (DataSMT dc_smt_n as _)
         es = zipWith (smtastToExpr kv tenv tv_env arg_tys) anon_t_inst as
     in
     mkApp $ Data dc:map Type ts ++ es
+smtastToExpr kv tenv tv_env arg_tys _ (DataSMT dc_smt_n as _)
+    | let dc_n = certainStrToName dc_smt_n =
+    let
+        es = map (smtastToExpr kv tenv tv_env arg_tys TyUnknown) as
+    in
+    mkApp $ Data (DataCon { dc_name = dc_n, dc_type = TyUnknown, dc_univ_tyvars = [], dc_exist_tyvars = [] }):es
+
 smtastToExpr kv tenv tv_env arg_tys t (LambdaSMT bound body) =
     let
         ts = anonArgumentTypes t
@@ -1396,11 +1404,12 @@ smtastToExpr kv tenv tv_env arg_tys t@(TyFun _ _) (ArrayStore arr ind val) =
 smtastToExpr kv tenv tv_env arg_tys t@(TyFun _ _) (ArrayConst v _ _) =
     let
         arg_ty = anonArgumentTypes t
-        bound_i = zipWith (\i -> Id (Name "lam__!!_G2_arr_store" Nothing i Nothing)) [1..] arg_ty
+        bound_i = zipWith (\i -> Id (Name "lam__G2_arr_store" Nothing i Nothing)) [1..] arg_ty
     in
     mkLams (zip (repeat TermL) bound_i) $ smtastToExpr kv tenv tv_env arg_tys (returnType t) v
 
-smtastToExpr _ _ _ _ _ smt = error $ "smtastToExpr: Conversion of this SMTAST to an Expr not supported." ++ "\n" ++ show smt
+smtastToExpr _ _ tv_env _ t smt =
+    error $ "smtastToExpr: Conversion of this SMTAST to an Expr not supported." ++ "\n" ++ show smt ++ "\n" ++ show t ++ "\n" ++ show (tyVarSubst tv_env t)
 
 getTypeForList :: TyVarEnv -> Type -> Type
 getTypeForList tv_env (TyApp _ t) = tyVarSubst tv_env t
@@ -1429,4 +1438,7 @@ certainStrToName :: String -> Name
 certainStrToName s =
     case maybe_StrToName s of
         Just n -> n
-        Nothing -> Name (T.pack s) Nothing 0 Nothing
+        Nothing -> Name (T.pack $ repExclamation s) Nothing 0 Nothing
+
+repExclamation :: String -> String
+repExclamation = map (\c -> if c == '!' then '_' else c)

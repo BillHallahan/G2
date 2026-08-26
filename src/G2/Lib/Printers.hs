@@ -602,6 +602,8 @@ mkPrimHaskell pg = pr
         pr (TypeIndex _) = "typeIndex"
         pr Force = "force"
 
+        pr (UninterpFunc i) = "(uninterpFunc " <> mkNameHaskell pg i <> ")"
+
         pr ForAllBoundPr = "forall_bound"
 
         pr UnspecifiedOutput = "?"

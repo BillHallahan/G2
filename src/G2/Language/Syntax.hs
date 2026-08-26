@@ -339,6 +339,9 @@ data Primitive = -- Mathematical and logical operators
                -- (force x y) forces deep evaluation of x and then returns y
                | Force -- ^ Force :: a -> b -> b
 
+               | UninterpFunc Name -- ^ Id should be a symbolic function, to be used as an uninterpreted function in the SMT solver.
+                                   -- See Note [UninterpFunc Primitive] in G2.Execution.Reducer
+
                -- Errors
                | Error
                | Undefined
