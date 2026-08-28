@@ -678,6 +678,14 @@ testFileTests = testGroup "TestFiles"
                                                                    , ("takeWhile2", 10000, [Exactly 2])
                                                                    , ("map1", 10000, [Exactly 2]) ]
 
+    , checkInputOutputs "tests/TestFiles/Seq/Uninterpreted.hs" [ ("call1", 10000, [Exactly 4])
+                                                               , ("call2", 10000, [Exactly 8])
+                                                               , ("call3", 10000, [Exactly 4])
+                                                               , ("map1", 10000, [Exactly 4])
+                                                               , ("map2", 10000, [Exactly 6])
+                                                               , ("map3", 10000, [Exactly 6])
+                                                               , ("mapInt1", 10000, [Exactly 12]) ]
+
     , checkInputOutputsSMTListsWith "tests/TestFiles/Seq/Seq1.hs" "floatListEq" [ ("conFloat", 1000, [Exactly 1])
                                                                                 , ("conDouble", 1000, [Exactly 1])]
 
@@ -792,6 +800,8 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("repIte1", 1000 * 1000, [AtLeast 2, AtMost 3])
                                                                        , ("repIte2", 1000 * 1000, [AtLeast 2, AtMost 3])
                                                                        , ("duplicate", 1000, [Exactly 2])
+                                                                       , ("map1", 500, [AtLeast 10])
+                                                                       , ("map2", 500, [AtLeast 10])
                                                                        ]                                                                                         
 
     , checkInputOutputsSymFuncConstraints "tests/HigherOrder/FAHigherOrder.hs"

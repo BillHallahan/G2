@@ -495,6 +495,13 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                 , orderer
                 , io_timed_out
                 , func_const_time)
+            Uninterpreted ->
+                ( nrpc_approx_red retReplaceSymbFuncUninterp .== Finished .--> taggerRed state_name :== Finished
+                            .--> (SomeReducer nonRedPCRed .== Finished .--> func_constraint_res')
+                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_func_arg
+                , orderer
+                , io_timed_out
+                , func_const_time)
 
 initSolver :: Config -> IO SomeSolver
 initSolver = initSolver' arbValue
@@ -881,12 +888,13 @@ runG2SolvingResult :: ( Named t
                    -> IO (Result (ExecRes t, NameGen) () ())
 runG2SolvingResult solver simplifier bindings s@(State { tyvar_env = tv_env })
     | true_assert s = do
-        r <- solve solver s bindings (E.symbolicIds . expr_env $ s) (path_conds s)
+        let s' = addFCToExprEnv s
+        r <- solve solver s' bindings (E.symbolicIds . expr_env $ s') (path_conds s')
         case r of
             SAT (SatRes m tv_env' ng') -> do
-                let s' = s { tyvar_env = tv_env `TV.union` tv_env' }
-                    m' = reverseSimplification simplifier s' bindings m
-                return . SAT $ (runG2SubstModel m' s' bindings, ng')
+                let s'' = s' { tyvar_env = tv_env `TV.union` tv_env' }
+                    m' = reverseSimplification simplifier s'' bindings m
+                return . SAT $ (runG2SubstModel m' s'' bindings, ng')
             UNSAT _ -> return $ UNSAT ()
             Unknown reason _ -> return $ Unknown reason ()
 

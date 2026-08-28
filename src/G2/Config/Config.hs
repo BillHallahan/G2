@@ -74,7 +74,8 @@ data SearchStrategy = Iterative | Subpath | ADTHeightOrd deriving (Eq, Show, Rea
 data HigherOrderSolver = AllFuncs
                        | SingleFunc
                        | SymbolicFunc
-                       | SymConstraints deriving (Eq, Show, Read)
+                       | SymConstraints
+                       | Uninterpreted deriving (Eq, Show, Read)
 
 data FpHandling = RealFP | RationalFP deriving (Eq, Show, Read)
 
@@ -425,6 +426,7 @@ mkHigherOrder =
                                     "single" -> Right SingleFunc
                                     "symbolic" -> Right SymbolicFunc
                                     "sym-constraints" -> Right SymConstraints
+                                    "uninterpreted" -> Right Uninterpreted
                                     _ -> Left "Unsupported higher order function handling"))
             ( long "higher-order"
             <> metavar "HANDLING"
