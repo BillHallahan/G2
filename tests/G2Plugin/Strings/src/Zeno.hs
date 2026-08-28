@@ -197,15 +197,29 @@ filter p (x:xs) =
     True -> x : (filter p xs)
     _ -> filter p xs
 
+{-# ANN butlast (SMTEquivIs "butlastSMT") #-}
 butlast :: [Nat] -> [Nat]
 butlast [] = []
 butlast [x] = []
 butlast (x:xs) = x:(butlast xs)
 
+butlastSMT :: [Nat] -> [Nat]
+butlastSMT xs =
+  if smtLen xs == 0
+    then []
+    else smtExtract xs 1 $ smtLen xs
+
+{-# ANN last (SMTEquivIs "lastSMT") #-}
 last :: [Nat] -> Nat
 last [] = 0
 last [x] = x
 last (x:xs) = last xs
+
+lastSMT :: [Nat] -> Nat
+lastSMT xs =
+  if smtLen xs == 0
+    then 0
+    else smtAt xs $ smtLen xs - 1
 
 sorted :: [Nat] -> Bool
 sorted [] = True
