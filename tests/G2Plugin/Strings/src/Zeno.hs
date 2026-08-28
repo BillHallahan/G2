@@ -24,6 +24,7 @@ import Prelude
   , (+)
   , (<=)
   , (<)
+  , (>=)
   , (-)
   , Int
   )
@@ -140,16 +141,19 @@ elemSMT n xs = smtContains xs [n]
 
 {-# ANN drop (SMTEquivIs "dropSMT") #-}
 drop :: Nat -> [Nat] -> [Nat]
-drop 0 xs = xs
+drop x xs | x <= 0 = xs
 drop _ [] = []
 drop x (_:xs) = drop (x - 1) xs
 
 dropSMT :: Nat -> [Nat] -> [Nat]
-dropSMT n xs = smtExtract xs n ((smtLen xs) - n)
+dropSMT n xs = 
+  if n >= 0
+    then smtExtract xs n ((smtLen xs) - n)
+    else xs
 
 {-# ANN take (SMTEquivIs "takeSMT") #-}
 take :: Nat -> [Nat] -> [Nat]
-take 0 _ = []
+take x _ | x <= 0 = []
 take _ [] = []
 take x (y:ys) = y : (take (x - 1) ys)
 
