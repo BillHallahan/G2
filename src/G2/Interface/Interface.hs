@@ -425,10 +425,14 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                             Just logger -> liftSomeReducer $ liftSomeReducer (logger .~> num_steps_red f)
                             Nothing -> liftSomeReducer $ liftSomeReducer (num_steps_red f)
 
+        check_assumes_red f = case check_assume_possible config of
+                                    True -> SomeReducer checkAssumesPossibleReducer .== Finished .--> logger_std_red f
+                                    False -> logger_std_red f
+
         nrpc_approx_red f = case approx_nrpc config of
                                 Nrpc -> let nrpc_approx = nrpcApproxReducer approx_no_inline no_nrpc_names config in
-                                        SomeReducer nrpc_approx .== Finished .--> logger_std_red f
-                                NoNrpc -> logger_std_red f
+                                        SomeReducer nrpc_approx .== Finished .--> check_assumes_red f
+                                NoNrpc -> check_assumes_red f
 
         halter = switchEveryNHalter 20
                  <~> maxOutputsHalter (maxOutputs config)

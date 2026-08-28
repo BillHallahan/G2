@@ -96,6 +96,9 @@ module G2.Execution.Reducer (
 
                             , inlineNRPC
 
+                            , checkAssumesPossibleReducer
+                            , isCheckingAssumeName
+
                             , ReducerEq (..)
                             , (.==)
                             , (~>)
@@ -676,6 +679,26 @@ getNonRedForHigherOrder no_inline ng s
 getNonRedForHigherOrder _ ng s
     | Just (s', _, _, ng1) <- createNonRed ng Focused s = Just (s', ng1)
     | otherwise = Nothing
+
+checkAssumesPossibleReducer :: Monad m => Reducer m () t
+checkAssumesPossibleReducer = mkSimpleReducer (const ()) go
+    where
+        go _ s@(State { curr_expr = CurrExpr Evaluate (Assume _ pr _)}) b@(Bindings { name_gen = ng }) =
+            let
+                (n, ng') = freshSeededString checkingAssumeOcc ng
+                s' = s { curr_expr = CurrExpr Evaluate pr
+                       , exec_stack = Stck.empty
+                       , tags = HS.insert n $ tags s
+                       , true_assert = True }
+            in
+            return (Finished, [(s, ()), (s', ())], b { name_gen = ng' })
+        go _ s b = return (Finished, [(s, ())], b)
+
+isCheckingAssumeName :: Name -> Bool
+isCheckingAssumeName n = nameOcc n == checkingAssumeOcc
+
+checkingAssumeOcc :: T.Text
+checkingAssumeOcc = "checking_assume"
 
 data ApproxPrevs t = AP { ap_nrpc_states :: [State t], ap_halter_states :: [State t]}
 

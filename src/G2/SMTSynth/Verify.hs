@@ -4,6 +4,7 @@ module G2.SMTSynth.Verify ( checkEquiv
                           , insertFCTick ) where
 
 import G2.Config
+import G2.Execution.Reducer
 import G2.Initialization.MkCurrExpr
 import G2.Interface
 import qualified G2.Initialization.Types as IT
@@ -33,7 +34,8 @@ checkEquiv func_config equiv_annots simp_state entry_real entry_smt
                                        , literal_tables = UseLiteralTables
                                        , search_strat = Subpath
                                        , min_found = 1
-                                       , smt_discard_on_unknown = KeepUnknown }
+                                       , smt_discard_on_unknown = KeepUnknown
+                                       , check_assume_possible = True }
 
         let entry_id = Id entry_real_name $ typeOf TV.empty real_e
             (init_state, bindings) = initStateFromSimpleState simp_state [nameModule entry_real] False
@@ -80,45 +82,78 @@ checkEquiv func_config equiv_annots simp_state entry_real entry_smt
                                                             config_no_output
                                                             bindings'
         
-        -- Get States corresponding to SMT calls from the states that violated the spec.
-        -- Consider some functions:
-        --      {-# ANN corr (SMTEquivIs "smtCorr") #-}
-        --      corr :: Int -> Int
-        --      corr = incorr
-
-        --      smtCorr :: Int -> Int
-        --      smtCorr x = x + 1
-
-        --      {-# ANN incorr (SMTEquivIs "smtIncorr") #-}
-        --      incorr :: Int -> Int
-        --      incorr x = x + 1
-
-        --      smtIncorr :: Int -> Int
-        --      smtIncorr x = x + 2
-        -- If we run corr, we may get a "counterexample" that corr 0 = 2. However, the glitch here is actually that
-        -- the specification of incorr is wrong. We figure this out by logging all values passed into and returned from
-        -- SMT definitions, and then checking if those values actually conform to the behavior of the real function.
-        let smt_call_xs = (checkFCStateBindings eenv) ers bindings'
-        mapM_ (\(func_n, new_s, new_b) -> do
-            runG2WithConfig [] [] (Id func_n TyUnknown) "" [] [nameModule entry_real_name] new_s func_config' new_b) smt_call_xs
-
-        case (ers, got_unknown) of
-            ([], NoUnknowns) | NoTimeOut <- time_outs -> putStrLn $ "Equivalent: "
-                                    <> T.unpack (nameOcc entry_real_name) <> " and "
-                                    <> T.unpack (nameOcc entry_smt_name)
-            _ | TimedOut _ <- time_outs -> putStrLn $ "Time Out: "
-                                                <> T.unpack (nameOcc entry_real_name) <> " and "
-                                                <> T.unpack (nameOcc entry_smt_name)
-            _ -> putStrLn $ "Equivalence not proven: "
-                                    <> T.unpack (nameOcc entry_real_name) <> " and "
-                                    <> T.unpack (nameOcc entry_smt_name)
-                                    <> (if got_unknown == GotUnknown then ", SMT solver returned unknown" else "")
-
-        return ()
+        case allExistsSatisfied ers of
+            True -> getSpecViolation func_config' got_unknown time_outs entry_real_name entry_smt_name eenv (elimFromExistsChecks ers) bindings'
+            False -> do
+                putStrLn "Existence requirement failed."
+                equivalenceNotProven entry_real_name entry_smt_name got_unknown
     | otherwise = do
         putStrLn "checkEquiv: functions not found"
         return ()
 
+allExistsSatisfied :: [ExecRes t] -> Bool
+allExistsSatisfied ers =
+    let
+        all_checking_assumes = HS.filter isCheckingAssumeName . HS.unions $ map (tags . final_state) ers
+    in
+    all (\n -> any (hasNameAndIsTrue n) ers) all_checking_assumes
+
+hasNameAndIsTrue :: Name -> ExecRes t -> Bool
+hasNameAndIsTrue n (ExecRes { conc_out = Data dc, final_state = s }) = n `elem` tags s && dc_name dc == KV.dcTrue (known_values s)
+hasNameAndIsTrue _ _ = False
+
+elimFromExistsChecks :: [ExecRes t] -> [ExecRes t]
+elimFromExistsChecks = filter (not . any isCheckingAssumeName . tags . final_state)
+
+-- | Get States corresponding to SMT calls from the states that violated the spec.
+-- Consider some functions:
+--      {-# ANN corr (SMTEquivIs "smtCorr") #-}
+--      corr :: Int -> Int
+--      corr = incorr
+
+--      smtCorr :: Int -> Int
+--      smtCorr x = x + 1
+
+--      {-# ANN incorr (SMTEquivIs "smtIncorr") #-}
+--      incorr :: Int -> Int
+--      incorr x = x + 1
+
+--      smtIncorr :: Int -> Int
+--      smtIncorr x = x + 2
+-- If we run corr, we may get a "counterexample" that corr 0 = 2. However, the glitch here is actually that
+-- the specification of incorr is wrong. We figure this out by logging all values passed into and returned from
+-- SMT definitions, and then checking if those values actually conform to the behavior of the real function.
+getSpecViolation :: Config
+                 -> GotUnknown
+                 -> TimedOut
+                 -> Name
+                 -> Name
+                 -> ExprEnv
+                 -> [ExecRes ()]
+                 -> Bindings
+                 -> IO ()
+getSpecViolation func_config got_unknown time_outs entry_real_name entry_smt_name eenv ers bindings = do
+    let smt_call_xs = checkFCStateBindings eenv ers bindings
+    mapM_ (\(func_n, new_s, new_b) -> do
+        runG2WithConfig [] [] (Id func_n TyUnknown) "" [] [nameModule entry_real_name] new_s func_config new_b) smt_call_xs
+
+    case (ers, got_unknown) of
+        ([], NoUnknowns) | NoTimeOut <- time_outs -> putStrLn $ "Equivalent: "
+                                <> T.unpack (nameOcc entry_real_name) <> " and "
+                                <> T.unpack (nameOcc entry_smt_name)
+        _ | TimedOut _ <- time_outs -> putStrLn $ "Time Out: "
+                                            <> T.unpack (nameOcc entry_real_name) <> " and "
+                                            <> T.unpack (nameOcc entry_smt_name)
+        _ -> equivalenceNotProven entry_real_name entry_smt_name got_unknown
+
+    return ()
+
+equivalenceNotProven :: Name -> Name -> GotUnknown -> IO ()
+equivalenceNotProven entry_real_name entry_smt_name got_unknown = 
+    putStrLn $ "Equivalence not proven: "
+                    <> T.unpack (nameOcc entry_real_name) <> " and "
+                    <> T.unpack (nameOcc entry_smt_name)
+                    <> (if got_unknown == GotUnknown then ", SMT solver returned unknown" else "")
 replaceVars :: HM.HashMap Name Id -> Expr -> Expr
 replaceVars m = modify go
     where

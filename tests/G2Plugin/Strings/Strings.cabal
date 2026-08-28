@@ -18,7 +18,8 @@ common warnings
 
 library
     import:           warnings
-    exposed-modules:    Strings
+    exposed-modules:    Exists
+                      , Strings
                       , MoreTuples
                       , Tuples
                       , Regex

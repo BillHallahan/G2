@@ -642,4 +642,4 @@ tryMaybeUnsafe x = unsafePerformIO $ tryMaybe (let !y = x in return y)
 
 comp :: Eq a => a -> a -> a
 comp real_def smt_def = 
-    let b = tryMaybeUnsafe smt_def == tryMaybeUnsafe real_def in G2.Plugin.assert b real_def
+    let b = tryMaybeUnsafe real_def == tryMaybeUnsafe smt_def in G2.Plugin.assert b real_def

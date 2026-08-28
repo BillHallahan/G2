@@ -66,8 +66,15 @@ tests = testGroup "All Tests"
                                 ]
                                 -- Non-equivalent functions
                                 [
+                                  -- Exists
+                                  ("exists1", "smtExists1")
+                                , ("exists2", "smtExists2")
+                                , ("exists3", "smtExists3")
+                                , ("exists4", "smtExists4")
+                                , ("exists5", "smtExists5")
+
                                   -- Strings
-                                  ("corr", "smtCorr")
+                                , ("corr", "smtCorr")
                                 , ("incorr", "smtIncorr")
                                 , ("addTwoAll", "smtAddTwoAll")
                                 , ("sumListBad", "smtSumListBad")

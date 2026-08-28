@@ -203,6 +203,8 @@ data Config = Config {
     , gen_func_arg_states :: Bool -- ^ Whether to generate function argument states
     , print_num_nrpc :: Bool -- ^ Output the number of NRPCs for each accepted state
     , print_num_post_call_func_arg :: Bool -- ^ Output the number of post call and function argument states
+
+    , check_assume_possible :: Bool -- ^ Check if there exists some path that satisifies each reached assumption
 }
 
 mkConfig :: String -> Parser Config
@@ -364,6 +366,7 @@ mkConfig homedir = Config Regular
     <*> flag True False (long "no-func-arg-states" <> help "disable function argument states")
     <*> flag False True (long "print-num-nrpc" <> help "output the number of NRPCs for each accepted state")
     <*> flag False True (long "print-num-higher-states" <> help "output the number of post call and function argument states (from higher order coverage checking)")
+    <*> pure False
 
 mkBaseInclude :: String -> Parser [IncludePath]
 mkBaseInclude homedir =
@@ -561,6 +564,7 @@ mkConfigDirect homedir as m = Config {
     , gen_func_arg_states = True
     , print_num_nrpc = False
     , print_num_post_call_func_arg = False
+    , check_assume_possible = False
 }
 
 baseIncludeDef :: FilePath -> [FilePath]
