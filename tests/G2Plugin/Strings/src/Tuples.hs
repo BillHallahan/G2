@@ -78,7 +78,7 @@ smtMyZipBad xs ys | smtLen xs < smtLen ys = exists (\zs -> xs `smtEq` smtMap fst
                   | otherwise = exists (\zs -> smtMap fst zs `smtPrefixOf` xs 
                                             && ys `smtEq` smtMap snd zs)
 
-{-# ANN myA (SMTEquivIsWithConfig "smtMyA" "--log-pretty a_myA")
+{-# ANN myA (SMTEquivIsWithConfig "smtMyA" "")
     #-}
 myA :: [A] -> [A] -> [A]
 myA [] _ = []
