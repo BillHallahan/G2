@@ -31,6 +31,9 @@ import Prelude
 
 import G2.Plugin
 
+{-# ANN module ("--smt-tuples --higher-order uninterpreted")
+    #-}
+
 -- code here adapted from HipSpec.hs
 
 infix 1 =:=
@@ -172,9 +175,13 @@ count x (y:ys) =
 countSMT :: Nat -> [Nat] -> Nat
 countSMT e xs = (smtLen xs) - (smtLen (smtReplaceAll xs [e] []))
 
+{-# ANN map (SMTEquivIs "mapSMT") #-}
 map :: (Nat -> Nat) -> [Nat] -> [Nat]
 map f [] = []
 map f (x:xs) = (f x) : (map f xs)
+
+mapSMT :: (Nat -> Nat) -> [Nat] -> [Nat]
+mapSMT = smtMap
 
 takeWhile :: (Nat -> Bool) -> [Nat] -> [Nat]
 takeWhile _ [] = []
@@ -207,7 +214,7 @@ butlastSMT :: [Nat] -> [Nat]
 butlastSMT xs =
   if smtLen xs == 0
     then []
-    else smtExtract xs 1 $ smtLen xs
+    else smtExtract xs 0 $ smtLen xs - 1
 
 {-# ANN last (SMTEquivIs "lastSMT") #-}
 last :: [Nat] -> Nat
@@ -219,7 +226,7 @@ lastSMT :: [Nat] -> Nat
 lastSMT xs =
   if smtLen xs == 0
     then 0
-    else smtAt xs $ smtLen xs - 1
+    else smtNth xs $ smtLen xs - 1
 
 sorted :: [Nat] -> Bool
 sorted [] = True
@@ -240,12 +247,19 @@ ins n (x:xs) =
     True -> n : x : xs
     _ -> x : (ins n xs)
 
+{-# ANN ins1 (SMTEquivIs "ins1SMT") #-}
 ins1 :: Nat -> [Nat] -> [Nat]
 ins1 n [] = [n]
 ins1 n (x:xs) =
   case n === x of
     True -> x : xs
     _ -> x : (ins1 n xs)
+
+ins1SMT :: Nat -> [Nat] -> [Nat]
+ins1SMT n xs =
+  if smtContains xs [n]
+    then xs
+    else xs $++ [n]
 
 sort :: [Nat] -> [Nat]
 sort [] = []

@@ -74,7 +74,12 @@ tests = testGroup "All Tests"
                                 , ("drop", "dropSMT")
                                 , ("take", "takeSMT")
                                 , ("count", "countSMT")
+                                , ("last", "lastSMT")
+                                , ("butlast", "butlastSMT")
+                                , ("map", "mapSMT")
+                                , ("ins1", "ins1SMT")
                                 ]
+
                                 -- Non-equivalent functions
                                 [
                                   -- Strings
