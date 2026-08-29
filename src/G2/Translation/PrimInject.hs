@@ -399,6 +399,7 @@ primDefs' b c l unit =
               , ("evalsToSMTRep#", Prim EvalsToSMTRep (TyForAll a (TyFun (TyVar a) (TyCon b TYPE))))
               , ("typeIndex#", Prim (TypeIndex (TyH { tyh_strings = False, tyh_prim_lists = False })) (TyForAll a (TyFun (TyVar a) TyLitInt)))
               , ("force#", Prim Force (TyForAll a (TyFun (TyVar a) (TyFun TyLitInt TyLitInt))))
+              , ("force##", Prim Force (TyForAll a (TyForAll d (TyFun (TyVar a) (TyFun (TyVar d) (TyVar d))))))
 
               , ("buildLitTable#", Lam TypeL (x TYPE)
                                  . Lam TypeL (y TYPE)

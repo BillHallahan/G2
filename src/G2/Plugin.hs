@@ -468,6 +468,8 @@ adjustFunctions nm ex_g2 = do
     . adjustFunction ("pSmtReComp#", Just "G2.Plugin.Prim") nm (callPrim nm "reComp#")
     . adjustFunction ("pSmtReStar#", Just "G2.Plugin.Prim") nm (callPrim nm "reStar#")
 
+    . adjustFunction ("pForce#", Just "G2.Plugin.Prim") nm (callPrim nm "force##")
+
     . adjustMkSymbolicPrim SNoLog "pSymGen#" (Just "G2.Plugin.Prim") nm
 
     . adjustFunction ("$&&#", Just "G2.Plugin.Prim") nm (callPrim nm "&&#")
@@ -642,4 +644,7 @@ tryMaybeUnsafe x = unsafePerformIO $ tryMaybe (let !y = x in return y)
 
 comp :: Eq a => a -> a -> a
 comp real_def smt_def = 
-    let b = tryMaybeUnsafe real_def == tryMaybeUnsafe smt_def in G2.Plugin.assert b real_def
+    let
+        b = tryMaybeUnsafe (pForce# real_def real_def) == tryMaybeUnsafe smt_def
+    in
+    G2.Plugin.assert b real_def

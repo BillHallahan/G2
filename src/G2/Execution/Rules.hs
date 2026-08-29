@@ -322,7 +322,7 @@ evalApp s@(State { expr_env = eenv
             e1' = mkApp [Prim MapConcatI t, lam']
         in forceEval (App e1' e2) eenv tenv tv_env kv tc s ng
 
-    | [Prim Force _, _ {- type -}, e_force {- expression to force eval of -}] <- unApp e1 =
+    | Just e_force <- unpackForce e1 =
         let
             stck' = Stck.push (CurrExprFrame DisableForcingVar (CurrExpr Evaluate e2)) (exec_stack s)
             s' = s { curr_expr = CurrExpr Evaluate e_force
@@ -399,6 +399,11 @@ evalApp s@(State { expr_env = eenv
 
         elimWrapper _ (App _ e) = e
         elimWrapper _ e = e
+
+        unpackForce e
+            | [Prim Force _, Type _, Type _, e_force {- expression to force eval of -}] <- unApp e = Just e_force
+            | [Prim Force _, Type _, e_force {- expression to force eval of -}] <- unApp e = Just e_force
+            | otherwise = Nothing
 
 evalLam :: State t -> LamUse -> Id -> Expr -> (Rule, [State t])
 evalLam = undefined

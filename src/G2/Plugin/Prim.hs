@@ -147,3 +147,7 @@ pSymGen# = error "pSymGen#"
 ($&&) :: Bool -> Bool -> Bool
 True $&& True = True
 _ $&& _ = False
+
+{-# NOINLINE pForce# #-}
+pForce# :: a -> b -> b
+pForce# _ x = x

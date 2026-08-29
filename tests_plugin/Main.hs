@@ -72,6 +72,7 @@ tests = testGroup "All Tests"
                                 , ("exists3", "smtExists3")
                                 , ("exists4", "smtExists4")
                                 , ("exists5", "smtExists5")
+                                , ("exists6", "smtExists6")
 
                                   -- Strings
                                 , ("corr", "smtCorr")

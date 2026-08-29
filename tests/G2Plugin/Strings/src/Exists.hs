@@ -50,3 +50,13 @@ exists5 xs = xs
 
 smtExists5 :: [Int] -> [Int]
 smtExists5 _ = exists (\_ -> "hello" == "hi")
+
+{-# ANN exists6 (SMTEquivIsWithConfig "smtExists6" "")
+    #-}
+exists6 :: AB -> [Int] -> [Int]
+exists6 ab xs = 1:(case ab of A -> xs; B -> xs ++ xs)
+
+smtExists6 :: AB -> [Int] -> [Int]
+smtExists6 ab xs = exists (\ys -> case ab of
+                                    A -> 1:xs == ys
+                                    B -> False)

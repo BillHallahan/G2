@@ -76,7 +76,7 @@ checkUnsat show_logs solver s@(State { known_values = kv, tyvar_env = tv_env }) 
                             _ -> return $ Unknown "CheckUnsatSeq Solver" ()
                     _ -> return $ Unknown "CheckUnsatSeq Solver" ()
 checkUnsat _ solver s pcs = do
-    let pcs' = PC.filter (\case (ExtCond e _) -> noMaps e; _ -> True) pcs
+    let pcs' = noMapsPC pcs
     res <- check solver s pcs'
     case res of
         UNSAT _ -> return $ UNSAT ()
@@ -94,6 +94,9 @@ getListInequality kv tv_env pc@(ExtCond e False)
     , noMaps e2
     , isListTy kv tv_env e1 = Just (pc, e1, e2)
 getListInequality _ _ _ = Nothing
+
+noMapsPC :: PathConds -> PathConds
+noMapsPC = PC.filter (\case (ExtCond e _) -> noMaps e; _ -> True)
 
 noMaps :: Expr -> Bool
 noMaps = not . getAny . evalASTs go
@@ -166,7 +169,8 @@ checkElems show_logs solver s@(State { expr_env = eenv, known_values = kv, tyvar
                    , (e2, HS.singleton $ Var elem_ind) ]
     prop_ind_into <- propagateIndInto show_logs s' ind_into pcs_with_diff_elem
 
-    let pcs_adj = convertAllToSeqNth s prop_ind_into
+    let pcs_adj = noMapsPC
+                . convertAllToSeqNth s prop_ind_into
                 $ convertMapWithSeqNth s prop_ind_into pcs_with_diff_elem
 
     check solver s' pcs_adj
