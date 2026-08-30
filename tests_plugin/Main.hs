@@ -63,7 +63,28 @@ tests = testGroup "All Tests"
                                 , ("isNum", "smtIsNum")
                                 , ("containsFour", "smtContainsFour")
                                 , ("noPat", "smtNoPat")
+
+                                -- Zeno
+                                , ("len", "lenSMT")
+                                , ("rev", "revSMT")
+                                , ("null", "nullSMT")
+                                , ("delete", "deleteSMT")
+                                , ("++", "appendSMT")
+                                , ("elem", "elemSMT")
+                                , ("drop", "dropSMT")
+                                , ("take", "takeSMT")
+                                , ("count", "countSMT")
+                                , ("last", "lastSMT")
+                                , ("butlast", "butlastSMT")
+                                , ("map", "mapSMT")
+                                , ("ins1", "ins1SMT")
+                                -- , ("sorted", "sortedSMT")
+                                -- , ("filter", "filterSMT")
+                                -- , ("dropWhile", "dropWhileSMT")
+                                -- , ("takeWhile", "takeWhileSMT")
+                                , ("zip", "zipSMT")
                                 ]
+
                                 -- Non-equivalent functions
                                 [
                                   -- Strings
