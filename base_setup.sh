@@ -1,4 +1,4 @@
-base_commit=0af92d5
+base_commit=622c0a2
 stubs_commit=4ff1c36
 
 get_base() {
