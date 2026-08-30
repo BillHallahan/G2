@@ -78,6 +78,11 @@ tests = testGroup "All Tests"
                                 , ("butlast", "butlastSMT")
                                 , ("map", "mapSMT")
                                 , ("ins1", "ins1SMT")
+                                -- , ("sorted", "sortedSMT")
+                                -- , ("filter", "filterSMT")
+                                -- , ("dropWhile", "dropWhileSMT")
+                                -- , ("takeWhile", "takeWhileSMT")
+                                , ("zip", "zipSMT")
                                 ]
 
                                 -- Non-equivalent functions

@@ -27,6 +27,9 @@ import Prelude
   , (>=)
   , (-)
   , Int
+  , fst
+  , snd
+  , otherwise
   )
 
 import G2.Plugin
@@ -106,10 +109,18 @@ rev (x:xs) = rev xs ++ [x]
 revSMT :: [Nat] -> [Nat]
 revSMT = smtReverse
 
+{-# ANN zip (SMTEquivIsWithConfig "zipSMT" "--smt-timeout 20")
+    #-}
 zip :: [Nat] -> [Nat] -> [(Nat, Nat)]
 zip [] _ = []
 zip _ [] = []
 zip (x:xs) (y:ys) = (x, y) : (zip xs ys)
+
+zipSMT :: [Nat] -> [Nat] -> [(Nat, Nat)]
+zipSMT xs ys | smtLen xs < smtLen ys = exists (\zs -> (xs `smtEq` (smtMap fst zs)) 
+                                                      && ((smtMap snd zs) `smtPrefixOf` ys))
+             | otherwise = exists (\zs -> ((smtMap fst zs) `smtPrefixOf` xs )
+                                          && (ys `smtEq` (smtMap snd zs)))
 
 {-# ANN delete (SMTEquivIsWithConfig "deleteSMT" "--smt cvc5")
     #-}
@@ -183,6 +194,7 @@ map f (x:xs) = (f x) : (map f xs)
 mapSMT :: (Nat -> Nat) -> [Nat] -> [Nat]
 mapSMT = smtMap
 
+-- {-# ANN takeWhile (SMTEquivIs "takeWhileSMT") #-}
 takeWhile :: (Nat -> Bool) -> [Nat] -> [Nat]
 takeWhile _ [] = []
 takeWhile p (x:xs) =
@@ -190,6 +202,14 @@ takeWhile p (x:xs) =
     True -> x : (takeWhile p xs)
     _ -> []
 
+-- takeWhileSMT :: (Nat -> Bool) -> [Nat] -> [Nat]
+-- takeWhileSMT p xs =
+--   let (as', _) = exists2 (\as bs -> xs `smtEq` (as $++ bs) &&
+--                                     smtFoldLeft (\acc e -> acc && p e) True as && 
+--                                     smtFoldLeft (\acc e -> acc && not (p e)) True (smtAt bs 0))
+--   in as'
+
+-- {-# ANN dropWhile (SMTEquivIs "dropWhileSMT") #-}
 dropWhile :: (Nat -> Bool) -> [Nat] -> [Nat]
 dropWhile _ [] = []
 dropWhile p (x:xs) =
@@ -197,12 +217,23 @@ dropWhile p (x:xs) =
     True -> dropWhile p xs
     _ -> x:xs
 
+-- dropWhileSMT :: (Nat -> Bool) -> [Nat] -> [Nat]
+-- dropWhileSMT p xs =
+--   let (_, bs') = exists2 (\as bs -> xs `smtEq` (as $++ bs) &&
+--                                     smtFoldLeft (\acc e -> acc && p e) True as && 
+--                                     smtFoldLeft (\acc e -> acc && not (p e)) True (smtAt bs 0))
+--   in bs'
+
+-- {-# ANN filter (SMTEquivIs "filterSMT") #-}
 filter :: (Nat -> Bool) -> [Nat] -> [Nat]
 filter _ [] = []
 filter p (x:xs) =
   case p x of
     True -> x : (filter p xs)
     _ -> filter p xs
+
+-- filterSMT :: (Nat -> Bool) -> [Nat] -> [Nat]
+-- filterSMT p xs = smtFoldLeft (\acc e -> if p e then acc $++ [e] else acc) [] xs
 
 {-# ANN butlast (SMTEquivIs "butlastSMT") #-}
 butlast :: [Nat] -> [Nat]
@@ -228,10 +259,18 @@ lastSMT xs =
     then 0
     else smtNth xs $ smtLen xs - 1
 
+-- {-# ANN sorted (SMTEquivIs "sortedSMT") #-}
 sorted :: [Nat] -> Bool
 sorted [] = True
 sorted [x] = True
 sorted (x:y:ys) = (x <= y) && sorted (y:ys)
+
+-- sortedSMT :: [Nat] -> Bool
+-- sortedSMT xs =
+--   case xs of
+--     (y:ys) -> let (r, _) = smtFoldLeft (\(valid, e') e -> (valid && (e' <= e), e)) (True, y) ys
+--               in r
+--     _ -> True
 
 insort :: Nat -> [Nat] -> [Nat]
 insort n [] = [n]
