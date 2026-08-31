@@ -224,7 +224,7 @@ dropWhile p (x:xs) =
 --                                     smtFoldLeft (\acc e -> acc && not (p e)) True (smtAt bs 0))
 --   in bs'
 
--- {-# ANN filter (SMTEquivIs "filterSMT") #-}
+{-# ANN filter (SMTEquivIs "filterSMT") #-}
 filter :: (Nat -> Bool) -> [Nat] -> [Nat]
 filter _ [] = []
 filter p (x:xs) =
@@ -232,8 +232,8 @@ filter p (x:xs) =
     True -> x : (filter p xs)
     _ -> filter p xs
 
--- filterSMT :: (Nat -> Bool) -> [Nat] -> [Nat]
--- filterSMT p xs = smtFoldLeft (\acc e -> if p e then acc $++ [e] else acc) [] xs
+filterSMT :: (Nat -> Bool) -> [Nat] -> [Nat]
+filterSMT p xs = smtFoldLeft (\acc e -> if p e then acc $++ [e] else acc) [] xs
 
 {-# ANN butlast (SMTEquivIs "butlastSMT") #-}
 butlast :: [Nat] -> [Nat]
