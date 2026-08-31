@@ -493,11 +493,13 @@ nonRedPathCons solver config rv@nrpc_count
     , E.isSymbolic n' eenv
     , Just (s'@(State { curr_expr = CurrExpr _ _ }), _, NRPC { nrpc_lhs = left, nrpc_rhs = right }, ng') <- createNonRedForCase ng Focused s = 
         do
-            num_paths <- liftIO $ paths [] left right s' (b {name_gen = ng'}) solver
+            num_paths <- liftIO $ paths HS.empty HS.empty left right s' (b {name_gen = ng'}) solver
             when (print_paths config) $ liftIO . putStrLn $ "Paths count: " ++ show num_paths -- ++ " : expression is:" ++ show left
             if num_paths > 1 
                 then return (Finished, [(s', nrpc_count + 1)], b {name_gen = ng'})
                 else return (Finished, [(s, rv)], b)
+    -- Removing the Tick so standard reducer can reduce case expression. 
+    -- This is to avoid adding a case expression again and again in the nrpc set
     | Tick t e@(Case {}) <- ce
     , isNonRedBlockerTick t = do
         let ce' = removeNonRedBlockerTick e
