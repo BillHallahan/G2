@@ -79,7 +79,7 @@ tests = testGroup "All Tests"
                                 , ("map", "mapSMT")
                                 , ("ins1", "ins1SMT")
                                 -- , ("sorted", "sortedSMT")
-                                -- , ("filter", "filterSMT")
+                                , ("filter", "filterSMT")
                                 -- , ("dropWhile", "dropWhileSMT")
                                 -- , ("takeWhile", "takeWhileSMT")
                                 , ("zip", "zipSMT")

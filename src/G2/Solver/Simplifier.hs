@@ -461,22 +461,56 @@ consToAppend tenv kv (App (App (App (Data dc) (Type t)) x) ys) | dc_name dc == d
     mkApp [Prim StrAppend TyUnknown, xs, ys]
 consToAppend _ _ e = e
 
+-- The identity function can be split, as long as we eventually find a Prim
+-- Note that types don't need to match here, since the type checker does that
+-- for us
+data PrimMatch = SpecificPrim Expr Expr | AnyPrim
+    deriving (Eq, Show)
+
 -- foldl' (\zs x -> zs ++ f x) [] (xs ++ ys)
 -- ==
 -- foldl' (\zs x -> zs ++ f x) [] xs ++ foldl' (\zs x -> zs ++ f x) [] ys
+-- OR
+-- foldl' (\zs x -> if f x then zs ++ [x] else xs) [] (xs ++ ys)
+-- ==
+-- foldl' (\zs x -> if f x then zs ++ [x] else zs) [] xs
+--     ++ foldl' (\zs x -> f x then zs ++ [x] else zs) [] ys
+-- ... and so on. Note that this can generalize to any monoid!
 isSplittableFold :: TypeEnv -> KnownValues -> Expr -> Maybe (Expr, Expr)
-isSplittableFold tenv kv f = isSplittableFold' tenv kv (modifyASTs (consToAppend tenv kv) f)
+isSplittableFold tenv kv f =
+    case isSplittableFold' tenv kv (modifyASTs (consToAppend tenv kv) f) of
+        Just (SpecificPrim pr e) -> Just (pr, e)
+        _ -> Nothing
 
 isSplittableFold' :: TypeEnv
                   -> KnownValues
                   -> Expr -- ^ Function being folded over
-                  -> Maybe (Expr, Expr)
-isSplittableFold' tenv kv (Lam _ (Id col_v1 _) (Lam _ (Id _ _) e))
-    | [pr@(Prim prim _), Var (Id col_v2 t), e2] <- unApp $ makeRightAssoc e
-    , Just ident_e <- HM.lookup prim (assocPrimToIdent tenv kv t)
-    , col_v1 == col_v2
-    , col_v1 `notElem` varNames e2 = Just (pr, ident_e)
+                  -> Maybe PrimMatch
+isSplittableFold' tenv kv (Lam _ (Id col_v1 _) (Lam _ (Id _ _) e)) = checkBody e
+    where
+        checkBody body
+            | [pr@(Prim prim _), Var (Id col_v2 t), e2] <- unApp $ makeRightAssoc body
+            , Just ident_e <- HM.lookup prim (assocPrimToIdent tenv kv t)
+            , col_v1 == col_v2
+            , col_v1 `notElem` varNames e2 = Just $ SpecificPrim pr ident_e
+
+            | Var (Id col_v2 _) <- body
+            , col_v1 == col_v2 = Just AnyPrim
+
+            | [Prim Ite _, cond, tb, fb] <- unApp body
+            , col_v1 `notElem` varNames cond
+            , Just tb1 <- checkBody tb
+            , Just fb1 <- checkBody fb = resolveBranches tb1 fb1
+
+            | otherwise = Nothing
 isSplittableFold' _ _ _ = Nothing
+
+resolveBranches :: PrimMatch -> PrimMatch -> Maybe PrimMatch
+resolveBranches t@(SpecificPrim p1 e1) (SpecificPrim p2 e2) | p1 == p2 && e1 == e2 = Just t
+resolveBranches t@(SpecificPrim _ _) AnyPrim = Just t
+resolveBranches AnyPrim f@(SpecificPrim _ _) = Just f
+resolveBranches AnyPrim AnyPrim = Just AnyPrim
+resolveBranches _ _ = Nothing
 
 assocPrimToIdent :: TypeEnv -> KnownValues -> Type -> HM.HashMap Primitive Expr
 assocPrimToIdent tenv kv t =
@@ -518,14 +552,32 @@ isAssoc _ = False -- Conservative assumption
 -- ==
 -- foldl' (\zs x -> f x:zs) [] ys ++ foldl' (\zs x -> f x:zs) [] xs
 isSplittableFoldRev :: TypeEnv -> KnownValues -> Expr -> Maybe (Expr, Expr)
-isSplittableFoldRev tenv kv f = isSplittableFoldRev' tenv kv (modifyASTs (consToAppend tenv kv) f)
+isSplittableFoldRev tenv kv f =
+    case isSplittableFoldRev' tenv kv (modifyASTs (consToAppend tenv kv) f) of
+        Just (SpecificPrim pr e) -> Just (pr, e)
+        _ -> Nothing
 
-isSplittableFoldRev' :: TypeEnv -> KnownValues -> Expr -> Maybe (Expr, Expr)
-isSplittableFoldRev' tenv kv (Lam _ (Id col_v1 _) (Lam _ (Id _ _) e))
-    | [pr@(Prim prim _), e1, Var (Id col_v2 t)] <- unApp e
-    , Just ident_e <- HM.lookup prim (assocPrimToIdent tenv kv t)
-    , col_v1 == col_v2
-    , col_v1 `notElem` varNames e1 = Just (pr, ident_e)
+isSplittableFoldRev' :: TypeEnv
+                  -> KnownValues
+                  -> Expr -- ^ Function being folded over
+                  -> Maybe PrimMatch
+isSplittableFoldRev' tenv kv (Lam _ (Id col_v1 _) (Lam _ (Id _ _) e)) = checkBody e
+    where
+        checkBody body
+            | [pr@(Prim prim _), e1, Var (Id col_v2 t)] <- unApp $ makeRightAssoc body
+            , Just ident_e <- HM.lookup prim (assocPrimToIdent tenv kv t)
+            , col_v1 == col_v2
+            , col_v1 `notElem` varNames e1 = Just $ SpecificPrim pr ident_e
+
+            | Var (Id col_v2 _) <- body
+            , col_v1 == col_v2 = Just AnyPrim
+
+            | [Prim Ite _, cond, tb, fb] <- unApp body
+            , col_v1 `notElem` varNames cond
+            , Just tb1 <- checkBody tb
+            , Just fb1 <- checkBody fb = resolveBranches tb1 fb1
+
+            | otherwise = Nothing
 isSplittableFoldRev' _ _ _ = Nothing
 
 -- Looks for cases where a fold function is applied to a variable:
