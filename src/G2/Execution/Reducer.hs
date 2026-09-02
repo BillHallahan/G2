@@ -473,9 +473,9 @@ nonRedLibFuncs exec_names no_nrpc_names
 nonRedPathsReducer :: (MonadIO m, Solver solver) =>
                         solver
                       -> Config
-                      -> Reducer m Int t
+                      -> Reducer m (Int, ReachabilityTable) t
 nonRedPathsReducer solver config =
-    (mkSimpleReducer (\_ -> 0)
+    (mkSimpleReducer (\_ -> (0, HM.empty))
         (nonRedPathCons solver config))
         { onAccept = \s b nrpc_count -> do
             if print_num_nrpc config
@@ -483,8 +483,8 @@ nonRedPathsReducer solver config =
                 else return ()
             return (s, b) }
 
-nonRedPathCons :: (MonadIO m, Solver solver )=> solver -> Config -> RedRules m Int t
-nonRedPathCons solver config rv@nrpc_count
+nonRedPathCons :: (MonadIO m, Solver solver )=> solver -> Config -> RedRules m (Int, ReachabilityTable) t
+nonRedPathCons solver config rv@(nrpc_count, reach_tbl)
                 s@(State { curr_expr = CurrExpr _ ce
                          , expr_env = eenv})
                 b@(Bindings { name_gen = ng })
@@ -493,10 +493,10 @@ nonRedPathCons solver config rv@nrpc_count
     , E.isSymbolic n' eenv
     , Just (s'@(State { curr_expr = CurrExpr _ _ }), _, NRPC { nrpc_lhs = left, nrpc_rhs = right }, ng') <- createNonRedForCase ng Focused s = 
         do
-            num_paths <- liftIO $ paths HS.empty HS.empty left right s' (b {name_gen = ng'}) solver
+            (num_paths, reach_tbl') <- liftIO $ paths HS.empty HS.empty left right s' (b {name_gen = ng'}) solver reach_tbl
             when (print_paths config) $ liftIO . putStrLn $ "Paths count: " ++ show num_paths -- ++ " : expression is:" ++ show left
             if num_paths > 1 
-                then return (Finished, [(s', nrpc_count + 1)], b {name_gen = ng'})
+                then return (Finished, [(s', (nrpc_count + 1, reach_tbl'))], b {name_gen = ng'})
                 else return (Finished, [(s, rv)], b)
     -- Removing the Tick so standard reducer can reduce case expression. 
     -- This is to avoid adding a case expression again and again in the nrpc set
@@ -504,7 +504,7 @@ nonRedPathCons solver config rv@nrpc_count
     , isNonRedBlockerTick t = do
         let ce' = removeNonRedBlockerTick e
             s' = s {curr_expr = CurrExpr Evaluate ce'}
-        return (Finished, [(s', nrpc_count)], b)
+        return (Finished, [(s', rv)], b)
     | otherwise = return (Finished, [(s, rv)], b)
 
 
