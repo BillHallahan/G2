@@ -21,9 +21,8 @@ test3 xs = case xs of
 
 data Tree a = Empty | Node a (Tree a) (Tree a)
 
-data List a = Nil | a :> List a
+data List a = Nil | a :> List a 
 
--- I think this at least give paths value 2 for the second case
 test4 :: List (Tree Int) -> Int
 test4 xs = case xs of
     Nil -> assert False 0
