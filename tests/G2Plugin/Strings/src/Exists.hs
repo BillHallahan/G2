@@ -60,3 +60,23 @@ smtExists6 :: AB -> [Int] -> [Int]
 smtExists6 ab xs = exists (\ys -> case ab of
                                     A -> 1:xs == ys
                                     B -> False)
+
+{-# ANN exists7 (SMTEquivIsWithConfig "smtExists7" "")
+    #-}
+exists7 :: AB -> [Int] -> [Int]
+exists7 _ xs = xs
+
+smtExists7 :: AB -> [Int] -> [Int]
+smtExists7 ab xs = exists (\ys -> case ab of
+                                    A -> xs == ys
+                                    B -> False)
+
+{-# ANN exists8 (SMTEquivIsWithConfig "smtExists8" "")
+    #-}
+exists8 :: Int -> [Int] -> [Int]
+exists8 _ xs = xs
+
+smtExists8 :: Int -> [Int] -> [Int]
+smtExists8 x xs = exists (\ys -> case x > 0 of
+                                    True -> xs == ys
+                                    False -> False)

@@ -390,6 +390,9 @@ primDefs' b c l unit =
               , ("||#", Prim Or . TyFun (TyCon b TYPE) $ TyFun (TyCon b TYPE) (TyCon b TYPE))
               , ("==>", Prim Implies . TyFun (TyCon b TYPE) $ TyFun (TyCon b TYPE) (TyCon b TYPE))
 
+              , ("exists#", Lam TypeL a $ 
+                                Prim Exists (mkTyFun [ TyFun (TyVar a) (TyCon b TYPE)
+                                                     , TyCon b TYPE]))
               , ("forAllBoundInt#", Prim ForAllBoundPr (mkTyFun [ TyLitInt
                                                                 , TyLitInt
                                                                 , TyFun TyLitInt (TyCon b TYPE)

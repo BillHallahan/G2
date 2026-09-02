@@ -1,4 +1,3 @@
-{-# OPTIONS_GHC -fno-warn-orphans #-}
 {-# LANGUAGE BangPatterns, FlexibleContexts, LambdaCase, OverloadedStrings, RankNTypes, CPP #-}
 
 module G2.Interface.Interface ( MkCurrExpr
@@ -353,8 +352,8 @@ type RHOStack m t = SM.StateT (ApproxPrevs t)
                          , IORef TimedOut
                          , IORef TimeInFC)
     #-}
-initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
-                  State ()
+initRedHaltOrd :: (ASTContainer t Expr, ASTContainer t Type, Named t, Show t, MonadIO m, Solver solver, Simplifier simplifier) =>
+                  State t
                -> S.HashSet (Maybe T.Text)
                -> solver
                -> simplifier
@@ -362,9 +361,9 @@ initRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                -> S.HashSet Name -- ^ Names of functions that may not be added to NRPCs
                -> S.HashSet Name -- ^ Names of functions that should not reesult in a larger expression become EXEC,
                                  -- but should not be added to the NRPC at the top level.
-               -> IO ( SomeReducer (RHOStack m ()) ()
-                     , SomeHalter (RHOStack m ()) (ExecRes ()) ()
-                     , SomeOrderer (RHOStack m ()) (ExecRes ()) ()
+               -> IO ( SomeReducer (RHOStack m t) t
+                     , SomeHalter (RHOStack m t) (ExecRes t) t
+                     , SomeOrderer (RHOStack m t) (ExecRes t) t
                      , IORef TimedOut
                      , IORef TimeInFC)
 initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names = do

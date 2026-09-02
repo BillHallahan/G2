@@ -297,6 +297,9 @@ evalApp s@(State { expr_env = eenv
     | (Prim Error _) <- appCenter e1 =
         (RuleError, newPCEmpty $ s { curr_expr = CurrExpr Return (App e1 e2) }, ng)
     -- Force evaluation of the expression being quantified over
+    | [Prim Exists _] <- unApp e1 =
+        let e2' = simplifyExprs eenv eenv e2 in
+        (RuleEvalPrimToNorm, newPCEmpty $ s { curr_expr = CurrExpr Return (App e1 e2') }, ng)
     | [Prim ForAllBoundPr _, _ {- lower -}, _ {- upper -} ] <- unApp e1 =
         let e2' = simplifyExprs eenv eenv e2 in
         (RuleEvalPrimToNorm, newPCEmpty $ s { curr_expr = CurrExpr Return (App e1 e2') }, ng)
@@ -652,6 +655,20 @@ evalCase s@(State { expr_env = eenv
       assert (tyConName (tyAppCenter $ typeOf tvnv mexpr) /= Just (KV.tyMutVar kv)
                         ==> length alt_res <= length dalts + length lalts + length defs)
       (RuleEvalCaseSym, SplitStatePieces s alt_res, ng'')
+
+  -- Make sure we have evaluated primitive arguments
+  | p@(Prim _ _):es <- unApp mexpr
+  , (whnf_es, e:other_es) <- span (isExprValueForm eenv) es =
+    let (n, ng') = freshName ng
+        new_mexpr = mkApp $ p:whnf_es ++ Var (Id n TyUnknown):other_es
+        stck' = S.push (UpdateFrame n)
+              . S.push (CurrExprFrame NoAction (CurrExpr Evaluate new_mexpr))
+              $ S.push (CaseFrame bind t alts) stck
+    in
+    ( RuleEvalCaseNonVal
+    , newPCEmpty $ s { expr_env = eenv
+                     , curr_expr = CurrExpr Evaluate e
+                     , exec_stack = stck' }, ng')
 
   -- Case evaluation also uses the stack in graph reduction based evaluation
   -- semantics. The case's binding variable and alts are pushed onto the stack
@@ -2063,7 +2080,12 @@ retLitTableFrame dus solver simplifier s ng ltc up stck = case ltc of
         frames = S.toList $ exec_stack s
         explorings = filterJust $ map getExploringConds frames
         all_pcs = L.foldl' PC.union PC.empty explorings
-        updated_lts = if up
+
+        ok_upcoming_stack = case Stck.pop . snd =<< Stck.pop stck of
+                                Just (CurrExprFrame _ _, _) -> False
+                                _ -> True
+
+        updated_lts = if up && ok_upcoming_stack
             then S.modifyTop (updateLiteralTable all_pcs e) $ lit_table_stack s
             else lit_table_stack s
         updated_state = s { exec_stack = stck, lit_table_stack = updated_lts }

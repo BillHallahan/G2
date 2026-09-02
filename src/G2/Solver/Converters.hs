@@ -620,6 +620,14 @@ funcToSMT1Prim tv ReComp e = ReCompSMT (exprToSMT tv e)
 funcToSMT1Prim tv (IsConstructor dc) e = IsConstructorSMT (nameToStr $ dc_name dc) (exprToSMT tv e)
 funcToSMT1Prim tv (Selector dc i) e = SelectorSMT (nameToStr $ dc_name dc) i (exprToSMT tv e)
 
+funcToSMT1Prim tv Exists e_body | (Lam _ (Id n t) e) <- stripAllTicks e_body =
+    let
+        e_smt = exprToSMT tv e
+        n_smt = nameToStr n
+        n_sort = typeToSMT tv t
+    in
+    ExistsSMT n_smt n_sort e_smt
+
 funcToSMT1Prim _ err _ = error $ "funcToSMT1Prim: invalid Primitive " ++ show err
 
 
@@ -1072,6 +1080,7 @@ toSolverAST str_seq = go
 
         go (Named x n) = "(! " <> go x <> " :named " <> TB.string n <> ")"
 
+        go (ExistsSMT n srt smt) = "(exists ((" <> TB.string n <> " " <> sortName srt <> "))" <> go smt <> ")"
         go (ForAll n srt smt) = "(forall ((" <> TB.string n <> " " <> sortName srt <> "))" <> go smt <> ")"
 
         go (SeqUnitSMT e) = "(seq.unit " <> go e <> ")"

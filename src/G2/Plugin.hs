@@ -471,6 +471,7 @@ adjustFunctions nm ex_g2 = do
     . adjustFunction ("pForce#", Just "G2.Plugin.Prim") nm (callPrim nm "force##")
 
     . adjustMkSymbolicPrim SNoLog "pSymGen#" (Just "G2.Plugin.Prim") nm
+    . adjustFunction ("pExists#", Just "G2.Plugin.Prim") nm (callPrim nm "exists#")
 
     . adjustFunction ("$&&#", Just "G2.Plugin.Prim") nm (callPrim nm "&&#")
 
@@ -598,8 +599,24 @@ smtReStar r = r `evalSeq` pSmtReStar# r
 smtReComp :: String -> String
 smtReComp r = r `evalSeq` pSmtReComp# r
 
+-- exists :: forall a . (a -> Bool) -> a
+-- exists p = let !x = pSymGen# @a in assume (p x) x
+
 exists :: forall a . (a -> Bool) -> a
-exists p = let !x = pSymGen# @a in assume (p x) x
+exists p =
+    let 
+        !x = pSymGen# @a
+        !(LTI lt success inLT partial) = pBuildLitTable# p
+    in
+    case success of
+        False -> x
+        True -> case pExists# (\i -> lt i) of
+                    True -> assume (p x) x
+                    False -> x 
+    --     !mapped = xs `evalSeq` pSmtMap# lt xs
+    --     !pt_a = if not partial then True else pSmtFoldLeft# (\acc e -> acc $&& inLT e) True xs
+    -- in assume pt_a $ if success then mapped else map f xs
+
 
 exists2 :: forall a b . (a -> b -> Bool) -> (a, b)
 exists2 p = let !x = pSymGen# @a 
