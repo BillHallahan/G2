@@ -390,6 +390,9 @@ primDefs' b c l unit =
               , ("||#", Prim Or . TyFun (TyCon b TYPE) $ TyFun (TyCon b TYPE) (TyCon b TYPE))
               , ("==>", Prim Implies . TyFun (TyCon b TYPE) $ TyFun (TyCon b TYPE) (TyCon b TYPE))
 
+              , ("exists#", Lam TypeL a $ 
+                                Prim Exists (mkTyFun [ TyFun (TyVar a) (TyCon b TYPE)
+                                                     , TyCon b TYPE]))
               , ("forAllBoundInt#", Prim ForAllBoundPr (mkTyFun [ TyLitInt
                                                                 , TyLitInt
                                                                 , TyFun TyLitInt (TyCon b TYPE)
@@ -399,6 +402,7 @@ primDefs' b c l unit =
               , ("evalsToSMTRep#", Prim EvalsToSMTRep (TyForAll a (TyFun (TyVar a) (TyCon b TYPE))))
               , ("typeIndex#", Prim (TypeIndex (TyH { tyh_strings = False, tyh_prim_lists = False })) (TyForAll a (TyFun (TyVar a) TyLitInt)))
               , ("force#", Prim Force (TyForAll a (TyFun (TyVar a) (TyFun TyLitInt TyLitInt))))
+              , ("force##", Prim Force (TyForAll a (TyForAll d (TyFun (TyVar a) (TyFun (TyVar d) (TyVar d))))))
 
               , ("buildLitTable#", Lam TypeL (x TYPE)
                                  . Lam TypeL (y TYPE)

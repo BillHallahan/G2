@@ -96,6 +96,9 @@ module G2.Execution.Reducer (
 
                             , inlineNRPC
 
+                            , checkAssumesPossibleReducer
+                            , isCheckingAssumeName
+
                             , ReducerEq (..)
                             , (.==)
                             , (~>)
@@ -676,6 +679,41 @@ getNonRedForHigherOrder no_inline ng s
 getNonRedForHigherOrder _ ng s
     | Just (s', _, _, ng1) <- createNonRed ng Focused s = Just (s', ng1)
     | otherwise = Nothing
+
+checkAssumesPossibleReducer :: Monad m => Reducer m () t
+checkAssumesPossibleReducer = mkSimpleReducer (const ()) go
+    where
+        go _ s@(State { curr_expr = CurrExpr Evaluate (Assume _ pr _)
+                      , type_env = tenv
+                      , known_values = kv })
+             b@(Bindings { name_gen = ng }) =
+            let
+                (n, ng') = freshSeededString checkingAssumeOcc ng
+                (e, ng'') = wrapCase tenv kv ng' pr
+                s' = s { curr_expr = CurrExpr Evaluate e
+                       , exec_stack = Stck.empty
+                       , tags = HS.insert n $ tags s
+                       , true_assert = True }
+            in
+            return (Finished, [(s, ()), (s', ())], b { name_gen = ng'' })
+        go _ s b = return (Finished, [(s, ())], b)
+
+isCheckingAssumeName :: Name -> Bool
+isCheckingAssumeName n = nameOcc n == checkingAssumeOcc
+
+wrapCase :: TypeEnv -> KnownValues -> NameGen -> Expr -> (Expr, NameGen)
+wrapCase tenv kv ng e =
+    let
+        (n, ng') = freshSeededString "b" ng
+        dc_true = mkDCTrue kv tenv
+        dc_false = mkDCFalse kv tenv
+        alts = [ Alt (DataAlt dc_true []) (Data dc_true)
+               , Alt (DataAlt dc_false []) (Data dc_false)]
+    in
+    (Case e (Id n $ Ty.tyBool kv) (Ty.tyBool kv) alts, ng')
+
+checkingAssumeOcc :: T.Text
+checkingAssumeOcc = "checking_assume"
 
 data ApproxPrevs t = AP { ap_nrpc_states :: [State t], ap_halter_states :: [State t]}
 

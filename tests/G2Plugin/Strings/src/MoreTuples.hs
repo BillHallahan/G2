@@ -13,7 +13,7 @@ listTuple xs ys = (xs ++ ys, ys ++ xs)
 smtListTuple :: [Int] -> [Int] -> ([Int], [Int])
 smtListTuple xs ys = (xs $++ ys, ys $++ xs)
 
-{-# ANN pairInt (SMTEquivIsWithConfig "smtPairInt" "")
+{-# ANN pairInt (SMTEquivIsWithConfig "smtPairInt" "--print-smt")
     #-}
 pairInt :: [Int] -> [(Int, Int)]
 pairInt [] = []

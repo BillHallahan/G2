@@ -347,6 +347,7 @@ data Primitive = -- Mathematical and logical operators
                | Undefined
 
                -- Quantifiers- use a lambda to represent bound variable
+               | Exists -- ^ exists (\i -> e)
                | ForAllBoundPr -- ^ `forall_bound lower upper (\i -> e)` requires that `forall i . lower <= i < upper ==> e`
 
                -- Unspecified Output- when we want to calculate input values that lead to a specific point,

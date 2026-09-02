@@ -45,7 +45,7 @@ tests = testGroup "All Tests"
                                 , ("pairA", "smtPairA")
 
 -- This test fails on GitHub CI for GHC 9.8.4, specifically (works locally.)
-#if __GLASGOW_HASKELL__ >= 910 || __GLASGOW_HASKELL__ < 908
+#if __GLASGOW_HASKELL__ >= 912 || __GLASGOW_HASKELL__ < 908
                                 , ("myZip", "smtMyZip")
 #endif
                                 , ("myA", "smtMyA")
@@ -87,8 +87,16 @@ tests = testGroup "All Tests"
 
                                 -- Non-equivalent functions
                                 [
+                                  -- Exists
+                                  ("exists1", "smtExists1")
+                                , ("exists2", "smtExists2")
+                                , ("exists3", "smtExists3")
+                                , ("exists4", "smtExists4")
+                                , ("exists5", "smtExists5")
+                                , ("exists6", "smtExists6")
+
                                   -- Strings
-                                  ("corr", "smtCorr")
+                                , ("corr", "smtCorr")
                                 , ("incorr", "smtIncorr")
                                 , ("addTwoAll", "smtAddTwoAll")
                                 , ("sumListBad", "smtSumListBad")

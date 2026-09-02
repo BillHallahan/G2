@@ -604,6 +604,7 @@ mkPrimHaskell pg = pr
 
         pr (UninterpFunc i) = "(uninterpFunc " <> mkNameHaskell pg i <> ")"
 
+        pr Exists = "exists"
         pr ForAllBoundPr = "forall_bound"
 
         pr UnspecifiedOutput = "?"

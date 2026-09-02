@@ -140,6 +140,10 @@ pBuildLitTable# _ = error "pBuildLitTable#"
 pSymGen# :: a
 pSymGen# = error "pSymGen#"
 
+{-# NOINLINE pExists# #-}
+pExists# :: (a -> Bool) -> Bool
+pExists# = error "pExists#"
+
 ------------------------------------------------------------------------------
 -- Other
 ------------------------------------------------------------------------------
@@ -147,3 +151,7 @@ pSymGen# = error "pSymGen#"
 ($&&) :: Bool -> Bool -> Bool
 True $&& True = True
 _ $&& _ = False
+
+{-# NOINLINE pForce# #-}
+pForce# :: a -> b -> b
+pForce# _ x = x
