@@ -150,7 +150,7 @@ data StringSimplifier = StringSimplifier
 instance Simplifier StringSimplifier where
     simplifyPC _ (State { known_values = kv, type_env = tenv }) pc =
                        [ modifyASTs (simplifyAllStrings kv tenv)
-                       $ modifyContainedASTs simplifyString pc]
+                       $ modifyContainedASTs (simplifyString) pc]
 
     reverseSimplification _ _ _ m = m
 
@@ -158,8 +158,10 @@ simplifyString :: Expr -> Expr
 simplifyString e
     | [Prim Eq _, App (Prim StrLen t) v, Lit (LitInt 0) ] <- unApp e
     , TyFun (TyApp _ (TyCon (Name "Char" _ _ _) _)) _ <- t = mkApp [Prim Eq TyUnknown, v, Lit (LitString "")]
+
     | [Prim Eq _, Lit (LitInt 0), App (Prim StrLen t) v ] <- unApp e
     , TyFun (TyApp _ (TyCon (Name "Char" _ _ _) _)) _ <- t = mkApp [Prim Eq TyUnknown, v, Lit (LitString "")]
+
 simplifyString e = e
 
 simplifyAllStrings :: KnownValues -> TypeEnv -> Expr -> Expr
@@ -173,6 +175,11 @@ simplifyAllStrings kv tenv e
               , mkApp [Prim StrReplaceAll str_ra_ty, xs, list, zs ]
               , mkApp [Prim StrReplaceAll str_ra_ty, ys, list, zs ]
               ]
+
+    -- | [Prim Eq _, e1, e2] <- unApp e
+    -- , [Prim StrIndexOf _, xs, ys, Lit (LitInt 0)] <- unApp e1
+    -- , Lit (LitInt (- 1)) <- e2 = App (Prim Not TyUnknown) $ mkApp [ Prim StrContains TyUnknown, xs, ys]
+
 simplifyAllStrings _ _ e = e
 
 splitUpStrApp :: KnownValues -> TypeEnv -> Expr -> Maybe (Expr, Expr)

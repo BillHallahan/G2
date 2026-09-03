@@ -10,6 +10,7 @@ module G2.Plugin (SymEx (..)
                  , G2.Plugin.assert
                  , (==>)
 
+                -- Standard Sequence
                  , smtEq
                  , smtLen
                  , smtNth
@@ -30,6 +31,7 @@ module G2.Plugin (SymEx (..)
                  , smtFoldLeft
                 --  , smtFoldLeftI
 
+                -- Standard Regex
                 , smtReRange
                 , smtInRe
                 , smtToRe
@@ -42,7 +44,13 @@ module G2.Plugin (SymEx (..)
                 , smtReStar
                 , smtReComp
 
-                 , comp
+                -- Extended Sequence
+                , smtAny
+                , smtAll
+                , smtZip
+
+                -- Checking
+                , comp
                 ) where
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
@@ -583,6 +591,22 @@ smtReStar r = r `evalSeq` pSmtReStar# r
 
 smtReComp :: String -> String
 smtReComp r = r `evalSeq` pSmtReComp# r
+
+-- Extended Functions
+
+smtAny :: (a -> Bool) -> [a] -> Bool
+smtAny p = smtFoldLeft (\acc x -> p x || acc) False
+
+smtAll :: (a -> Bool) -> [a] -> Bool
+smtAll p = smtFoldLeft (\acc x -> p x && acc) True
+
+smtZip :: [a] -> [b] -> [(a, b)]
+smtZip xs ys | smtLen xs < smtLen ys = exists (\zs -> xs `smtEq` smtMap fst zs
+                                                      && smtMap snd zs `smtPrefixOf` ys)
+             | otherwise = exists (\zs -> smtMap fst zs `smtPrefixOf` xs
+                                       && ys `smtEq` smtMap snd zs)
+
+-- Forcing Evaluation
 
 {-# NOINLINE evalSeq #-}
 evalSeq :: [a] -> b -> b

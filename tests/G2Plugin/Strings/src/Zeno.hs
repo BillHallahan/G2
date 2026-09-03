@@ -118,10 +118,7 @@ zip _ [] = []
 zip (x:xs) (y:ys) = (x, y) : (zip xs ys)
 
 zipSMT :: [Nat] -> [Nat] -> [(Nat, Nat)]
-zipSMT xs ys | smtLen xs < smtLen ys = exists (\zs -> (xs `smtEq` (smtMap fst zs)) 
-                                                      && ((smtMap snd zs) `smtPrefixOf` ys))
-             | otherwise = exists (\zs -> ((smtMap fst zs) `smtPrefixOf` xs )
-                                          && (ys `smtEq` (smtMap snd zs)))
+zipSMT = smtZip
 
 {-# ANN delete (SMTEquivIsWithConfig "deleteSMT" "--smt cvc5")
     #-}
@@ -195,13 +192,24 @@ map f (x:xs) = (f x) : (map f xs)
 mapSMT :: (Nat -> Nat) -> [Nat] -> [Nat]
 mapSMT = smtMap
 
--- {-# ANN takeWhile (SMTEquivIs "takeWhileSMT") #-}
+{-# ANN takeWhile (SMTEquivIs "takeWhileSMT") #-}
 takeWhile :: (Nat -> Bool) -> [Nat] -> [Nat]
 takeWhile _ [] = []
 takeWhile p (x:xs) =
   case p x of
     True -> x : (takeWhile p xs)
     _ -> []
+
+takeWhileSMT :: (Nat -> Bool) -> [Nat] -> [Nat]
+takeWhileSMT p xs =
+    let
+        bs = smtMap p xs
+        n = smtIndexOf bs [False] 0
+    in
+    case n of
+        -1 -> xs
+        _ -> smtExtract xs 0 n
+    
 
 -- takeWhileSMT :: (Nat -> Bool) -> [Nat] -> [Nat]
 -- takeWhileSMT p xs =
@@ -210,13 +218,23 @@ takeWhile p (x:xs) =
 --                                     smtFoldLeft (\acc e -> acc && not (p e)) True (smtAt bs 0))
 --   in as'
 
--- {-# ANN dropWhile (SMTEquivIs "dropWhileSMT") #-}
+{-# ANN dropWhile (SMTEquivIsWithConfig "dropWhileSMT" "") #-}
 dropWhile :: (Nat -> Bool) -> [Nat] -> [Nat]
 dropWhile _ [] = []
 dropWhile p (x:xs) =
   case p x of
     True -> dropWhile p xs
     _ -> x:xs
+
+dropWhileSMT :: (Nat -> Bool) -> [Nat] -> [Nat]
+dropWhileSMT p xs =
+    let
+        bs = smtMap p xs
+        n = smtIndexOf bs [False] 0
+    in
+    case n of
+        -1 -> []
+        _ -> smtExtract xs n (smtLen xs - n)
 
 -- dropWhileSMT :: (Nat -> Bool) -> [Nat] -> [Nat]
 -- dropWhileSMT p xs =
