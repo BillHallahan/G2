@@ -133,6 +133,7 @@ library
                        , G2.Lib.Printers
                        
                        , G2.Plugin.Prim
+                       , G2.Plugin.Unsafe
 
                        , G2.Nebula
 
