@@ -150,7 +150,7 @@ data StringSimplifier = StringSimplifier
 instance Simplifier StringSimplifier where
     simplifyPC _ (State { known_values = kv, type_env = tenv }) pc =
                        [ modifyASTs (simplifyAllStrings kv tenv)
-                       $ modifyContainedASTs (simplifyString) pc]
+                       $ modifyContainedASTs simplifyString pc]
 
     reverseSimplification _ _ _ m = m
 
