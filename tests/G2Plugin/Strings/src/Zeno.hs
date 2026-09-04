@@ -192,7 +192,8 @@ map f (x:xs) = (f x) : (map f xs)
 mapSMT :: (Nat -> Nat) -> [Nat] -> [Nat]
 mapSMT = smtMap
 
-{-# ANN takeWhile (SMTEquivIs "takeWhileSMT") #-}
+{-# ANN takeWhile (SMTEquivIsWithConfig "takeWhileSMT" "")
+  #-}
 takeWhile :: (Nat -> Bool) -> [Nat] -> [Nat]
 takeWhile _ [] = []
 takeWhile p (x:xs) =
@@ -209,7 +210,6 @@ takeWhileSMT p xs =
     case n of
         -1 -> xs
         _ -> smtExtract xs 0 n
-    
 
 -- takeWhileSMT :: (Nat -> Bool) -> [Nat] -> [Nat]
 -- takeWhileSMT p xs =
