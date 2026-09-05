@@ -3,6 +3,7 @@
 module Tuples where
 
 import G2.Plugin
+import G2.Plugin.Unsafe
 
 {-# ANN module ("--smt-tuples --smt-adts A")
     #-}

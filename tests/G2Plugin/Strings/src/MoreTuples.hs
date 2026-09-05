@@ -1,6 +1,7 @@
 module MoreTuples where
 
 import G2.Plugin
+import G2.Plugin.Unsafe
 
 {-# ANN module ("--smt-tuples")
     #-}

@@ -1145,7 +1145,7 @@ toSolverASTSeq = go
                     <> " (" <> TB.string n2 <> " " <> sortNameLam s2 <> ")) "
                     <> goBack w <> ") " <> goBack x <> " " <> goBack y <> " " <> goBack z <> ")"
         go (LambdaSMT [(n, s)] e) =
-            "(lambda ((" <> TB.string n <> sortNameLam s <>  "))" <> go e <> ")"
+            "(lambda ((" <> TB.string n <> " " <> sortNameLam s <>  "))" <> go e <> ")"
         go (AppLam e1 e2) = "(" <> go e1 <> " " <> go e2 <> ")"
         go c = toSolverASTRe goBack c
 

@@ -80,8 +80,8 @@ tests = testGroup "All Tests"
                                 , ("ins1", "ins1SMT")
                                 -- , ("sorted", "sortedSMT")
                                 , ("filter", "filterSMT")
-                                -- , ("dropWhile", "dropWhileSMT")
-                                -- , ("takeWhile", "takeWhileSMT")
+                                , ("dropWhile", "dropWhileSMT")
+                                , ("takeWhile", "takeWhileSMT")
                                 , ("zip", "zipSMT")
                                 ]
 

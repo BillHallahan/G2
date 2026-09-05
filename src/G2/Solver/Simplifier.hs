@@ -158,8 +158,10 @@ simplifyString :: Expr -> Expr
 simplifyString e
     | [Prim Eq _, App (Prim StrLen t) v, Lit (LitInt 0) ] <- unApp e
     , TyFun (TyApp _ (TyCon (Name "Char" _ _ _) _)) _ <- t = mkApp [Prim Eq TyUnknown, v, Lit (LitString "")]
+
     | [Prim Eq _, Lit (LitInt 0), App (Prim StrLen t) v ] <- unApp e
     , TyFun (TyApp _ (TyCon (Name "Char" _ _ _) _)) _ <- t = mkApp [Prim Eq TyUnknown, v, Lit (LitString "")]
+
 simplifyString e = e
 
 simplifyAllStrings :: KnownValues -> TypeEnv -> Expr -> Expr
@@ -173,6 +175,11 @@ simplifyAllStrings kv tenv e
               , mkApp [Prim StrReplaceAll str_ra_ty, xs, list, zs ]
               , mkApp [Prim StrReplaceAll str_ra_ty, ys, list, zs ]
               ]
+
+    -- | [Prim Eq _, e1, e2] <- unApp e
+    -- , [Prim StrIndexOf _, xs, ys, Lit (LitInt 0)] <- unApp e1
+    -- , Lit (LitInt (- 1)) <- e2 = App (Prim Not TyUnknown) $ mkApp [ Prim StrContains TyUnknown, xs, ys]
+
 simplifyAllStrings _ _ e = e
 
 splitUpStrApp :: KnownValues -> TypeEnv -> Expr -> Maybe (Expr, Expr)
@@ -377,7 +384,7 @@ instance Simplifier HigherOrderSimplifier where
     simplifyPC _ _ pc = [pc]
 
     simplifyPCs _ (State { type_env = tenv, known_values = kv }) pc =
-        splitAnds . modifyASTs (unfoldAppend tenv kv) . inFoldStringVars pc . modifyASTs lenOfMap
+        modifyASTs (simplifyUnitMap kv) . splitAnds . modifyASTs (unfoldAppend tenv kv) . inFoldStringVars pc . modifyASTs lenOfMap
 
     simplifyPCWithExprEnv _ s@(State { known_values = kv, tyvar_env = tv_env }) ng eenv pc =
         let 
@@ -721,6 +728,7 @@ getUnit kv (App
             )
     | dc_name dc_cons == dcCons kv
     , dc_name dc_emp == dcEmpty kv = Just x
+getUnit _ (App (Prim SeqUnit _) e) = Just e
 getUnit _ _ = Nothing
 
 indexOfToAppended :: State t -> NameGen -> PathCond -> ([PathCond], ExprEnv, NameGen)
@@ -836,3 +844,9 @@ mkSeqNth kv tv_env lst ind =
                     _ -> id
     in
     wrap $ mkApp [Prim SeqNth t, lst, ind]
+
+simplifyUnitMap :: KnownValues -> Expr -> Expr
+simplifyUnitMap kv e
+    | [Prim Map _, f, e1] <- unApp e
+    , Just unit_v <- getUnit kv e1 = App (Prim SeqUnit TyUnknown) (App f unit_v)
+    | otherwise = e
