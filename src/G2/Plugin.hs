@@ -10,6 +10,7 @@ module G2.Plugin (SymEx (..)
                  , G2.Plugin.assert
                  , (==>)
 
+                -- Standard Sequence
                  , smtEq
                  , smtLen
                  , smtNth
@@ -30,6 +31,7 @@ module G2.Plugin (SymEx (..)
                  , smtFoldLeft
                 --  , smtFoldLeftI
 
+                -- Standard Regex
                 , smtReRange
                 , smtInRe
                 , smtToRe
@@ -42,13 +44,13 @@ module G2.Plugin (SymEx (..)
                 , smtReStar
                 , smtReComp
 
-                , exists
-                , exists2
-                , exists3
-                , exists4
-                , exists5
+                -- Extended Sequence
+                , smtAny
+                , smtAll
+                , smtZip
 
-                 , comp
+                -- Checking
+                , comp
                 ) where
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
@@ -91,6 +93,7 @@ import qualified Data.Sequence as Seq
 import qualified Data.Text.IO as T
 import Options.Applicative
 import G2.Language.TyVarEnv as TV
+import G2.Plugin.Unsafe
 import qualified G2.SMTSynth.Verify as V
 import qualified Data.Text as TX
 
@@ -103,13 +106,6 @@ data SymEx = SymEx
              deriving (Show, Data, Generic)
 
 instance NFData SymEx
-
--- | Assume that a condition is true
-assume :: Bool -- ^ Condition to assume
-       -> a -- ^ 
-       -> a
-assume _ x = x
-{-# NOINLINE assume #-}
 
 {-# NOINLINE assert #-}
 -- | Assert that a condition is true
@@ -473,7 +469,7 @@ adjustFunctions nm ex_g2 = do
     . adjustFunction ("$&&#", Just "G2.Plugin.Prim") nm (callPrim nm "&&#")
 
     . adjustAssert "assert" "G2.Plugin" nm
-    $ adjustAssume (Just "G2.Plugin") nm ex_g2
+    $ adjustAssume (Just "G2.Plugin.Unsafe") nm ex_g2
 
 callPrim :: NameMap -> TX.Text -> L.Expr 
 callPrim nm n =
@@ -596,30 +592,21 @@ smtReStar r = r `evalSeq` pSmtReStar# r
 smtReComp :: String -> String
 smtReComp r = r `evalSeq` pSmtReComp# r
 
-exists :: forall a . (a -> Bool) -> a
-exists p = let !x = pSymGen# @a in assume (p x) x
+-- Extended Functions
 
-exists2 :: forall a b . (a -> b -> Bool) -> (a, b)
-exists2 p = let !x = pSymGen# @a 
-                !y = pSymGen# @b in assume (p x y) (x, y)
+smtAny :: (a -> Bool) -> [a] -> Bool
+smtAny p = smtFoldLeft (\acc x -> p x || acc) False
 
-exists3 :: forall a b c . (a -> b -> c -> Bool) -> (a, b, c)
-exists3 p = let !x = pSymGen# @a 
-                !y = pSymGen# @b
-                !z = pSymGen# @c in assume (p x y z) (x, y, z)
+smtAll :: (a -> Bool) -> [a] -> Bool
+smtAll p = smtFoldLeft (\acc x -> p x && acc) True
 
-exists4 :: forall a b c d . (a -> b -> c -> d -> Bool) -> (a, b, c, d)
-exists4 p = let !w = pSymGen# @a 
-                !x = pSymGen# @b
-                !y = pSymGen# @c
-                !z = pSymGen# @d in assume (p w x y z) (w, x, y, z)
+smtZip :: [a] -> [b] -> [(a, b)]
+smtZip xs ys | smtLen xs < smtLen ys = exists (\zs -> xs `smtEq` smtMap fst zs
+                                                      && smtMap snd zs `smtPrefixOf` ys)
+             | otherwise = exists (\zs -> smtMap fst zs `smtPrefixOf` xs
+                                       && ys `smtEq` smtMap snd zs)
 
-exists5 :: forall a b c d e . (a -> b -> c -> d -> e -> Bool) -> (a, b, c, d, e)
-exists5 p = let !v = pSymGen# @a 
-                !w = pSymGen# @b
-                !x = pSymGen# @c
-                !y = pSymGen# @d
-                !z = pSymGen# @e in assume (p v w x y z) (v, w, x, y, z)
+-- Forcing Evaluation
 
 {-# NOINLINE evalSeq #-}
 evalSeq :: [a] -> b -> b

@@ -889,7 +889,7 @@ createExtConds s ng dcpm mexpr cvar (x:xs) =
 -- In the latter case, the note [String Concretizations and Constraints] is relevant.
 createExtCond :: State t -> NameGen -> DataConPCMap -> Expr -> Id -> (DataCon, [Id], Expr) -> (StateDiff, NameGen)
 createExtCond s ngen dcpm mexpr cvar (dcon, bindees, aexpr)
-    | typeOf tvnv mexpr == tyBool kv =
+    | typeOf tvnv dcon == tyBool kv =
         let
             -- Get the Bool value specified by the matching DataCon
             -- Throws an error if dcon is not a Bool Data Constructor
@@ -975,7 +975,7 @@ liftSymLitAlt' s mexpr cvar (lit, aexpr) =
        , new_mut_vars = [] }
   where
     -- Condition that was matched.
-    cond = AltCond lit mexpr True
+    cond = ExtCond (mkApp [Prim Eq TyUnknown, mexpr, Lit lit]) True
     -- Bind the cvar.
     binds = [(cvar, Lit lit)]
     aexpr' = liftCaseBinds binds aexpr
@@ -1171,7 +1171,7 @@ liftSymDefAltPCs kv tv_env mexpr (DataAlt dc _)
     | dc_name dc == KV.dcFalse kv =
          Just $ ExtCond (mkApp [Prim Eq TyUnknown, mexpr, mkTrue kv]) True
     | otherwise = Just $ ExtCond (App (Prim Not TyUnknown) (App (Prim (IsConstructor dc) TyUnknown) mexpr)) True
-liftSymDefAltPCs _ _ mexpr (LitAlt lit) = Just $ AltCond lit mexpr False
+liftSymDefAltPCs _ _ mexpr (LitAlt lit) = Just $ ExtCond (App (Prim Not TyUnknown) (mkApp [Prim Eq TyUnknown, mexpr, Lit lit])) True
 liftSymDefAltPCs _ _ _ Default = Nothing
 
 defAltExpr :: [Alt] -> Maybe Expr
