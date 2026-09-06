@@ -16,6 +16,7 @@ import Control.Monad.IO.Class
 import qualified Data.Foldable as F
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
+import Data.List
 import Data.Maybe
 import qualified Data.Text as T
 
@@ -41,7 +42,12 @@ checkEquiv func_config equiv_annots simp_state entry_real entry_smt
                                 func_config'
             bindings' = bindings { higher_order_inst = HS.empty }
         
-        checkEquivInputOutput func_config' equiv_annots init_state bindings' entry_id real_e entry_smt_name
+        case checkTermination entry_real_name real_e of
+            True -> checkEquivInputOutput func_config' equiv_annots init_state bindings' entry_id real_e entry_smt_name
+            False -> putStrLn $ "Equivalence not proven: "
+                                    <> T.unpack (nameOcc entry_real_name) <> " and "
+                                    <> T.unpack (nameOcc entry_smt_name)
+                                    <> ", termination not proven"
     | otherwise = do
         putStrLn "checkEquiv: functions not found"
         return ()
@@ -201,3 +207,43 @@ checkFCStateBindings orig_eenv er bindings =
                     ) (reached_fc_ticks s)
             ) er
     in new_state_bindings
+
+------------------------------------------------------------------------------
+-- Checking Termination
+------------------------------------------------------------------------------
+
+-- We check termination by ensure that there is some parameter that decreases
+-- in size on every function call.
+
+data Decrease = Decrease | NoDecreasing deriving (Eq, Show)
+
+checkTermination :: Name -> Expr -> Bool
+checkTermination n e =
+    let
+        is = leadingLamIds e
+        decs = getDecreases is n HM.empty e
+    in
+    -- There are no recursive calls, or all recursive calls decrease on the same parameter
+    null decs || any (all (== Decrease)) (transpose decs)
+
+getDecreases :: [Id] -- ^ Initial function inputs
+             -> Name -- ^ Function name
+             -> HM.HashMap Name Name -- ^ DC argument names point to parent name
+             -> Expr -- ^ Function body
+             -> [[Decrease]]
+getDecreases is func_name = go
+    where
+        go unfoldings e
+            | Var f:es <- unApp e
+            , func_name == idName f =
+                [zipWith (calcDecreases unfoldings) is (es ++ repeat (Prim Undefined TyUnknown))]
+        go unfoldings (Case (Var (Id case_n _)) _ _ as) =
+            let
+                updateUnfoldings (DataAlt _ bs) u = foldl' (\u_ i -> HM.insert (idName i) case_n u_) u bs
+                updateUnfoldings _ u = u
+            in
+            concatMap (\(Alt am e) -> go (updateUnfoldings am unfoldings) e) as
+        go unfoldings e = evalChildren (go unfoldings) e 
+
+        calcDecreases unfoldings (Id n _) (Var (Id n' _)) | HM.lookup n' unfoldings == Just n = Decrease
+        calcDecreases _ _ _ = NoDecreasing
