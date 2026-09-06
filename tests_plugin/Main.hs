@@ -110,6 +110,11 @@ tests = testGroup "All Tests"
                                 , ("isNumBad", "smtIsNumBad")
                                 , ("containsFourBad", "smtContainsFourBad")
                                 , ("noPatBad", "smtNoPatBad")
+
+                                -- NonTerm
+                                , ("nonTerm1", "smtNonTerm1")
+                                , ("nonTerm2", "smtNonTerm2")
+                                , ("nonTerm3", "smtNonTerm3")
                                 ]
         , checkNebulaPackage "tests/RewriteVerify/PluginTests/Simple" ["add_assoc", "fg", "fg_toint"] ["f_one"]]
 
