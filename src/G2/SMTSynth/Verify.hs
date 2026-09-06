@@ -16,14 +16,14 @@ import Control.Monad.IO.Class
 import qualified Data.Foldable as F
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
+import Data.List
 import Data.Maybe
 import qualified Data.Text as T
 
 checkEquiv :: Config -> HM.HashMap Name Id -> SimpleState -> Name -> String -> IO ()
 checkEquiv func_config equiv_annots simp_state entry_real entry_smt
     | Just (entry_real_name, real_e) <- E.lookupNameMod (nameOcc entry_real) (nameModule entry_real) (IT.expr_env simp_state)
-    , Just (entry_smt_name, _) <- E.lookupNameMod (T.pack entry_smt) (nameModule entry_real) (IT.expr_env simp_state)
-    , Just (comp_name, comp_e) <- E.lookupNameMod "comp" (Just "G2.Plugin") (IT.expr_env simp_state) = do
+    , Just (entry_smt_name, _) <- E.lookupNameMod (T.pack entry_smt) (nameModule entry_real) (IT.expr_env simp_state) = do
         -- Get a Config to run this specific function
         let func_config' = func_config { step_limit = False
                                        , smt_strings = UseSMTStrings
@@ -41,12 +41,25 @@ checkEquiv func_config equiv_annots simp_state entry_real entry_smt
                                 (E.higherOrderExprs TV.empty . IT.expr_env)
                                 func_config'
             bindings' = bindings { higher_order_inst = HS.empty }
+        
+        case checkTermination entry_real_name real_e of
+            True -> checkEquivInputOutput func_config' equiv_annots init_state bindings' entry_id real_e entry_smt_name
+            False -> putStrLn $ "Equivalence not proven: "
+                                    <> T.unpack (nameOcc entry_real_name) <> " and "
+                                    <> T.unpack (nameOcc entry_smt_name)
+                                    <> ", termination not proven"
+    | otherwise = do
+        putStrLn "checkEquiv: functions not found"
+        return ()
 
-            eenv = expr_env init_state
+checkEquivInputOutput :: Config -> HM.HashMap Name Id -> State () -> Bindings -> Id -> Expr -> Name -> IO ()
+checkEquivInputOutput func_config equiv_annots init_state bindings entry_id@(Id entry_real_name _) real_e entry_smt_name
+    | Just (comp_name, comp_e) <- E.lookupNameMod "comp" (Just "G2.Plugin") (expr_env init_state) = do
+        let eenv = expr_env init_state
             kv = known_values init_state
             tv_env = tyvar_env init_state
 
-            real_var = Var (Id entry_real_name $ typeOf tv_env real_e)
+            real_var = Var entry_id
             smt_var = Var (Id entry_smt_name $ typeOf tv_env real_e)
 
             -- Modify the real function to replace recursive calls with calls to the SMT definitions
@@ -58,7 +71,7 @@ checkEquiv func_config equiv_annots simp_state entry_real entry_smt
             eenv'' = insertFCTickForAll (HM.toList $ HM.map idName equiv_annots) eenv' tv_env
         
             -- Set up a call to compare the real and SMT definitions
-            in_vars = mapMaybe (flip E.lookup eenv'') $ input_names bindings'
+            in_vars = mapMaybe (flip E.lookup eenv'') $ input_names bindings
             call_real = mkApp (real_var:in_vars)
             call_smt = mkApp (smt_var:in_vars)
             eq = fromMaybe (error $ "checkEquiv: could not generate Eq typeclass")
@@ -72,14 +85,14 @@ checkEquiv func_config equiv_annots simp_state entry_real entry_smt
             comp_state = init_state { expr_env = eenv''
                                     , curr_expr = CurrExpr Evaluate comp_expr
                                     , true_assert = False }
-            config_no_output = func_config' { print_output = False }
+            config_no_output = func_config { print_output = False }
         (ers, got_unknown, _, time_outs, _) <- liftIO $ runG2WithConfig
                                                             [] [] entry_id "" []
                                                             [nameModule entry_real_name]
                                                             comp_state
                                                             config_no_output
-                                                            bindings'
-        
+                                                            bindings
+ 
         -- Get States corresponding to SMT calls from the states that violated the spec.
         -- Consider some functions:
         --      {-# ANN corr (SMTEquivIs "smtCorr") #-}
@@ -98,9 +111,9 @@ checkEquiv func_config equiv_annots simp_state entry_real entry_smt
         -- If we run corr, we may get a "counterexample" that corr 0 = 2. However, the glitch here is actually that
         -- the specification of incorr is wrong. We figure this out by logging all values passed into and returned from
         -- SMT definitions, and then checking if those values actually conform to the behavior of the real function.
-        let smt_call_xs = (checkFCStateBindings eenv) ers bindings'
+        let smt_call_xs = (checkFCStateBindings eenv) ers bindings
         mapM_ (\(func_n, new_s, new_b) -> do
-            runG2WithConfig [] [] (Id func_n TyUnknown) "" [] [nameModule entry_real_name] new_s func_config' new_b) smt_call_xs
+            runG2WithConfig [] [] (Id func_n TyUnknown) "" [] [nameModule entry_real_name] new_s func_config new_b) smt_call_xs
 
         case (ers, got_unknown) of
             ([], NoUnknowns) | NoTimeOut <- time_outs -> putStrLn $ "Equivalent: "
@@ -194,3 +207,43 @@ checkFCStateBindings orig_eenv er bindings =
                     ) (reached_fc_ticks s)
             ) er
     in new_state_bindings
+
+------------------------------------------------------------------------------
+-- Checking Termination
+------------------------------------------------------------------------------
+
+-- We check termination by ensure that there is some parameter that decreases
+-- in size on every function call.
+
+data Decrease = Decrease | NoDecreasing deriving (Eq, Show)
+
+checkTermination :: Name -> Expr -> Bool
+checkTermination n e =
+    let
+        is = leadingLamIds e
+        decs = getDecreases is n HM.empty e
+    in
+    -- There are no recursive calls, or all recursive calls decrease on the same parameter
+    null decs || any (all (== Decrease)) (transpose decs)
+
+getDecreases :: [Id] -- ^ Initial function inputs
+             -> Name -- ^ Function name
+             -> HM.HashMap Name Name -- ^ DC argument names point to parent name
+             -> Expr -- ^ Function body
+             -> [[Decrease]]
+getDecreases is func_name = go
+    where
+        go unfoldings e
+            | Var f:es <- unApp e
+            , func_name == idName f =
+                [zipWith (calcDecreases unfoldings) is (es ++ repeat (Prim Undefined TyUnknown))]
+        go unfoldings (Case (Var (Id case_n _)) _ _ as) =
+            let
+                updateUnfoldings (DataAlt _ bs) u = foldl' (\u_ i -> HM.insert (idName i) case_n u_) u bs
+                updateUnfoldings _ u = u
+            in
+            concatMap (\(Alt am e) -> go (updateUnfoldings am unfoldings) e) as
+        go unfoldings e = evalChildren (go unfoldings) e 
+
+        calcDecreases unfoldings (Id n _) (Var (Id n' _)) | HM.lookup n' unfoldings == Just n = Decrease
+        calcDecreases _ _ _ = NoDecreasing
