@@ -47,7 +47,7 @@ checkEquiv func_config equiv_annots simp_state entry_real entry_smt
         return ()
 
 checkEquivInputOutput :: Config -> HM.HashMap Name Id -> State () -> Bindings -> Id -> Expr -> Name -> IO ()
-checkEquivInputOutput func_config' equiv_annots init_state bindings' entry_id@(Id entry_real_name _) real_e entry_smt_name
+checkEquivInputOutput func_config equiv_annots init_state bindings entry_id@(Id entry_real_name _) real_e entry_smt_name
     | Just (comp_name, comp_e) <- E.lookupNameMod "comp" (Just "G2.Plugin") (expr_env init_state) = do
         let eenv = expr_env init_state
             kv = known_values init_state
@@ -65,7 +65,7 @@ checkEquivInputOutput func_config' equiv_annots init_state bindings' entry_id@(I
             eenv'' = insertFCTickForAll (HM.toList $ HM.map idName equiv_annots) eenv' tv_env
         
             -- Set up a call to compare the real and SMT definitions
-            in_vars = mapMaybe (flip E.lookup eenv'') $ input_names bindings'
+            in_vars = mapMaybe (flip E.lookup eenv'') $ input_names bindings
             call_real = mkApp (real_var:in_vars)
             call_smt = mkApp (smt_var:in_vars)
             eq = fromMaybe (error $ "checkEquiv: could not generate Eq typeclass")
@@ -79,14 +79,14 @@ checkEquivInputOutput func_config' equiv_annots init_state bindings' entry_id@(I
             comp_state = init_state { expr_env = eenv''
                                     , curr_expr = CurrExpr Evaluate comp_expr
                                     , true_assert = False }
-            config_no_output = func_config' { print_output = False }
+            config_no_output = func_config { print_output = False }
         (ers, got_unknown, _, time_outs, _) <- liftIO $ runG2WithConfig
                                                             [] [] entry_id "" []
                                                             [nameModule entry_real_name]
                                                             comp_state
                                                             config_no_output
-                                                            bindings'
-        
+                                                            bindings
+ 
         -- Get States corresponding to SMT calls from the states that violated the spec.
         -- Consider some functions:
         --      {-# ANN corr (SMTEquivIs "smtCorr") #-}
@@ -105,9 +105,9 @@ checkEquivInputOutput func_config' equiv_annots init_state bindings' entry_id@(I
         -- If we run corr, we may get a "counterexample" that corr 0 = 2. However, the glitch here is actually that
         -- the specification of incorr is wrong. We figure this out by logging all values passed into and returned from
         -- SMT definitions, and then checking if those values actually conform to the behavior of the real function.
-        let smt_call_xs = (checkFCStateBindings eenv) ers bindings'
+        let smt_call_xs = (checkFCStateBindings eenv) ers bindings
         mapM_ (\(func_n, new_s, new_b) -> do
-            runG2WithConfig [] [] (Id func_n TyUnknown) "" [] [nameModule entry_real_name] new_s func_config' new_b) smt_call_xs
+            runG2WithConfig [] [] (Id func_n TyUnknown) "" [] [nameModule entry_real_name] new_s func_config new_b) smt_call_xs
 
         case (ers, got_unknown) of
             ([], NoUnknowns) | NoTimeOut <- time_outs -> putStrLn $ "Equivalent: "
