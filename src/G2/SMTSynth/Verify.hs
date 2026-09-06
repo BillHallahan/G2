@@ -22,8 +22,7 @@ import qualified Data.Text as T
 checkEquiv :: Config -> HM.HashMap Name Id -> SimpleState -> Name -> String -> IO ()
 checkEquiv func_config equiv_annots simp_state entry_real entry_smt
     | Just (entry_real_name, real_e) <- E.lookupNameMod (nameOcc entry_real) (nameModule entry_real) (IT.expr_env simp_state)
-    , Just (entry_smt_name, _) <- E.lookupNameMod (T.pack entry_smt) (nameModule entry_real) (IT.expr_env simp_state)
-    , Just (comp_name, comp_e) <- E.lookupNameMod "comp" (Just "G2.Plugin") (IT.expr_env simp_state) = do
+    , Just (entry_smt_name, _) <- E.lookupNameMod (T.pack entry_smt) (nameModule entry_real) (IT.expr_env simp_state) = do
         -- Get a Config to run this specific function
         let func_config' = func_config { step_limit = False
                                        , smt_strings = UseSMTStrings
@@ -41,12 +40,20 @@ checkEquiv func_config equiv_annots simp_state entry_real entry_smt
                                 (E.higherOrderExprs TV.empty . IT.expr_env)
                                 func_config'
             bindings' = bindings { higher_order_inst = HS.empty }
+        
+        checkEquivInputOutput func_config' equiv_annots init_state bindings' entry_id real_e entry_smt_name
+    | otherwise = do
+        putStrLn "checkEquiv: functions not found"
+        return ()
 
-            eenv = expr_env init_state
+checkEquivInputOutput :: Config -> HM.HashMap Name Id -> State () -> Bindings -> Id -> Expr -> Name -> IO ()
+checkEquivInputOutput func_config' equiv_annots init_state bindings' entry_id@(Id entry_real_name _) real_e entry_smt_name
+    | Just (comp_name, comp_e) <- E.lookupNameMod "comp" (Just "G2.Plugin") (expr_env init_state) = do
+        let eenv = expr_env init_state
             kv = known_values init_state
             tv_env = tyvar_env init_state
 
-            real_var = Var (Id entry_real_name $ typeOf tv_env real_e)
+            real_var = Var entry_id
             smt_var = Var (Id entry_smt_name $ typeOf tv_env real_e)
 
             -- Modify the real function to replace recursive calls with calls to the SMT definitions
