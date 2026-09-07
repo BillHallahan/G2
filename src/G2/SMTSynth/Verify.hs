@@ -95,10 +95,10 @@ checkEquivInputOutput check_output func_config equiv_annots init_state bindings 
             eenv'' = insertFCTickForAll (HM.toList $ HM.map idName equiv_annots) eenv' tv_env
         
             -- Set up a call to compare the real and SMT definitions
-            in_vars = mapMaybe (flip E.lookup eenv'') $ input_names bindings
+            in_vars = fixed_inputs bindings ++ mapMaybe (flip E.lookup eenv'') (input_names bindings)
             call_real = mkApp (real_var:in_vars)
             call_smt = mkApp (smt_var:in_vars)
-            eq = fromMaybe (error $ "checkEquiv: could not generate Eq typeclass")
+            eq = fromMaybe (error $ "checkEquiv: could not generate Eq typeclass" ++ "\n" ++ show (typeOf tv_env call_real) ++ "\n" ++ show call_real)
                $ typeClassInst (type_classes init_state) HM.empty (KV.eqTC kv) (typeOf tv_env call_real)
 
             comp_expr = mkApp [ Var (Id comp_name $ typeOf tv_env comp_e)

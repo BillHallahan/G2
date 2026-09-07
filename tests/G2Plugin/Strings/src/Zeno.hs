@@ -151,12 +151,12 @@ elemSMT :: Nat -> [Nat] -> Bool
 elemSMT n xs = smtContains xs [n]
 
 {-# ANN drop (SMTEquivIs "dropSMT") #-}
-drop :: Nat -> [Nat] -> [Nat]
+drop :: Nat -> [a] -> [a]
 drop x xs | x <= 0 = xs
 drop _ [] = []
 drop x (_:xs) = drop (x - 1) xs
 
-dropSMT :: Nat -> [Nat] -> [Nat]
+dropSMT :: Nat -> [a] -> [a]
 dropSMT n xs = 
   if n >= 0
     then smtExtract xs n ((smtLen xs) - n)
