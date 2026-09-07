@@ -102,6 +102,7 @@ import System.Clock
 data SymEx = SymEx
            | SymExWithConfig String
            | Prop -- ^ A property, which we check always returns true
+           | PropWithConfig String -- ^ A property, which we check always returns true
            | SMTEquivIs String -- ^ A corresponding SMT definition function name, which should be checked for equivalence
            | SMTEquivIsWithConfig String String -- ^ A corresponding SMT definition function name, which should be checked for equivalence
              deriving (Show, Data, Generic)
@@ -205,8 +206,12 @@ runSymexAnnot cmd_lne _ simp_state entry SymEx =
     runFunc cmd_lne simp_state entry
 runSymexAnnot cmd_lne _ simp_state entry (SymExWithConfig extra_cmd_lne) =
     runFunc (cmd_lne ++ words extra_cmd_lne) simp_state entry
+
 runSymexAnnot cmd_lne equiv_annots simp_state entry Prop =
     checkProp cmd_lne equiv_annots simp_state entry
+runSymexAnnot cmd_lne equiv_annots simp_state entry (PropWithConfig extra_cmd_lne) =
+    checkProp (cmd_lne ++ words extra_cmd_lne) equiv_annots simp_state entry
+
 runSymexAnnot cmd_lne equiv_annots simp_state entry (SMTEquivIs smt_equiv_f) =
     checkEquiv cmd_lne equiv_annots simp_state entry smt_equiv_f
 runSymexAnnot cmd_lne equiv_annots simp_state entry (SMTEquivIsWithConfig smt_equiv_f extra_cmd_lne) =

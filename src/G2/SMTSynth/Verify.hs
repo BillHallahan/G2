@@ -93,9 +93,10 @@ checkEquivInputOutput check_output func_config equiv_annots init_state bindings 
             real_e' = replaceVars equiv_annots real_e_mod_def
             eenv' = E.insert entry_real_name real_e' eenv
             eenv'' = insertFCTickForAll (HM.toList $ HM.map idName equiv_annots) eenv' tv_env
+            eenv''' = foldl' (\eenv_ (n, i) -> E.insert n (Var i) eenv_) eenv'' (HM.toList $ HM.delete entry_real_name equiv_annots)
         
             -- Set up a call to compare the real and SMT definitions
-            in_vars = fixed_inputs bindings ++ mapMaybe (flip E.lookup eenv'') (input_names bindings)
+            in_vars = fixed_inputs bindings ++ mapMaybe (flip E.lookup eenv''') (input_names bindings)
             call_real = mkApp (real_var:in_vars)
             call_smt = mkApp (smt_var:in_vars)
             eq = fromMaybe (error $ "checkEquiv: could not generate Eq typeclass" ++ "\n" ++ show (typeOf tv_env call_real) ++ "\n" ++ show call_real)
@@ -106,7 +107,7 @@ checkEquivInputOutput check_output func_config equiv_annots init_state bindings 
                               , eq
                               , call_real
                               , call_smt]
-            comp_state = init_state { expr_env = eenv''
+            comp_state = init_state { expr_env = eenv'''
                                     , curr_expr = CurrExpr Evaluate comp_expr
                                     , true_assert = False }
             config_no_output = func_config { print_output = False }

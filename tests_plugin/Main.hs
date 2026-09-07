@@ -116,7 +116,8 @@ tests = testGroup "All Tests"
                                 , ("nonTerm2", "smtNonTerm2")
                                 , ("nonTerm3", "smtNonTerm3")
                                 ]
-                                [ "prop_01" ]
+                                [ "prop_01"
+                                , "prop_49" ]
                                 [ "myRev_propBad" ]
         , checkNebulaPackage "tests/RewriteVerify/PluginTests/Simple" ["add_assoc", "fg", "fg_toint"] ["f_one"]]
 

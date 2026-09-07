@@ -33,6 +33,7 @@ import Prelude
   )
 
 import G2.Plugin
+import G2.Plugin.Unsafe
 
 {-# ANN module ("--smt-tuples --higher-order uninterpreted")
     #-}
@@ -539,6 +540,7 @@ prop_48 xs
   = givenBool (not (null xs))
   ( (butlast xs ++ [last xs] =:= xs) )
 
+{-# ANN prop_49 Prop #-}
 prop_49 :: [Nat] -> [Nat] -> Bool
 prop_49 xs ys
   = (butlast (xs ++ ys) =:= butlastConcat xs ys)
@@ -674,9 +676,9 @@ prop_80 :: Nat -> [Nat] -> [Nat] -> Bool
 prop_80 n xs ys
   = (take n (xs ++ ys) =:= take n xs ++ take (n - len xs) ys)
 
-prop_81 :: Nat -> Nat -> [Nat] -> Bool
-prop_81 n m xs {- ys -}
-  = (take n (drop m xs) =:= drop m (take (n + m) xs))
+-- prop_81 :: Nat -> Nat -> [Nat] -> Bool
+-- prop_81 n m xs {- ys -}
+--   = (take n (drop m xs) =:= drop m (take (n + m) xs))
 
 -- prop_82 :: Nat -> [Nat] -> [Nat] -> Bool
 -- prop_82 n xs ys
