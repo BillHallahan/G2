@@ -93,11 +93,11 @@ nullSMT :: [Nat] -> Bool
 nullSMT xs = (smtLen xs) == 0
 
 {-# ANN (++) (SMTEquivIs "appendSMT") #-}
-(++) :: [Nat] -> [Nat] -> [Nat]
+(++) :: [a] -> [a] -> [a]
 [] ++ ys = ys
 (x:xs) ++ ys = x : (xs ++ ys)
 
-appendSMT :: [Nat] -> [Nat] -> [Nat]
+appendSMT :: [a] -> [a] -> [a]
 appendSMT = ($++)
 
 {-# ANN rev (SMTEquivIsWithConfig "revSMT" "--smt cvc5")

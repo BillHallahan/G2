@@ -168,14 +168,14 @@ insertFCTick expr func tv_env =
     insertInLams (\is e ->
                     let
                         ty_e = typeOf tv_env e
-                        anon_ty = anonArgumentTypes ty_e
-                        new_lam_is = zipWith (\i at -> Id (Name "G2_!!_LAM" Nothing i Nothing) at) [1..] anon_ty
+                        tys = spArgumentTypes ty_e
+                        new_lam_is = zipWith (\i at -> (argTypeToLamUse at, Id (Name "G2_!!_LAM" Nothing i Nothing) (argTypeToType at))) [1..] tys
                         ret_id = Id ret_name (returnType ty_e)
 
-                        all_is = is ++ new_lam_is
-                        e' = mkApp $ e:map Var new_lam_is
+                        all_is = is ++ map snd new_lam_is
+                        e' = mkApp $ e:map (Var . snd) new_lam_is
                     in
-                       mkLams (map (TermL,) new_lam_is)
+                       mkLams new_lam_is
                     $ Let [(ret_id, e')] $ Tick (FCTick $ FuncCall { funcName = func, arguments = map Var all_is, returns = Var ret_id }) (Var ret_id)) expr
 
 checkFCStateBindings :: ExprEnv -> [ExecRes ()] -> Bindings -> [(Name, State (), Bindings)]
