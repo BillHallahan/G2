@@ -343,6 +343,7 @@ mirror :: Tree Nat -> Tree Nat
 mirror Leaf = Leaf
 mirror (Node l x r) = Node (mirror r) x (mirror l)
 
+{-# ANN prop_01 Prop #-}
 prop_01 :: Nat -> [Nat] -> Bool
 prop_01 n xs
   = (take n xs ++ drop n xs =:= xs)

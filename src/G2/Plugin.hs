@@ -101,6 +101,7 @@ import System.Clock
 
 data SymEx = SymEx
            | SymExWithConfig String
+           | Prop -- ^ A property, which we check always returns true
            | SMTEquivIs String -- ^ A corresponding SMT definition function name, which should be checked for equivalence
            | SMTEquivIsWithConfig String String -- ^ A corresponding SMT definition function name, which should be checked for equivalence
              deriving (Show, Data, Generic)
@@ -204,6 +205,8 @@ runSymexAnnot cmd_lne _ simp_state entry SymEx =
     runFunc cmd_lne simp_state entry
 runSymexAnnot cmd_lne _ simp_state entry (SymExWithConfig extra_cmd_lne) =
     runFunc (cmd_lne ++ words extra_cmd_lne) simp_state entry
+runSymexAnnot cmd_lne equiv_annots simp_state entry Prop =
+    checkProp cmd_lne equiv_annots simp_state entry
 runSymexAnnot cmd_lne equiv_annots simp_state entry (SMTEquivIs smt_equiv_f) =
     checkEquiv cmd_lne equiv_annots simp_state entry smt_equiv_f
 runSymexAnnot cmd_lne equiv_annots simp_state entry (SMTEquivIsWithConfig smt_equiv_f extra_cmd_lne) =
@@ -246,13 +249,26 @@ logAcceptedStateTime entryName  = do
     file_exists <- doesFileExist file_name
     when file_exists $ appendFile file_name $ "\n" ++ entryName ++ " : "
 
+checkProp :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> IO ()
+checkProp cmd_lne equiv_annots simp_state entry_real = do
+        T.putStrLn $ "Checking property " <> nameOcc entry_real
+        -- Get a Config to run this specific function
+        homedir <- liftIO getHomeDirectory
+        func_config <- liftIO . handleParseResult $ execParserPure defaultPrefs (pluginConfig homedir) cmd_lne
+        V.checkProp func_config equiv_annots simp_state entry_real
+
 checkEquiv :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> String -> IO ()
-checkEquiv cmd_lne equiv_annots simp_state entry_real entry_smt = do
-    T.putStrLn $ "Checking " <> nameOcc entry_real <> " and " <> TX.pack entry_smt 
-    -- Get a Config to run this specific function
-    homedir <- liftIO $ getHomeDirectory
-    func_config <- liftIO . handleParseResult $ execParserPure defaultPrefs (pluginConfig homedir) cmd_lne
-    V.checkEquiv func_config equiv_annots simp_state entry_real entry_smt
+checkEquiv cmd_lne equiv_annots simp_state entry_real entry_smt 
+    | Just (entry_smt_name, _) <- E.lookupNameMod (TX.pack entry_smt) (L.nameModule entry_real) (IT.expr_env simp_state) = do
+        T.putStrLn $ "Checking " <> nameOcc entry_real <> " and " <> TX.pack entry_smt 
+        -- Get a Config to run this specific function
+        homedir <- liftIO $ getHomeDirectory
+        func_config <- liftIO . handleParseResult $ execParserPure defaultPrefs (pluginConfig homedir) cmd_lne
+        V.checkEquiv func_config equiv_annots simp_state entry_real entry_smt_name
+    | otherwise = do
+        putStrLn "checkEquiv: functions not found"
+        return ()
+
 
 ------------------------------------------------------------------------------
 -- Loading in functions and function annotations

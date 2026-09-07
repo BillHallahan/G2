@@ -193,6 +193,10 @@ myRevBad (y:ys) = myRev ys ++ [y]
 smtMyRevBad :: [Int] -> [Int]
 smtMyRevBad ys = smtFoldLeft (\acc y -> acc $++ [y]) [] ys
 
+{-# ANN myRev_propBad Prop #-}
+myRev_propBad :: [Int] -> Bool
+myRev_propBad xs = myRev xs == xs
+
 {-
 {-# ANN myRevApp1 (SMTEquivIsWithConfig "smtMyRevApp1" "") #-}
 myRevApp1 :: [Int] -> [Int]

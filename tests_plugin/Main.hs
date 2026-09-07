@@ -116,6 +116,8 @@ tests = testGroup "All Tests"
                                 , ("nonTerm2", "smtNonTerm2")
                                 , ("nonTerm3", "smtNonTerm3")
                                 ]
+                                [ "prop_01" ]
+                                [ "myRev_propBad" ]
         , checkNebulaPackage "tests/RewriteVerify/PluginTests/Simple" ["add_assoc", "fg", "fg_toint"] ["f_one"]]
 
 -------------------------------------------------------------------------------
@@ -146,15 +148,20 @@ ranFunc io_out =
 checkG2PackageEquiv :: FilePath
                     -> [(String, String)] -- ^ Functions that should be equivalent
                     -> [(String, String)] -- ^ Functions that should be inequivalent
+                    -> [String] -- ^ Properties that should be proven
+                    -> [String] -- ^ Properties that should NOT be proven
                     -> TestTree
-checkG2PackageEquiv loc funcs_equiv funcs_inequiv =
+checkG2PackageEquiv loc funcs_equiv funcs_inequiv props false_props =
     withResource
         (buildPackage loc)
         (\_ -> return ()) $
         \io_out ->
             testGroup
             loc
-            $ ranFuncEquiv io_out funcs_equiv ++ ranFuncInequiv io_out funcs_inequiv
+            $  ranFuncEquiv io_out funcs_equiv
+            ++ ranFuncInequiv io_out funcs_inequiv
+            ++ ranFuncProp io_out props
+            ++ ranFuncNotProp io_out false_props
 
 ranFuncEquiv :: IO String -> [(String, String)] -> [TestTree]
 ranFuncEquiv io_out =
@@ -180,11 +187,41 @@ ranFuncInequiv io_out =
                                (checkInequiv f1 f2 out))
         )
 
+ranFuncProp :: IO String -> [String] -> [TestTree]
+ranFuncProp io_out =
+    map (\f1 -> testCase
+                f1
+                (do
+                    out <- io_out
+                    assertBool ((if checkNotProp f1 out
+                                     then "Disproved " ++ f1
+                                     else "Not run " ++ f1) ++ "\nFull output:\n" ++ out)
+                               (checkProp f1 out))
+        )
+
+ranFuncNotProp :: IO String -> [String] -> [TestTree]
+ranFuncNotProp io_out =
+    map (\f1 -> testCase
+                f1
+                (do
+                    out <- io_out
+                    assertBool ((if checkProp f1 out
+                                     then "Disproved " ++ f1
+                                     else "Not run " ++ f1) ++ "\nFull output:\n" ++ out)
+                               (checkNotProp f1 out))
+        )
+
 checkEquiv :: String -> String -> String -> Bool
 checkEquiv f1 f2 = isSubstringOf ("Equivalent: " ++ f1 ++ " and " ++ f2)
 
 checkInequiv :: String -> String -> String -> Bool
 checkInequiv f1 f2 = isSubstringOf ("Equivalence not proven: " ++ f1 ++ " and " ++ f2)
+
+checkProp :: String -> String -> Bool
+checkProp f1 = isSubstringOf ("Proven: " ++ f1)
+
+checkNotProp :: String -> String -> Bool
+checkNotProp f1 = isSubstringOf ("Not Proven: " ++ f1)
 
 -------------------------------------------------------------------------------
 -- Nebula
