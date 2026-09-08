@@ -463,7 +463,8 @@ prop_29 :: Nat -> [Nat] -> Bool
 prop_29 x xs
   = proveBool (x `elem` ins1 x xs)
 
-{-# ANN prop_30 Prop #-}
+{-# ANN prop_30 (PropWithConfig "--time 60")
+  #-}
 prop_30 :: Nat -> [Nat] -> Bool
 prop_30 x xs
   = proveBool (x `elem` ins x xs)
@@ -613,6 +614,8 @@ prop_65 :: Nat -> Nat -> Bool
 prop_65 i m =
   proveBool (i < 1 + (m + i))
 
+{-# ANN prop_66 Prop
+  #-}
 prop_66 :: (Nat -> Bool) -> [Nat] -> Bool
 prop_66 p xs
   = proveBool (len (filter p xs) <= len xs)

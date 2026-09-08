@@ -579,3 +579,7 @@ readCountingParen False count (')':xs) = let !count' = count - 1 in readCounting
 readCountingParen in_string count ('"':'"':xs) = readCountingParen in_string count xs
 readCountingParen in_string count ('"':xs) = readCountingParen (not in_string) count xs
 readCountingParen in_string count (_:xs) = readCountingParen in_string count xs
+
+-------------------------------------------------------------------------------
+-- Run multiple solvers in parallel
+-------------------------------------------------------------------------------
