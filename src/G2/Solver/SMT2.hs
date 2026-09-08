@@ -25,8 +25,14 @@ module G2.Solver.SMT2 ( Z3StringSolver (..)
 
 import G2.Config.Config
 import G2.Language.ArbValueGen
+import G2.Language (Expr (..), Primitive (..), Type (..), Id (..), Name (..), LamUse (..))
+import G2.Language.AST
+import G2.Language.Expr
+import qualified G2.Language.PathConds as PC
+import G2.Language.Support(State(..))
 import G2.Solver.Language
 import G2.Solver.ParseSMT
+import G2.Solver.Simplifier
 import G2.Solver.Solver
 import G2.Solver.Converters --It would be nice to not import this...
 
@@ -34,12 +40,12 @@ import Control.Exception.Base (evaluate)
 import Control.Monad
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
+import Data.Monoid (Any (..))
 import qualified Data.Text.IO as T
 import qualified Data.Text as DT
 import System.IO
 import System.Process
 import Data.Maybe (fromMaybe)
-import G2.Language.Support(State(..))
 
 #if MIN_VERSION_text_builder(0,6,8)
 import qualified TextBuilder as TB
@@ -66,9 +72,40 @@ data SomeSMTSolver where
                    . SMTConverter con => con -> SomeSMTSolver
 
 instance Solver Z3 where
-    check solver s pc = checkConstraintsPC (known_values s) (tyvar_env s) (type_env s) solver pc
+    check solver s pc = checkConstraintsPC (known_values s) (tyvar_env s) (type_env s) solver (elimReverse s pc)
     solve con@(Z3 _ _ avf _) = checkModelPC avf con
     close = closeIO
+
+-- | Convert StrReverse into a FoldLeft (for Z3)
+elimReverse :: State t -> PC.PathConds -> PC.PathConds
+elimReverse (State { type_env = tenv, known_values = kv }) = PC.mapHashedPCs adjust
+    where
+        adjust hashed_pc =
+            let pc = PC.unhashedPC hashed_pc in
+            if getAny (evalASTs containsRev pc) then PC.hashedPC (modifyASTs go pc) else hashed_pc
+
+        containsRev (Prim StrReverse _) = Any True
+        containsRev _ = Any False
+
+        go (App (Prim StrReverse (TyFun t _)) e)
+            | TyApp _ tv <- t =
+            let
+                acc = Id (Name "G2_!!_acc_" Nothing 0 Nothing) t
+                v = Id (Name "G2_!!_v" Nothing 0 Nothing) tv
+                f = Lam TermL acc
+                    . Lam TermL v
+                    $ mkApp [ mkCons kv tenv
+                            , Type tv
+                            , Var v
+                            , Var acc]
+            in
+            -- This fold is inserted AFTER the simplifier works- we thus benefit from adjust applications of fold to append
+            unfoldAppend tenv kv $
+            mkApp [ Prim FoldLeft TyUnknown
+                    , f
+                    , App (mkEmpty kv tenv) (Type tv)
+                    , e]
+        go e = e
 
 instance Solver CVC5 where
     check solver s pc = checkConstraintsPC (known_values s) (tyvar_env s) (type_env s) solver pc

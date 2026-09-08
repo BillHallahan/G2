@@ -37,6 +37,7 @@ tests = testGroup "All Tests"
                                 , ("myIntersperseBegin2", "smtMyIntersperseBegin2")
 
                                 , ("myRev", "smtMyRev")
+                                , ("myRev2", "smtMyRev2")
 
                                 , ("makeFourthElemSix", "smtMakeFourthElemSix")
 

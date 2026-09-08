@@ -185,6 +185,14 @@ myRev (y:ys) = myRev ys ++ [y]
 smtMyRev :: [Int] -> [Int]
 smtMyRev ys = smtFoldLeft (\acc y -> y:acc) [] ys
 
+{-# ANN myRev2 (SMTEquivIs "smtMyRev2") #-}
+myRev2 :: [Int] -> [Int]
+myRev2 [] = []
+myRev2 (y:ys) = myRev2 ys ++ [y]
+
+smtMyRev2 :: [Int] -> [Int]
+smtMyRev2 = smtReverse
+
 {-# ANN myRevBad (SMTEquivIsWithConfig "smtMyRevBad" "") #-}
 myRevBad :: [Int] -> [Int]
 myRevBad [] = []
