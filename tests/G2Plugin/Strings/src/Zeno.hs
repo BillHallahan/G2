@@ -614,8 +614,6 @@ prop_65 :: Nat -> Nat -> Bool
 prop_65 i m =
   proveBool (i < 1 + (m + i))
 
-{-# ANN prop_66 Prop
-  #-}
 prop_66 :: (Nat -> Bool) -> [Nat] -> Bool
 prop_66 p xs
   = proveBool (len (filter p xs) <= len xs)
