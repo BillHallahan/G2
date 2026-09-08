@@ -914,8 +914,12 @@ declareDataTypes dts =
             let
                 par = TB.intercalate " " . map TB.string $ dt_tyvars dt
                 cons = map handle_cons . dt_constructors $ dt
+
+                (par_str, end_str) = case dt_tyvars dt of
+                                        [] -> ("", "")
+                                        _ -> ("par (" <> par <> ") (", ")")
             in
-            "(par (" <> par <> ") (" <> TB.intercalate " " cons <> "))"
+            "(" <> par_str <> TB.intercalate " " cons <> ")" <> end_str
 
         dt_list = TB.intercalate " "
                 $ map (\dt -> "(" <> TB.string (dt_name dt) <> " " <> (TB.string . show . length . dt_tyvars $ dt) <> ")") dts

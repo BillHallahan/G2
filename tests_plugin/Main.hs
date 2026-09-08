@@ -45,6 +45,8 @@ tests = testGroup "All Tests"
                                 , ("appTuple", "smtAppTuple")
                                 , ("pairA", "smtPairA")
 
+                                , ("concatA", "smtConcatA")
+
 -- This test fails on GitHub CI for GHC 9.8.4, specifically (works locally.)
 #if __GLASGOW_HASKELL__ >= 910 || __GLASGOW_HASKELL__ < 908
                                 , ("myZip", "smtMyZip")
