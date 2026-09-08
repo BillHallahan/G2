@@ -463,6 +463,7 @@ prop_29 :: Nat -> [Nat] -> Bool
 prop_29 x xs
   = proveBool (x `elem` ins1 x xs)
 
+{-# ANN prop_30 Prop #-}
 prop_30 :: Nat -> [Nat] -> Bool
 prop_30 x xs
   = proveBool (x `elem` ins x xs)

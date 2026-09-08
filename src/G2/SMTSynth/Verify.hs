@@ -58,7 +58,6 @@ check check_output func_config equiv_annots simp_state entry_real entry_smt_name
                                        , using_smt_lams = UseSMTLams
                                        , literal_tables = UseLiteralTables
                                        , search_strat = Subpath
-                                       , min_found = 1
                                        , smt_discard_on_unknown = KeepUnknown }
 
         let entry_id = Id entry_real_name $ typeOf TV.empty real_e
