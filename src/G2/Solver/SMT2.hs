@@ -73,7 +73,7 @@ data SomeSMTSolver where
 
 instance Solver Z3 where
     check solver s pc = checkConstraintsPC (known_values s) (tyvar_env s) (type_env s) solver (elimReverse s pc)
-    solve con@(Z3 _ _ avf _) = checkModelPC avf con
+    solve con@(Z3 _ _ avf _) s b is pcs = checkModelPC avf con s b is (elimReverse s pcs)
     close = closeIO
 
 -- | Convert StrReverse into a FoldLeft (for Z3)
@@ -108,9 +108,23 @@ elimReverse (State { type_env = tenv, known_values = kv }) = PC.mapHashedPCs adj
         go e = e
 
 instance Solver CVC5 where
-    check solver s pc = checkConstraintsPC (known_values s) (tyvar_env s) (type_env s) solver pc
-    solve con@(CVC5 _ avf _) = checkModelPC avf con
+    check solver s pc 
+        | containsZ3Only pc = return (Unknown "Z3 Only" ())
+        | otherwise = checkConstraintsPC (known_values s) (tyvar_env s) (type_env s) solver pc
+    solve con@(CVC5 _ avf _) s b is pcs
+        | containsZ3Only pcs = return (Unknown "Z3 Only" ())
+        | otherwise = checkModelPC avf con s b is pcs
     close = closeIO
+
+containsZ3Only :: PC.PathConds -> Bool
+containsZ3Only = getAny . evalASTs go
+    where
+        go (Prim Map _) = Any True
+        go (Prim MapConcat _) = Any True
+        go (Prim MapConcatI _) = Any True
+        go (Prim FoldLeft _) = Any True
+        go (Prim FoldLeftI _) = Any True
+        go _ = Any False
 
 instance Solver Ostrich where
     check solver s pc = checkConstraintsPC (known_values s) (tyvar_env s) (type_env s) solver pc
@@ -467,22 +481,26 @@ getCVC5 pr_smt time_out = do
     hhp <- getCVC5ProcessHandles Nothing time_out
     return $ CVC5 pr_smt arbValue hhp
 
-getSMT :: Config -> IO SomeSMTSolver
-getSMT = getSMTAV arbValue
+getSMT :: ArbValueFunc -> Config -> IO SomeSolver
+getSMT avf config = do
+    solvers <- mapM (getSMTAV avf config) (smt config)
+    return $ foldl' comb (SomeSolver UnknownSolver) solvers
+    where
+        comb (SomeSolver sol1) (SomeSolver sol2) = SomeSolver $ sol1 :?> sol2
 
-getSMTAV :: ArbValueFunc -> Config -> IO SomeSMTSolver
-getSMTAV avf (Config { smt = ConZ3, smt_timeout = to, smt_path = path, print_smt = pr }) = do
+getSMTAV :: ArbValueFunc -> Config -> SMTSolver -> IO SomeSolver
+getSMTAV avf (Config { smt_timeout = to, smt_path = path, print_smt = pr }) ConZ3 = do
     hhp <- getZ3ProcessHandles path (to * 1000)
-    return $ SomeSMTSolver (Z3 SeqSolver pr avf hhp)
-getSMTAV avf (Config { smt = ConZ3Str3, smt_timeout = to, smt_path = path, print_smt = pr }) = do
+    return $ SomeSolver (Z3 SeqSolver pr avf hhp)
+getSMTAV avf (Config { smt_timeout = to, smt_path = path, print_smt = pr }) ConZ3Str3 = do
     hhp <- getZ3ProcessHandles path (to * 1000)
-    return $ SomeSMTSolver (Z3 Z3Str3 pr avf hhp)
-getSMTAV avf (Config { smt = ConCVC5, smt_timeout = to, smt_path = path, print_smt = pr }) = do
+    return $ SomeSolver (Z3 Z3Str3 pr avf hhp)
+getSMTAV avf (Config { smt_timeout = to, smt_path = path, print_smt = pr }) ConCVC5 = do
     hhp <- getCVC5ProcessHandles path (to * 1000)
-    return $ SomeSMTSolver (CVC5 pr avf hhp)
-getSMTAV avf (Config { smt = ConOstrich, smt_timeout = to, smt_path = path, print_smt = pr }) = do
+    return $ SomeSolver (CVC5 pr avf hhp)
+getSMTAV avf (Config { smt_timeout = to, smt_path = path, print_smt = pr }) ConOstrich = do
     hhp <- getOstrichProcessHandles path (to * 1000)
-    return $ SomeSMTSolver (Ostrich pr avf hhp)
+    return $ SomeSolver (Ostrich pr avf hhp)
 
 -- | getZ3ProcessHandles
 -- This calls Z3, and get's it running in command line mode.  Then you can read/write on the
