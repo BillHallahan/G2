@@ -86,7 +86,7 @@ testConfig homedir =
 
 checkInputOutputsWithCVC5 :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsWithCVC5 src tests = do
-    checkInputOutput' (do config <- mkConfigTestIO; return config { smt = ConCVC5 }) src tests
+    checkInputOutput' (do config <- mkConfigTestIO; return config { smt = [ConCVC5] }) src tests
 
 checkInputOutputsADTHeight :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsADTHeight src tests = do
@@ -102,7 +102,7 @@ checkInputOutputsSMTStrings src tests = do
 
 checkInputOutputsWithCVC5SMTStrings :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsWithCVC5SMTStrings src tests = do
-    checkInputOutput' (do config <- mkConfigTestIO; return config { smt = ConCVC5, smt_strings = UseSMTStrings }) src tests
+    checkInputOutput' (do config <- mkConfigTestIO; return config { smt = [ConCVC5], smt_strings = UseSMTStrings }) src tests
 
 checkInputOutputsSMTStringsStrict :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsSMTStringsStrict src tests = do
@@ -188,28 +188,28 @@ checkInputOutputsSymFuncConstraints src = checkInputOutputsSymFuncConstraintsFCA
 checkInputOutputsSymFuncConstraintsFCArgStepLimit :: FilePath -> Int -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsSymFuncConstraintsFCArgStepLimit src arg_step_lim tests = do
     checkInputOutput'
-        (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymConstraints, fc_arg_step_limit = arg_step_lim, smt = ConCVC5 }))
+        (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymConstraints, fc_arg_step_limit = arg_step_lim, smt = [ConCVC5] }))
         src
         tests
 
 checkInputOutputsSymFuncConstraintsSubPath :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsSymFuncConstraintsSubPath src tests = do
     checkInputOutput'
-        (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymConstraints, smt = ConCVC5, search_strat = Subpath, subpath_length = 8 }))
+        (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymConstraints, smt = [ConCVC5], search_strat = Subpath, subpath_length = 8 }))
         src
         tests
 
 checkInputOutputsSymFuncConstraintsSubPathSMTLists :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsSymFuncConstraintsSubPathSMTLists src tests = do
     checkInputOutput'
-        (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymConstraints, smt = ConCVC5, search_strat = Subpath, subpath_length = 8, smt_prim_lists = UseSMTSeq True True }))
+        (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymConstraints, smt = [ConCVC5], search_strat = Subpath, subpath_length = 8, smt_prim_lists = UseSMTSeq True True }))
         src
         tests
 
 checkInputOutputsSymFuncConstraintsSubPathReturnsTrue :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsSymFuncConstraintsSubPathReturnsTrue src tests = do
     checkInputOutput'
-        (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymConstraints, smt = ConCVC5, search_strat = Subpath, subpath_length = 8, returnsTrue = True }))
+        (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymConstraints, smt = [ConCVC5], search_strat = Subpath, subpath_length = 8, returnsTrue = True }))
         src
         tests
 

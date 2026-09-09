@@ -21,6 +21,7 @@ module G2.Solver.SMT2 ( Z3StringSolver (..)
                       , getZ3
                       , getCVC5
                       , getSMT
+                      , getSMTConverter
                       , getSMTAV) where
 
 import G2.Config.Config
@@ -485,23 +486,30 @@ getCVC5 pr_smt time_out = do
 getSMT :: ArbValueFunc -> Config -> IO SomeSolver
 getSMT avf config = do
     solvers <- mapM (getSMTAV avf config) (smt config)
-    return $ F.foldl' comb (SomeSolver UnknownSolver) solvers
+    return . F.foldl' comb (SomeSolver UnknownSolver) $ map toSomeSolver solvers
     where
         comb (SomeSolver sol1) (SomeSolver sol2) = SomeSolver $ sol1 :?> sol2
+        toSomeSolver (SomeSMTSolver solver) = SomeSolver solver
 
-getSMTAV :: ArbValueFunc -> Config -> SMTSolver -> IO SomeSolver
+getSMTConverter :: ArbValueFunc -> Config -> IO SomeSMTSolver
+getSMTConverter avf config =
+    case smt config of
+        [] -> error "getSMTConverter: no SMT solver specified"
+        smt_:_ -> getSMTAV avf config smt_
+
+getSMTAV :: ArbValueFunc -> Config -> SMTSolver -> IO SomeSMTSolver
 getSMTAV avf (Config { smt_timeout = to, smt_path = path, print_smt = pr }) ConZ3 = do
     hhp <- getZ3ProcessHandles path (to * 1000)
-    return $ SomeSolver (Z3 SeqSolver pr avf hhp)
+    return $ SomeSMTSolver (Z3 SeqSolver pr avf hhp)
 getSMTAV avf (Config { smt_timeout = to, smt_path = path, print_smt = pr }) ConZ3Str3 = do
     hhp <- getZ3ProcessHandles path (to * 1000)
-    return $ SomeSolver (Z3 Z3Str3 pr avf hhp)
+    return $ SomeSMTSolver (Z3 Z3Str3 pr avf hhp)
 getSMTAV avf (Config { smt_timeout = to, smt_path = path, print_smt = pr }) ConCVC5 = do
     hhp <- getCVC5ProcessHandles path (to * 1000)
-    return $ SomeSolver (CVC5 pr avf hhp)
+    return $ SomeSMTSolver (CVC5 pr avf hhp)
 getSMTAV avf (Config { smt_timeout = to, smt_path = path, print_smt = pr }) ConOstrich = do
     hhp <- getOstrichProcessHandles path (to * 1000)
-    return $ SomeSolver (Ostrich pr avf hhp)
+    return $ SomeSMTSolver (Ostrich pr avf hhp)
 
 -- | getZ3ProcessHandles
 -- This calls Z3, and get's it running in command line mode.  Then you can read/write on the
