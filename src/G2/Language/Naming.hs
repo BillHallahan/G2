@@ -124,7 +124,7 @@ nameToStr :: Name -> String
 nameToStr (Name n (Just m) i _)
     | Just ('(', _) <- T.uncons n =
         let clean_n = T.map (\c -> if c == ',' then '$' else c) $ T.filter (\c -> c /= '(' && c /= ')') n in
-        "|TUP!!" ++ T.unpack clean_n ++ "_m_" ++ T.unpack m ++ "_" ++ show i ++ "|"
+        "TUP!!" ++ T.unpack clean_n ++ "_m_" ++ T.unpack m ++ "_" ++ show i
     | otherwise = T.unpack n ++ "_m_" ++ T.unpack m ++ "_" ++ show i
 nameToStr (Name n Nothing i _) = T.unpack n ++ "_n__" ++ show i
 
@@ -143,7 +143,8 @@ strToName str =
 
 maybe_StrToName :: String -> Maybe Name
 maybe_StrToName str
-    | Just str' <- stripPrefix "|TUP!!" str = maybe_StrToName ('(':(insertParen $ init str'))
+    | Just str' <- stripPrefix "TUP!!" str =
+        maybe_StrToName ('(':(insertParen . map (\c -> if c == '$' then ',' else c) $ str'))
     | (n, _:q:_:mi) <- breakList (\s -> isPrefixOf "_m_" s || isPrefixOf "_n_" s) str
     , (m, _:i) <- break ((==) '_') mi =
     let
