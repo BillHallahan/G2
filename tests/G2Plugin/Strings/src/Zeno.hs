@@ -369,22 +369,27 @@ prop_05 :: Nat -> Nat -> [Nat] -> Bool
 prop_05 n x xs
   = n =:= x ===> 1 + (count n xs) =:= count n (x : xs)
 
+{-# ANN prop_06 Prop #-}
 prop_06 :: Nat -> Nat -> Bool
 prop_06 n m
   = (n - (n + m) =:= 0)
 
+{-# ANN prop_07 Prop #-}
 prop_07 :: Nat -> Nat -> Bool
 prop_07 n m
   = ((n + m) - n =:= m)
 
+{-# ANN prop_08 Prop #-}
 prop_08 :: Nat -> Nat -> Nat -> Bool
 prop_08 k m n
   = ((k + m) - (k + n) =:= m - n)
 
+{-# ANN prop_09 Prop #-}
 prop_09 :: Nat -> Nat -> Nat -> Bool
 prop_09 i j k
   = ((i - j) - k =:= i - (j + k))
 
+{-# ANN prop_10 Prop #-}
 prop_10 :: Nat -> Bool
 prop_10 m
   = (m - m =:= 0)
@@ -413,18 +418,22 @@ prop_15 :: Nat -> [Nat] -> Bool
 prop_15 x xs
   = (len (ins x xs) =:= (1 + (len xs)))
 
+{-# ANN prop_16 Prop #-}
 prop_16 :: Nat -> [Nat] -> Bool
 prop_16 x xs
   = xs =:= [] ===> last (x:xs) =:= x
 
+{-# ANN prop_17 Prop #-}
 prop_17 :: Nat -> Bool
 prop_17 n
   = (n <= 0 =:= n === 0)
 
+{-# ANN prop_18 Prop #-}
 prop_18 :: Nat -> Nat -> Bool
 prop_18 i m
   = proveBool (i < 1 + (i + m))
 
+{-# ANN prop_19 Prop #-}
 prop_19 :: Nat -> [Nat] -> Bool
 prop_19 n xs
   = (len (drop n xs) =:= len xs - n)
@@ -433,40 +442,49 @@ prop_20 :: [Nat] -> Bool
 prop_20 xs
   = (len (sort xs) =:= len xs)
 
+{-# ANN prop_21 Prop #-}
 prop_21 :: Nat -> Nat -> Bool
 prop_21 n m
   = proveBool (n <= (n + m))
 
+{-# ANN prop_22 Prop #-}
 prop_22 :: Nat -> Nat -> Nat -> Bool
 prop_22 a b c
   = (max (max a b) c =:= max a (max b c))
 
+{-# ANN prop_23 Prop #-}
 prop_23 :: Nat -> Nat -> Bool
 prop_23 a b
   = (max a b =:= max b a)
 
+{-# ANN prop_24 Prop #-}
 prop_24 :: Nat -> Nat -> Bool
 prop_24 a b
   = ((max a b) === a =:= b <= a)
 
+{-# ANN prop_25 Prop #-}
 prop_25 :: Nat -> Nat -> Bool
 prop_25 a b
   = ((max a b) === b =:= a <= b)
 
+{-# ANN prop_26 Prop #-}
 prop_26 :: Nat -> [Nat] -> [Nat] -> Bool
 prop_26 x xs ys
   = givenBool (x `elem` xs)
   ( proveBool (x `elem` (xs ++ ys)) )
 
+{-# ANN prop_27 Prop #-}
 prop_27 :: Nat -> [Nat] -> [Nat] -> Bool
 prop_27 x xs ys
   = givenBool (x `elem` ys)
   ( proveBool (x `elem` (xs ++ ys)) )
 
+{-# ANN prop_28 Prop #-}
 prop_28 :: Nat -> [Nat] -> Bool
 prop_28 x xs
   = proveBool (x `elem` (xs ++ [x]))
 
+{-# ANN prop_29 Prop #-}
 prop_29 :: Nat -> [Nat] -> Bool
 prop_29 x xs
   = proveBool (x `elem` ins1 x xs)
@@ -475,6 +493,7 @@ prop_30 :: Nat -> [Nat] -> Bool
 prop_30 x xs
   = proveBool (x `elem` ins x xs)
 
+{-# ANN prop_31 Prop #-}
 prop_31 :: Nat -> Nat -> Nat -> Bool
 prop_31 a b c
   = (min (min a b) c =:= min a (min b c))
