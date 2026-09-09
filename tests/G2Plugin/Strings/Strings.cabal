@@ -18,7 +18,12 @@ common warnings
 
 library
     import:           warnings
-    exposed-modules:    Zeno
+    exposed-modules:    NonTerm
+                      , Strings
+                      , MoreTuples
+                      , Tuples
+                      , Regex
+                      , Zeno
     -- other-modules:
     -- other-extensions:
     build-depends:    base >=4.14
