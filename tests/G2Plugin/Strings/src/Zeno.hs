@@ -417,6 +417,7 @@ prop_18 :: Nat -> Nat -> Bool
 prop_18 i m
   = proveBool (i < 1 + (i + m))
 
+{-# ANN prop_19 Prop #-}
 prop_19 :: Nat -> [Nat] -> Bool
 prop_19 n xs
   = (len (drop n xs) =:= len xs - n)

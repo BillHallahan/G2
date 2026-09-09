@@ -120,6 +120,7 @@ tests = testGroup "All Tests"
                                 , ("nonTerm3", "smtNonTerm3")
                                 ]
                                 [ "prop_01"
+                                , "prop_19"
                                 , "prop_44"
                                 , "prop_49" ]
                                 [ "myRev_propBad" ]
@@ -220,7 +221,10 @@ checkEquiv :: String -> String -> String -> Bool
 checkEquiv f1 f2 = isSubstringOf ("Equivalent: " ++ f1 ++ " and " ++ f2)
 
 checkInequiv :: String -> String -> String -> Bool
-checkInequiv f1 f2 = isSubstringOf ("Equivalence not proven: " ++ f1 ++ " and " ++ f2)
+checkInequiv f1 f2 s =
+       isSubstringOf ("Equivalence not proven: " ++ f1 ++ " and " ++ f2) s
+    -- We have output a counterexample
+    && any (isPrefixOf f1) (lines s)
 
 checkProp :: String -> String -> Bool
 checkProp f1 = isSubstringOf ("Proven: " ++ f1)
