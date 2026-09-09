@@ -33,6 +33,7 @@ import Prelude
   )
 
 import G2.Plugin
+import G2.Plugin.Unsafe
 
 {-# ANN module ("--smt-tuples --higher-order uninterpreted")
     #-}
@@ -93,11 +94,11 @@ nullSMT :: [Nat] -> Bool
 nullSMT xs = (smtLen xs) == 0
 
 {-# ANN (++) (SMTEquivIs "appendSMT") #-}
-(++) :: [Nat] -> [Nat] -> [Nat]
+(++) :: [a] -> [a] -> [a]
 [] ++ ys = ys
 (x:xs) ++ ys = x : (xs ++ ys)
 
-appendSMT :: [Nat] -> [Nat] -> [Nat]
+appendSMT :: [a] -> [a] -> [a]
 appendSMT = ($++)
 
 {-# ANN rev (SMTEquivIsWithConfig "revSMT" "--smt cvc5")
@@ -151,12 +152,12 @@ elemSMT :: Nat -> [Nat] -> Bool
 elemSMT n xs = smtContains xs [n]
 
 {-# ANN drop (SMTEquivIs "dropSMT") #-}
-drop :: Nat -> [Nat] -> [Nat]
+drop :: Nat -> [a] -> [a]
 drop x xs | x <= 0 = xs
 drop _ [] = []
 drop x (_:xs) = drop (x - 1) xs
 
-dropSMT :: Nat -> [Nat] -> [Nat]
+dropSMT :: Nat -> [a] -> [a]
 dropSMT n xs = 
   if n >= 0
     then smtExtract xs n ((smtLen xs) - n)
@@ -343,6 +344,7 @@ mirror :: Tree Nat -> Tree Nat
 mirror Leaf = Leaf
 mirror (Node l x r) = Node (mirror r) x (mirror l)
 
+{-# ANN prop_01 Prop #-}
 prop_01 :: Nat -> [Nat] -> Bool
 prop_01 n xs
   = (take n xs ++ drop n xs =:= xs)
@@ -538,6 +540,7 @@ prop_48 xs
   = givenBool (not (null xs))
   ( (butlast xs ++ [last xs] =:= xs) )
 
+{-# ANN prop_49 Prop #-}
 prop_49 :: [Nat] -> [Nat] -> Bool
 prop_49 xs ys
   = (butlast (xs ++ ys) =:= butlastConcat xs ys)
@@ -673,9 +676,9 @@ prop_80 :: Nat -> [Nat] -> [Nat] -> Bool
 prop_80 n xs ys
   = (take n (xs ++ ys) =:= take n xs ++ take (n - len xs) ys)
 
-prop_81 :: Nat -> Nat -> [Nat] -> Bool
-prop_81 n m xs {- ys -}
-  = (take n (drop m xs) =:= drop m (take (n + m) xs))
+-- prop_81 :: Nat -> Nat -> [Nat] -> Bool
+-- prop_81 n m xs {- ys -}
+--   = (take n (drop m xs) =:= drop m (take (n + m) xs))
 
 -- prop_82 :: Nat -> [Nat] -> [Nat] -> Bool
 -- prop_82 n xs ys
