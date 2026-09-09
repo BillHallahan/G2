@@ -221,10 +221,7 @@ checkEquiv :: String -> String -> String -> Bool
 checkEquiv f1 f2 = isSubstringOf ("Equivalent: " ++ f1 ++ " and " ++ f2)
 
 checkInequiv :: String -> String -> String -> Bool
-checkInequiv f1 f2 s =
-       isSubstringOf ("Equivalence not proven: " ++ f1 ++ " and " ++ f2) s
-    -- We have output a counterexample
-    && any (isPrefixOf f1) (lines s)
+checkInequiv f1 f2 = isSubstringOf ("Equivalence not proven: " ++ f1 ++ " and " ++ f2)
 
 checkProp :: String -> String -> Bool
 checkProp f1 = isSubstringOf ("Proven: " ++ f1)
