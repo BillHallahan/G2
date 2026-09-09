@@ -521,9 +521,11 @@ prop_43 :: (Nat -> Bool) -> [Nat] -> Bool
 prop_43 p xs
   = (takeWhile p xs ++ dropWhile p xs =:= xs)
 
--- prop_44 :: Nat -> [Nat] -> [Nat] -> Bool
--- prop_44 x xs ys
---   = (zip (x:xs) ys =:= zipConcat x xs ys)
+{-# ANN prop_44 (PropWithConfig "--smt cvc5,z3")
+  #-}
+prop_44 :: Nat -> [Nat] -> [Nat] -> Bool
+prop_44 x xs ys
+  = (zip (x:xs) ys =:= zipConcat x xs ys)
 
 -- prop_45 :: Nat -> Nat -> [Nat] -> [Nat] -> Bool
 -- prop_45 x y xs ys

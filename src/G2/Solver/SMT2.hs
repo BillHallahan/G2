@@ -126,6 +126,7 @@ containsZ3Only = getAny . evalASTs go
         go (Prim MapConcatI _) = Any True
         go (Prim FoldLeft _) = Any True
         go (Prim FoldLeftI _) = Any True
+        go (Lam _ _ _) = Any True
         go _ = Any False
 
 instance Solver Ostrich where

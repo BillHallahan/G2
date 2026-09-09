@@ -123,7 +123,7 @@ newtype NameGen = NameGen Unique
 nameToStr :: Name -> String
 nameToStr (Name n (Just m) i _)
     | Just ('(', _) <- T.uncons n =
-        let clean_n = T.filter (\c -> c /= '(' && c /= ')') n in
+        let clean_n = T.map (\c -> if c == ',' then '$' else c) $ T.filter (\c -> c /= '(' && c /= ')') n in
         "|TUP!!" ++ T.unpack clean_n ++ "_m_" ++ T.unpack m ++ "_" ++ show i ++ "|"
     | otherwise = T.unpack n ++ "_m_" ++ T.unpack m ++ "_" ++ show i
 nameToStr (Name n Nothing i _) = T.unpack n ++ "_n__" ++ show i
