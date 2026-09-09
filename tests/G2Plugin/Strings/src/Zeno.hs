@@ -349,18 +349,22 @@ prop_01 :: Nat -> [Nat] -> Bool
 prop_01 n xs
   = (take n xs ++ drop n xs =:= xs)
 
+{-# ANN prop_02 Prop #-}
 prop_02 :: Nat -> [Nat] -> [Nat] -> Bool
 prop_02 n xs ys
   = (count n xs + count n ys =:= count n (xs ++ ys))
 
+{-# ANN prop_03 Prop #-}
 prop_03 :: Nat -> [Nat] -> [Nat] -> Bool
 prop_03 n xs ys
   = proveBool (count n xs <= count n (xs ++ ys))
 
+{-# ANN prop_04 Prop #-}
 prop_04 :: Nat -> [Nat] -> Bool
 prop_04 n xs
   = (1 + (count n xs) =:= count n (n : xs))
 
+{-# ANN prop_05 Prop #-}
 prop_05 :: Nat -> Nat -> [Nat] -> Bool
 prop_05 n x xs
   = n =:= x ===> 1 + (count n xs) =:= count n (x : xs)
@@ -385,18 +389,22 @@ prop_10 :: Nat -> Bool
 prop_10 m
   = (m - m =:= 0)
 
+{-# ANN prop_11 Prop #-}
 prop_11 :: [Nat] -> Bool
 prop_11 xs
   = (drop 0 xs =:= xs)
 
+{-# ANN prop_12 Prop #-}
 prop_12 :: Nat -> (Nat -> Nat) -> [Nat] -> Bool
 prop_12 n f xs
   = (drop n (map f xs) =:= map f (drop n xs))
 
+{-# ANN prop_13 Prop #-}
 prop_13 :: Nat -> Nat -> [Nat] -> Bool
 prop_13 n x xs
   = (drop (1 + n) (x : xs) =:= drop n xs)
 
+{-# ANN prop_14 Prop #-}
 prop_14 :: (Nat -> Bool) -> [Nat] -> [Nat] -> Bool
 prop_14 p xs ys
   = (filter p (xs ++ ys) =:= (filter p xs) ++ (filter p ys))

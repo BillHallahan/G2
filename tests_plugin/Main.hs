@@ -116,9 +116,21 @@ tests = testGroup "All Tests"
                                 , ("nonTerm2", "smtNonTerm2")
                                 , ("nonTerm3", "smtNonTerm3")
                                 ]
+                                -- Provable propositions
                                 [ "prop_01"
-                                , "prop_49" ]
-                                [ "myRev_propBad" ]
+                                , "prop_02"
+                                , "prop_03"
+                                , "prop_04"
+                                , "prop_05"
+                                , "prop_11"
+                                , "prop_12"
+                                , "prop_13"
+                                , "prop_14"
+                                , "prop_49"
+                                ]
+                                -- Unprovable propositions
+                                [ "myRev_propBad"
+                                ]
         , checkNebulaPackage "tests/RewriteVerify/PluginTests/Simple" ["add_assoc", "fg", "fg_toint"] ["f_one"]]
 
 -------------------------------------------------------------------------------
