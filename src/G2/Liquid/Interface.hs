@@ -202,7 +202,7 @@ liquidStateFromSimpleStateWithCall' simp_s ghci entry mb_m config lhconfig memco
 {-# INLINE fromLiquidReadyState #-}
 fromLiquidReadyState :: State ()
                      -> Lang.Id
-                     -> Bindingsg
+                     -> Bindings
                      -> [GhcInfo]
                      -> Maybe PhantomTyVars
                      -> LHConfig
