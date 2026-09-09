@@ -493,7 +493,7 @@ nonRedPathCons solver config rv@(nrpc_count, reach_tbl)
     , E.isSymbolic n' eenv
     , Just (s'@(State { curr_expr = CurrExpr _ _ }), _, NRPC { nrpc_lhs = left, nrpc_rhs = right }, ng') <- createNonRedForCase ng Focused s = 
         do
-            (num_paths, reach_tbl') <- liftIO $ paths HS.empty HS.empty left right s' (b {name_gen = ng'}) solver reach_tbl
+            (num_paths, reach_tbl') <- liftIO $ paths HS.empty left right s' (b {name_gen = ng'}) solver reach_tbl
             when (print_paths config) $ liftIO . putStrLn $ "Paths count: " ++ show num_paths -- ++ " : expression is:" ++ show left
             if num_paths > 1 
                 then return (Finished, [(s', (nrpc_count + 1, reach_tbl'))], b {name_gen = ng'})

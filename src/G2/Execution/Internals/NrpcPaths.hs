@@ -19,20 +19,20 @@ import G2.Solver
 
 type ReachabilityTable = HM.HashMap Name Bool
 
-paths :: Solver solver => HS.HashSet Name -> HS.HashSet Name -> Expr -> Expr -> State t -> Bindings -> solver -> ReachabilityTable -> IO (Int, ReachabilityTable)
-paths seen_funcs sym_names nrpc_e_lhs nrpc_e_rhs
+paths :: Solver solver => HS.HashSet Name -> Expr -> Expr -> State t -> Bindings -> solver -> ReachabilityTable -> IO (Int, ReachabilityTable)
+paths seen_funcs nrpc_e_lhs nrpc_e_rhs
         s@(State {expr_env = eenv, path_conds = originalPc})
         bindings@(Bindings {name_gen= ng})
         solver
         table
     -- Variables
     | Var (Id n _) <- nrpc_e_lhs
-    , Just e <- E.lookup n eenv = paths seen_funcs sym_names e nrpc_e_rhs s bindings solver table
+    , E.isSymbolic n eenv = return (1, table)
     | Var (Id n _) <- nrpc_e_lhs
-    , E.isSymbolic n eenv || n `elem` sym_names = return (1, table)
-    | Tick _ e <- nrpc_e_lhs = paths seen_funcs sym_names e nrpc_e_rhs s bindings solver table
+    , Just e <- E.lookup n eenv = paths seen_funcs e nrpc_e_rhs s bindings solver table
+    | Tick _ e <- nrpc_e_lhs = paths seen_funcs e nrpc_e_rhs s bindings solver table
     -- Function applications 
-    | App _ _ <- nrpc_e_lhs = evalPathsForApp seen_funcs sym_names nrpc_e_lhs nrpc_e_rhs s bindings solver table
+    | App _ _ <- nrpc_e_lhs = evalPathsForApp seen_funcs nrpc_e_lhs nrpc_e_rhs s bindings solver table
     -- Let expressions
     | Let b e' <- nrpc_e_lhs =
         -- TO-DO: move it to a function. This is adding redundant code.
@@ -47,9 +47,9 @@ paths seen_funcs sym_names nrpc_e_lhs nrpc_e_rhs
 
             eenv' = E.insertExprs (zip news binds_rhs') eenv
 
-        in paths seen_funcs sym_names e'' nrpc_e_rhs (s {expr_env = eenv'}) (bindings {name_gen = ng'}) solver table
+        in paths seen_funcs e'' nrpc_e_rhs (s {expr_env = eenv'}) (bindings {name_gen = ng'}) solver table
     -- Case expression reaches any assert or error
-    | Case {} <- nrpc_e_lhs = evalCasePaths seen_funcs sym_names nrpc_e_lhs nrpc_e_rhs s bindings solver table
+    | Case {} <- nrpc_e_lhs = evalCasePaths seen_funcs nrpc_e_lhs nrpc_e_rhs s bindings solver table
     -- Data Constructor
     | Data {} : _ <- unApp nrpc_e_lhs = evalDataConPaths nrpc_e_lhs nrpc_e_rhs s table
     -- Literal
@@ -64,19 +64,18 @@ paths seen_funcs sym_names nrpc_e_lhs nrpc_e_rhs
     | otherwise = error $ "paths: expr not allowed \n" ++ show nrpc_e_lhs
 
 evalPathsForApp :: Solver solver => HS.HashSet Name 
-            -> HS.HashSet Name 
             -> Expr 
             -> Expr 
             -> State t 
             -> Bindings 
             -> solver -> ReachabilityTable -> IO (Int, ReachabilityTable)
-evalPathsForApp seen_funcs sym_names lhs_e rhs_e 
+evalPathsForApp seen_funcs lhs_e rhs_e 
         s@(State {expr_env = eenv})
         bindings@(Bindings {name_gen= ng})
         solver
         table
-        | (Tick _ e1) : es <- unApp lhs_e = paths seen_funcs sym_names (mkApp (e1:es)) rhs_e s bindings solver table
-        | [Lam _ _ e] <- unApp lhs_e = paths seen_funcs sym_names e rhs_e s bindings solver table
+        | (Tick _ e1) : es <- unApp lhs_e = paths seen_funcs (mkApp (e1:es)) rhs_e s bindings solver table
+        | [Lam _ _ e] <- unApp lhs_e = paths seen_funcs e rhs_e s bindings solver table
         -- Lambda Function application
         | (Lam _ i e) : e1 : e2 <- unApp lhs_e = let
             old = idName i
@@ -84,12 +83,12 @@ evalPathsForApp seen_funcs sym_names lhs_e rhs_e
             e1' = renameExpr old x' e
             eenv' = E.insert x' e1 eenv
         in
-            paths seen_funcs sym_names (mkApp (e1':e2)) rhs_e (s {expr_env = eenv'}) (bindings {name_gen = ng'}) solver table
+            paths seen_funcs (mkApp (e1':e2)) rhs_e (s {expr_env = eenv'}) (bindings {name_gen = ng'}) solver table
         -- Function applications that are not symbolic
         | Var (Id n _) : es <- unApp lhs_e
         , Just e <- E.lookup n eenv
         , not (E.isSymbolic n eenv) = if not (HS.member n seen_funcs) 
-            then paths (HS.insert n seen_funcs) sym_names (mkApp (e:es)) rhs_e s bindings solver table
+            then paths (HS.insert n seen_funcs) (mkApp (e:es)) rhs_e s bindings solver table
             else return (1, table)
         | Prim _ _ : _ <- unApp lhs_e = return (1, table)
         -- Symbolic Functions
@@ -100,13 +99,12 @@ evalPathsForApp seen_funcs sym_names lhs_e rhs_e
         | otherwise = return (1, table)
 
 evalCasePaths :: Solver solver => HS.HashSet Name 
-            -> HS.HashSet Name 
             -> Expr 
             -> Expr 
             -> State t 
             -> Bindings 
             -> solver -> ReachabilityTable -> IO (Int, ReachabilityTable)
-evalCasePaths seen_funcs sym_names lhs_e rhs_e 
+evalCasePaths seen_funcs lhs_e rhs_e 
         s@(State {expr_env = eenv, tyvar_env = tvnv})
         bindings@(Bindings {name_gen= ng})
         solver
@@ -118,13 +116,13 @@ evalCasePaths seen_funcs sym_names lhs_e rhs_e
         -- Case expression where scrutinee is a symbolic variable
         | Case (Var (Id n _)) i _ alts <- lhs_e
         , Just n' <- E.deepLookupVar n eenv
-        , E.isSymbolic n' eenv || elem n sym_names = do
+        , E.isSymbolic n' eenv = do
             let altExprs = map altExpr alts
                 altMatches = map altMatch alts
                 sym_vars = concatMap (\case DataAlt _ vrs -> vrs; _ -> []) altMatches
-                sym_vars_names = map (\ (Id nn _) -> nn) (i:sym_vars)
-                sym_vars_set = HS.union sym_names (HS.fromList sym_vars_names)
-            (num_path_alts, table'') <- evalAlts altExprs rhs_e s bindings seen_funcs sym_vars_set solver table
+                
+                eenv' = foldl (\ en id' -> E.insertSymbolic id' en ) eenv (i:sym_vars)
+            (num_path_alts, table'') <- evalAlts altExprs rhs_e s{expr_env = eenv'} bindings seen_funcs solver table
             return (num_path_alts, table'')
         -- Case where scrutinee could be anything, a variable, func application etc.
         | Case e _ _ alts <- lhs_e = do
@@ -133,16 +131,16 @@ evalCasePaths seen_funcs sym_names lhs_e rhs_e
                 new_sym_id = Id new_sym e_ty
                 eenv' = E.insertSymbolic new_sym_id eenv
                 altExprs = map altExpr alts
-            (num_path_scrutinee, table') <- paths seen_funcs sym_names e (Var new_sym_id) (s {expr_env = eenv'}) (bindings {name_gen = ng'}) solver table
-            (num_path_alts, table'') <- evalAlts altExprs rhs_e s bindings seen_funcs sym_names solver table'
+            (num_path_scrutinee, table') <- paths seen_funcs e (Var new_sym_id) (s {expr_env = eenv'}) (bindings {name_gen = ng'}) solver table
+            (num_path_alts, table'') <- evalAlts altExprs rhs_e s bindings seen_funcs solver table'
             return (num_path_scrutinee * num_path_alts, table'')
         | otherwise = error $ "evalCasePaths: case not allowed \n" ++ show lhs_e
 
         where
-            evalAlts [] _ _ _ _ _ _ tbl = return (0, tbl)
-            evalAlts (a:as) r_e s' b' seen sym_n sol tbl = do
-                (p, tbl') <- paths seen sym_n a r_e s' b' sol tbl
-                (p', tbl'') <- evalAlts as r_e s' b' seen sym_n sol tbl'
+            evalAlts [] _ _ _ _ _ tbl = return (0, tbl)
+            evalAlts (a:as) r_e s' b' seen sol tbl = do
+                (p, tbl') <- paths seen a r_e s' b' sol tbl
+                (p', tbl'') <- evalAlts as r_e s' b' seen sol tbl'
                 return (p + p', tbl'')
 
 evalDataConPaths :: Expr -> Expr -> State t -> ReachabilityTable -> IO (Int, ReachabilityTable)
