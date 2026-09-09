@@ -38,6 +38,7 @@ import G2.Solver.Converters --It would be nice to not import this...
 
 import Control.Exception.Base (evaluate)
 import Control.Monad
+import qualified Data.Foldable as F
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Data.Monoid (Any (..))
@@ -484,7 +485,7 @@ getCVC5 pr_smt time_out = do
 getSMT :: ArbValueFunc -> Config -> IO SomeSolver
 getSMT avf config = do
     solvers <- mapM (getSMTAV avf config) (smt config)
-    return $ foldl' comb (SomeSolver UnknownSolver) solvers
+    return $ F.foldl' comb (SomeSolver UnknownSolver) solvers
     where
         comb (SomeSolver sol1) (SomeSolver sol2) = SomeSolver $ sol1 :?> sol2
 
