@@ -567,9 +567,9 @@ evalPrimADT2 _ tenv _ kv _ StrAppend xs ys = do
     ys' <- toExprList kv ys
     return . toListExpr kv tenv t $ xs' ++ ys'
 
-evalPrimADT2 _ _ _ kv _ StrContains str sub = do
-    str' <- toExprList kv str
-    sub' <- toExprList kv sub
+evalPrimADT2 eenv _ _ kv _ StrContains str sub = do
+    str' <- toConcRedExprList kv eenv str
+    sub' <- toConcRedExprList kv eenv sub
     let ret = sub' `L.isInfixOf` str'
     return $ mkBool kv ret
 
@@ -589,14 +589,14 @@ evalPrimADT2 _ _ _ kv _ SeqNth xs (Lit (LitInt i)) = do
         then Just . stripCons $ xs' !! (fromInteger i)
         else Just $ Prim Error TyBottom
 
-evalPrimADT2 _ _ _ kv _ StrPrefixOf pre s = do
-    pre' <- toExprList kv pre
-    s' <- toExprList kv s
+evalPrimADT2 eenv _ _ kv _ StrPrefixOf pre s = do
+    pre' <- toConcRedExprList kv eenv pre
+    s' <- toConcRedExprList kv eenv s
     return . mkBool kv $ pre' `L.isPrefixOf` s'
 
-evalPrimADT2 _ _ _ kv _ StrSuffixOf suf s = do
-    suf' <- toExprList kv suf
-    s' <- toExprList kv s
+evalPrimADT2 eenv _ _ kv _ StrSuffixOf suf s = do
+    suf' <- toConcRedExprList kv eenv suf
+    s' <- toConcRedExprList kv eenv s
     return . mkBool kv $ suf' `L.isSuffixOf` s'
 
 evalPrimADT2 _ _ _ kv _ StrLe f s = fmap (mkBool kv) $ lstLe f s
@@ -728,20 +728,20 @@ evalPrimADT3 _ tenv _ kv _ StrSubstr str (Lit (LitInt s)) (Lit (LitInt e)) = sub
         substr (App (App (App (Data _) _) _) xs) st en = substr xs (st - 1) en
         substr _ _ _ = Nothing
 
-evalPrimADT3 _ tenv _ kv _ StrReplace s orig rep = do
+evalPrimADT3 eenv tenv _ kv _ StrReplace s orig rep = do
         t <- listType orig
-        s' <- toExprList kv s
-        orig' <- toExprList kv orig
+        s' <- toConcRedExprList kv eenv s
+        orig' <- toConcRedExprList kv eenv orig
         rep' <- toExprList kv rep
         return $ toListExpr kv tenv t (replace s' orig' rep')
     where
         replace [] _ _ = []
         replace xss@(x:xs) o r | Just xss' <- L.stripPrefix o xss = r ++ xss'
                                | otherwise = x:replace xs o r
-evalPrimADT3 _ tenv _ kv _ StrReplaceAll s orig rep = do
+evalPrimADT3 eenv tenv _ kv _ StrReplaceAll s orig rep = do
         t <- listType orig
-        s' <- toExprList kv s
-        orig' <- toExprList kv orig
+        s' <- toConcRedExprList kv eenv s
+        orig' <- toConcRedExprList kv eenv orig
         rep' <- toExprList kv rep
         return $ toListExpr kv tenv t (replaceAll s' orig' rep')
     where
@@ -791,6 +791,20 @@ toExprList :: KnownValues -> Expr -> Maybe [Expr]
 toExprList kv (App (Data dc) _) | dc_name dc == KV.dcEmpty kv = Just []
 toExprList kv (App (App (App (Data dc) _) l) xs) | dc_name dc == KV.dcCons kv = fmap (l:) $ toExprList kv xs
 toExprList _ _ = Nothing
+
+toConcRedExprList :: KnownValues -> ExprEnv -> Expr -> Maybe [Expr]
+toConcRedExprList kv eenv e = foldr go (Just []) =<< toExprList kv e
+    where
+        go x (Just xs) | let e' = inlineVars eenv x
+                       , isConcRed e' = Just (x:xs)
+        go _ _ = Nothing
+
+        isConcRed (Data _) = True
+        isConcRed (Type _) = True
+        isConcRed (Lit _) = True
+        isConcRed (Lam _ _ e1) = isConcRed e1
+        isConcRed (App e1 e2) = isConcRed e1 && isConcRed e2
+        isConcRed _ = False
 
 getInteger :: Expr -> Maybe Integer
 getInteger (Lit (LitInt i)) = Just i

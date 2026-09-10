@@ -20,6 +20,7 @@ library
     import:           warnings
     exposed-modules:    NonTerm
                       , Strings
+                      , MoreProps
                       , MoreTuples
                       , Tuples
                       , Regex
