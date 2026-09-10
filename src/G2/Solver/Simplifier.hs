@@ -177,6 +177,16 @@ simplifyAllStrings kv tenv e
               , mkApp [Prim StrReplaceAll str_ra_ty, xs, list, zs ]
               , mkApp [Prim StrReplaceAll str_ra_ty, ys, list, zs ]
               ]
+    -- Rewrite
+    --   (seq.contains (seq.replace_all xs (seq.unit x) ys) (seq.unit x))
+    -- to
+    --   (seq.contains ys (seq.unit x))
+    | [Prim StrContains str_cont_ty, e1 {- seq.replace_all ... -}, e2] <- unApp e
+    , [Prim StrReplaceAll _, _, rep {- seq.unit x -}, ys ] <- unApp e1
+    , [Data cons, _ {- type-}, _ {- head -}, App (Data emp) _] <- unApp rep
+    , dcName cons == dcCons kv
+    , dcName emp == dcEmpty kv
+    , rep == e2 = mkApp [Prim StrContains str_cont_ty, ys, rep]
 
     -- | [Prim Eq _, e1, e2] <- unApp e
     -- , [Prim StrIndexOf _, xs, ys, Lit (LitInt 0)] <- unApp e1

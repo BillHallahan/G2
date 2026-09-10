@@ -121,6 +121,7 @@ tests = testGroup "All Tests"
                                 ]
                                 [ "prop_01"
                                 , "prop_19"
+                                , "prop_37"
                                 , "prop_39"
                                 , "prop_44"
                                 , "prop_49" ]

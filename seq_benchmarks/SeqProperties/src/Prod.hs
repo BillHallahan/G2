@@ -273,11 +273,9 @@ prop_L03 xs y =
   length (xs ++ (y : [])) === (1 + (length xs))
 
 {-# ANN prop_L04 Prop #-}
-prop_L04 :: Eq a => Nat -> Nat -> a -> [a] -> Bool
-prop_L04 w x y zs
-  | w > 0 =
-    drop w (drop x (y:zs)) === drop (w - 1) (drop x zs)
-  | otherwise = error "not part of original"
+prop_L04 :: Nat -> Nat -> a -> [a] -> Bool
+prop_L04 w x y zs =
+  drop (w + 1) (drop x (y:zs)) === drop w (drop x zs)
 
 -- prop_L05 :: Nat -> Nat -> a -> a -> [a] -> Bool
 -- prop_L05 v w x y zs =
