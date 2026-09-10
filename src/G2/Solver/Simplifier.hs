@@ -189,6 +189,21 @@ simplifyAllStrings kv tenv e
     , rep == e2 = mkApp [Prim StrContains str_cont_ty, ys, rep]
 
     -- Rewrite
+    --   (seq.replace_all (str.reverse xs) (seq.unit x) ys)
+    -- to
+    --   (seq.reverse (seq.replace_all xs (seq.unit x) ys))
+    -- if ys is a single character, or if ys is empty
+    | [Prim StrReplaceAll ty_rep, rev, rep {- seq.unit x -}, ys ] <- unApp e
+    , [Prim StrReverse ty_rev, xs] <- unApp rev
+    , [Data cons, _ {- type-}, _ {- head -}, App (Data emp) _] <- unApp rep
+    , shortString kv ys
+    , dcName cons == dcCons kv
+    , dcName emp == dcEmpty kv =
+        mkApp [ Prim StrReverse ty_rev
+              , mkApp [ Prim StrReplaceAll ty_rep, xs, rep, ys]
+              ]
+
+    -- Rewrite
     --    seq.map f (seq.extract xs i j)
     -- to be
     --    (seq.extract (seq.map f xs) i j)
@@ -205,6 +220,15 @@ simplifyAllStrings kv tenv e
     -- , Lit (LitInt (- 1)) <- e2 = App (Prim Not TyUnknown) $ mkApp [ Prim StrContains TyUnknown, xs, ys]
 
 simplifyAllStrings _ _ e = e
+
+shortString :: KnownValues -> Expr -> Bool
+shortString kv e
+    | [Data cons, _ {- type-}, _ {- head -}, App (Data emp) _] <- unApp e
+    , dcName cons == dcCons kv
+    , dcName emp == dcEmpty kv = True
+    | App (Data emp) _ <- e
+    , dcName emp == dcEmpty kv  = True
+    | otherwise = False
 
 splitUpStrApp :: KnownValues -> TypeEnv -> Expr -> Maybe (Expr, Expr)
 splitUpStrApp _ _ e | [Prim StrAppend _, xs, ys] <- unApp e = Just (xs, ys)

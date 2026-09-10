@@ -563,6 +563,8 @@ prop_51 :: [Nat] -> Nat -> Bool
 prop_51 xs x
   = (butlast (xs ++ [x]) =:= xs)
 
+{-# ANN prop_52 (PropWithConfig "--smt cvc5")
+  #-}
 prop_52 :: Nat -> [Nat] -> Bool
 prop_52 n xs
   = (count n xs =:= count n (rev xs))
