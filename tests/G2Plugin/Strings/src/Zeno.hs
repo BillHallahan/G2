@@ -494,7 +494,8 @@ prop_36 :: [Nat] -> Bool
 prop_36 xs
   = (takeWhile (\_ -> True) xs =:= xs)
 
-{-# ANN prop_37 (PropWithConfig "--smt cvc5 --print-smt") #-}
+{-# ANN prop_37 (PropWithConfig "--smt cvc5")
+  #-}
 prop_37 :: Nat -> [Nat] -> Bool
 prop_37 x xs
   = proveBool (not (x `elem` delete x xs))
