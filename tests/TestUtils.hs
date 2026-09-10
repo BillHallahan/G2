@@ -37,7 +37,7 @@ mkConfigTestWithMapIO = do
 mkConfigTestWithSMTStringsIO :: IO Config
 mkConfigTestWithSMTStringsIO = do
     config <- mkConfigTestIO
-    return $ config { smt_strings = UseSMTStrings, smt = ConCVC5 }
+    return $ config { smt_strings = UseSMTStrings, smt = [ConCVC5] }
 
 mkConfigTestWithQuantifiedSMTStringsIO :: IO Config
 mkConfigTestWithQuantifiedSMTStringsIO = do

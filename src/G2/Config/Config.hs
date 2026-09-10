@@ -43,7 +43,9 @@ module G2.Config.Config ( Mode (..)
                         , baseDef
                         , baseSimple) where
 
+import G2.Data.Utils
 import Data.Char
+import Data.Either
 import Data.List as L
 import qualified Data.Map as M
 import Options.Applicative
@@ -151,7 +153,7 @@ data Config = Config {
     , subpath_length :: Int -- ^ When using subpath search strategy, the length of the subpaths.
     , fp_handling :: FpHandling -- ^ Whether to use real floating point values or rationals
     , print_encode_float :: Bool -- ^ Whether to print floating point numbers directly or via encodeFloat
-    , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
+    , smt :: [SMTSolver] -- ^ Sets the SMT solver to solve constraints with
     , smt_timeout :: Int -- ^ Sets the timeout (in seconds) for the SMT solver
     , smt_path :: Maybe FilePath -- ^ Location of SMT solver
     , smt_discard_on_unknown :: DiscardUnknownStates -- ^ Discard a state when the SMT solver returns unknown
@@ -445,18 +447,28 @@ mkSMTADT =
             <> value []
             <> help "comma separated list of algebraic datatypes to reason about via SMT solver")
 
-mkSMTSolver :: Parser SMTSolver
+mkSMTSolver :: Parser [SMTSolver]
 mkSMTSolver =
-    option (eitherReader (\s -> case s of
-                                    "z3" -> Right ConZ3
-                                    "z3str3" -> Right ConZ3Str3
-                                    "cvc5" -> Right ConCVC5
-                                    "ostrich" -> Right ConOstrich
-                                    _ -> Left "Unsupported SMT solver"))
+    option (eitherReader mkSMTSolver')
             ( long "smt"
             <> metavar "SMT-SOLVER"
-            <> value ConZ3
+            <> value [ConZ3]
             <> help "z3, z3str3, cvc5, or ostrich, to select the solver to use")
+
+mkSMTSolver' :: String -> Either String [SMTSolver]
+mkSMTSolver' inp =
+    let
+        xs = splitOn ',' inp
+        solvers = map (\s -> case s of
+                                "z3" -> Right ConZ3
+                                "z3str3" -> Right ConZ3Str3
+                                "cvc5" -> Right ConCVC5
+                                "ostrich" -> Right ConOstrich
+                                _ -> Left ()) xs
+    in
+    case all isRight solvers of
+        True -> Right $ rights solvers
+        False -> Left "Unsupported SMT solver"
 
 mkSearchStrategy :: Parser SearchStrategy
 mkSearchStrategy =
@@ -509,7 +521,7 @@ mkConfigDirect homedir as m = Config {
     , subpath_length = 4
     , fp_handling = RealFP
     , print_encode_float = False
-    , smt = strArg "smt" as m smtSolverArg ConZ3
+    , smt = strArg "smt" as m smtSolverArg [ConZ3]
     , smt_timeout = 10
     , smt_path = Nothing
     , smt_discard_on_unknown = KeepUnknown
@@ -585,12 +597,12 @@ extraDefaultIncludePaths :: FilePath -> [FilePath]
 extraDefaultIncludePaths root =
     [ root ++ "/.g2/G2Stubs/src/" ] 
 
-smtSolverArg :: String -> SMTSolver
+smtSolverArg :: String -> [SMTSolver]
 smtSolverArg = smtSolverArg' . map toLower
 
-smtSolverArg' :: String -> SMTSolver
-smtSolverArg' "z3" = ConZ3
-smtSolverArg' "cvc5" = ConCVC5
+smtSolverArg' :: String -> [SMTSolver]
+smtSolverArg' "z3" = [ConZ3]
+smtSolverArg' "cvc5" = [ConCVC5]
 smtSolverArg' _ = error "Unrecognized SMT solver."
 
 higherOrderSolArg :: String -> HigherOrderSolver

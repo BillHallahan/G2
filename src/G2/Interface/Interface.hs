@@ -511,7 +511,7 @@ initSolverInfinite = initSolver' arbValueInfinite
 
 initSolver' :: ArbValueFunc -> Config -> IO SomeSolver
 initSolver' avf config = do
-    SomeSMTSolver con <- getSMTAV avf config
+    SomeSolver con <- getSMT avf config
     let adt_num = ADTNumericalSolver avf con
     some_adt_solver <- case print_num_solver_calls config of
             True -> return . SomeSolver =<< callsSolver "SMT" adt_num

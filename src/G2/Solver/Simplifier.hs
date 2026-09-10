@@ -17,6 +17,8 @@ module G2.Solver.Simplifier ( Simplifier (..)
                             , HigherOrderSimplifier (..)
 
                             , mkSeqNth
+
+                            , unfoldAppend
                             ) where
 
 import G2.Language

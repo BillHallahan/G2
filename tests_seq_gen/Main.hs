@@ -100,7 +100,7 @@ smtSynthTestHeight :: T.Text -- ^ File
                    -> TestTree
 smtSynthTestHeight fle = smtSynthTestWithConfig (do
                                         synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir fle
-                                        let config' = config { smt = ConCVC5, steps = 2000 }
+                                        let config' = config { smt = [ConCVC5], steps = 2000 }
                                         return . adjustContConfig $ synth_config { checking = ADTHeight
                                                                                  , g2_config = config' }) fle
 
@@ -109,7 +109,7 @@ smtSynthTestVerify :: T.Text -- ^ File
                    -> TestTree
 smtSynthTestVerify fle = smtSynthTestWithConfig (do
                                         synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir fle
-                                        let config' = config { smt = ConCVC5
+                                        let config' = config { smt = [ConCVC5]
                                                              , steps = 2000
                                                              , smt_strings = UseSMTStrings
                                                              , smt_strings_strictness = StrictSMTStrings
@@ -122,7 +122,7 @@ smtSynthTestVerifyExcluding :: T.Text -- ^ File
                             -> TestTree
 smtSynthTestVerifyExcluding fle func exclude = smtSynthTestWithConfig (do
                                         synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir fle
-                                        let config' = config { smt = ConCVC5
+                                        let config' = config { smt = [ConCVC5]
                                                              , steps = 2000
                                                              , smt_strings = UseSMTStrings
                                                              , smt_strings_strictness = StrictSMTStrings }
@@ -140,7 +140,7 @@ smtSynthTestWithEqCheck fle func eq_f eq_c =
                     synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir fle
                     let synth_config' = synth_config { eq_file = Just eq_f
                                                      , eq_check = eq_c
-                                                     , g2_config = adjustConfig synth_config $ config { smt = ConZ3, steps = 2000 } }
+                                                     , g2_config = adjustConfig synth_config $ config { smt = [ConZ3], steps = 2000 } }
                     return $ synth_config') fle func
 
 smtSynthTestWithConfig :: IO SynthConfig
@@ -162,7 +162,7 @@ smtSynthTestRunSymexSMTStrings :: T.Text -- ^ Filer
 smtSynthTestRunSymexSMTStrings fle f =
     smtSynthTestRunSymexWithConfig (do
                                         synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir fle
-                                        let config' = adjustConfig synth_config $ config { smt = ConCVC5, steps = 2000, smt_strings = UseSMTStrings }
+                                        let config' = adjustConfig synth_config $ config { smt = [ConCVC5], steps = 2000, smt_strings = UseSMTStrings }
                                         return $ synth_config { run_symex = True, g2_config = config' {timeLimit = 60} })
                                         fle
                                         f
@@ -176,7 +176,7 @@ smtSynthTestRunSymexSMTStringsCheckAsserts :: T.Text -- ^ Filer
 smtSynthTestRunSymexSMTStringsCheckAsserts fle f =
     smtSynthTestRunSymexWithConfig (do
                                         synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir fle
-                                        let config' = adjustConfig synth_config $ config { smt = ConCVC5, steps = 2000, smt_strings = UseSMTStrings, check_asserts = True }
+                                        let config' = adjustConfig synth_config $ config { smt = [ConCVC5], steps = 2000, smt_strings = UseSMTStrings, check_asserts = True }
                                         return $ synth_config { run_symex = True, g2_config = config' {timeLimit = 60} })
                                         fle
                                         f
@@ -190,7 +190,7 @@ smtSynthTestRunSymexSMTStringsTrue :: T.Text -- ^ Filer
 smtSynthTestRunSymexSMTStringsTrue fle f =
     smtSynthTestRunSymexWithConfig (do
                                         synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir fle
-                                        return $ synth_config { run_symex = True, g2_config = adjustConfig synth_config $ config { smt = ConCVC5, steps = 2000, smt_strings = UseSMTStrings } })
+                                        return $ synth_config { run_symex = True, g2_config = adjustConfig synth_config $ config { smt = [ConCVC5], steps = 2000, smt_strings = UseSMTStrings } })
                                         fle
                                         f
                                         (\e -> case e of (Data dc) -> nameOcc (dc_name dc) == "True"; _ -> False)
@@ -203,7 +203,7 @@ smtSynthTestRunSymexSMTStringsFalse :: T.Text -- ^ Filer
 smtSynthTestRunSymexSMTStringsFalse fle f =
     smtSynthTestRunSymexWithConfig (do
                                         synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir fle
-                                        return $ synth_config { run_symex = True, g2_config = adjustConfig synth_config $ config { smt = ConCVC5, steps = 2000, smt_strings = UseSMTStrings } })
+                                        return $ synth_config { run_symex = True, g2_config = adjustConfig synth_config $ config { smt = [ConCVC5], steps = 2000, smt_strings = UseSMTStrings } })
                                         fle
                                         f
                                         (\e -> case e of (Data dc) -> nameOcc (dc_name dc) == "False"; _ -> False)

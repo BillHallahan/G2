@@ -10,6 +10,7 @@ module G2.Liquid.Inference.Interface ( inferenceCheck
 import G2.Config.Config as G2
 import G2.Data.Timer
 import G2.Interface hiding (violated)
+import G2.Language.ArbValueGen
 import G2.Language.CallGraph
 import G2.Language.Expr
 import qualified G2.Language.ExprEnv as E
@@ -49,7 +50,6 @@ import Data.Maybe
 import Data.Monoid (Any (..))
 import qualified Data.Text as T
 import qualified Data.Text.IO as T
-import Data.Bool (Bool(True))
 
 -- Run inference, with an extra, final check of correctness at the end.
 -- Assuming inference is working correctly, this check should neve fail.
@@ -97,7 +97,7 @@ inference' infconfig config g2lhconfig lhconfig ghci proj fp = do
     let configs = Configs { g2_config = g2config', g2lh_config = g2lhconfig', lh_config = lhconfig, inf_config = infconfig'}
         prog = newProgress
 
-    SomeSMTSolver solver <- getSMT g2config'
+    SomeSMTSolver solver <- getSMTConverter arbValue g2config'
     let infL = iterativeInference solver ghci (head main_mod) lrs nls HM.empty emptyGS emptyFC ut
 
     (res, ev_timer, lvl_timer, loops) <- runInfStack configs prog infL -- runProgresser (runConfigs (runTimer infL timer) configs) prog

@@ -211,7 +211,7 @@ fromLiquidReadyState :: State ()
                      -> IO LiquidData
 fromLiquidReadyState init_state ifi bindings ghci ph_tyvars lhconfig memconfig config = do
     let init_state' = (markAndSweepPreserving (reqNames init_state `mappend` memconfig) init_state bindings)
-        use_lams = using_smt_lams config == UseSMTLams && smt config == ConZ3
+        use_lams = using_smt_lams config == UseSMTLams && ConZ3 `elem` smt config
         use_lts = literal_tables config == UseLiteralTables
         cleaned_state = init_state' { type_env = type_env init_state }
 
