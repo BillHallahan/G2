@@ -123,6 +123,7 @@ tests = testGroup "All Tests"
                                 , "prop_19"
                                 , "prop_37"
                                 , "prop_39"
+                                , "prop_41"
                                 , "prop_44"
                                 , "prop_49" ]
                                 [ "myRev_propBad" ]

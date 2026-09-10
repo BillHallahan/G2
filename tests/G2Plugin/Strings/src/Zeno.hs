@@ -514,6 +514,7 @@ prop_40 :: [Nat] -> Bool
 prop_40 xs
   = (take 0 xs =:= [])
 
+{-# ANN prop_41 Prop #-}
 prop_41 :: Nat -> (Nat -> Nat) -> [Nat] -> Bool
 prop_41 n f xs
   = (take n (map f xs) =:= map f (take n xs))

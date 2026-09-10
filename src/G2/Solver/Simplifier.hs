@@ -188,6 +188,18 @@ simplifyAllStrings kv tenv e
     , dcName emp == dcEmpty kv
     , rep == e2 = mkApp [Prim StrContains str_cont_ty, ys, rep]
 
+    -- Rewrite
+    --    seq.map f (seq.extract xs i j)
+    -- to be
+    --    (seq.extract (seq.map f xs) i j)
+    -- This both normalizes, making constraints easier to solver, and potentially allows the unfold append simplifier to fire on the map
+    | [ Prim Map ty_map, f, ext] <- unApp e
+    , [ Prim StrSubstr ty_substr, lst, i, j] <- unApp ext =
+        mkApp [ Prim StrSubstr ty_substr
+              , mkApp [ Prim Map ty_map, f, lst]
+              , i
+              , j]
+
     -- | [Prim Eq _, e1, e2] <- unApp e
     -- , [Prim StrIndexOf _, xs, ys, Lit (LitInt 0)] <- unApp e1
     -- , Lit (LitInt (- 1)) <- e2 = App (Prim Not TyUnknown) $ mkApp [ Prim StrContains TyUnknown, xs, ys]
