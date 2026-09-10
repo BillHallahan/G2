@@ -177,13 +177,22 @@ smtMyIntersperseApp1 _ [] = [1]
 smtMyIntersperseApp1 _ [x] = [1, x]
 smtMyIntersperseApp1 x (i:ys) = smtFoldLeft (\acc y -> acc $++ ([x] $++ [y])) [1, i] ys
 
-{-# ANN myRev (SMTEquivIsWithConfig "smtMyRev" "") #-}
+{-# ANN myRev (SMTEquivIsWithConfig "smtMyRev" "--print-smt --smt cvc5,z3")
+    #-}
 myRev :: [Int] -> [Int]
 myRev [] = []
 myRev (y:ys) = myRev ys ++ [y]
 
 smtMyRev :: [Int] -> [Int]
 smtMyRev ys = smtFoldLeft (\acc y -> y:acc) [] ys
+
+{-# ANN myRev2 (SMTEquivIs "smtMyRev2") #-}
+myRev2 :: [Int] -> [Int]
+myRev2 [] = []
+myRev2 (y:ys) = myRev2 ys ++ [y]
+
+smtMyRev2 :: [Int] -> [Int]
+smtMyRev2 = smtReverse
 
 {-# ANN myRevBad (SMTEquivIsWithConfig "smtMyRevBad" "") #-}
 myRevBad :: [Int] -> [Int]

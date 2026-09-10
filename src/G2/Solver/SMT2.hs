@@ -21,25 +21,33 @@ module G2.Solver.SMT2 ( Z3StringSolver (..)
                       , getZ3
                       , getCVC5
                       , getSMT
+                      , getSMTConverter
                       , getSMTAV) where
 
 import G2.Config.Config
 import G2.Language.ArbValueGen
+import G2.Language (Expr (..), Primitive (..), Type (..), Id (..), Name (..), LamUse (..))
+import G2.Language.AST
+import G2.Language.Expr
+import qualified G2.Language.PathConds as PC
+import G2.Language.Support(State(..))
 import G2.Solver.Language
 import G2.Solver.ParseSMT
+import G2.Solver.Simplifier
 import G2.Solver.Solver
 import G2.Solver.Converters --It would be nice to not import this...
 
 import Control.Exception.Base (evaluate)
 import Control.Monad
+import qualified Data.Foldable as F
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
+import Data.Monoid (Any (..))
 import qualified Data.Text.IO as T
 import qualified Data.Text as DT
 import System.IO
 import System.Process
 import Data.Maybe (fromMaybe)
-import G2.Language.Support(State(..))
 
 #if MIN_VERSION_text_builder(0,6,8)
 import qualified TextBuilder as TB
@@ -66,14 +74,60 @@ data SomeSMTSolver where
                    . SMTConverter con => con -> SomeSMTSolver
 
 instance Solver Z3 where
-    check solver s pc = checkConstraintsPC (known_values s) (tyvar_env s) (type_env s) solver pc
-    solve con@(Z3 _ _ avf _) = checkModelPC avf con
+    check solver s pc = checkConstraintsPC (known_values s) (tyvar_env s) (type_env s) solver (elimReverse s pc)
+    solve con@(Z3 _ _ avf _) s b is pcs = checkModelPC avf con s b is (elimReverse s pcs)
     close = closeIO
 
+-- | Convert StrReverse into a FoldLeft (for Z3)
+elimReverse :: State t -> PC.PathConds -> PC.PathConds
+elimReverse (State { type_env = tenv, known_values = kv }) = PC.mapHashedPCs adjust
+    where
+        adjust hashed_pc =
+            let pc = PC.unhashedPC hashed_pc in
+            if getAny (evalASTs containsRev pc) then PC.hashedPC (modifyASTs go pc) else hashed_pc
+
+        containsRev (Prim StrReverse _) = Any True
+        containsRev _ = Any False
+
+        go (App (Prim StrReverse (TyFun t _)) e)
+            | TyApp _ tv <- t =
+            let
+                acc = Id (Name "G2_!!_acc_" Nothing 0 Nothing) t
+                v = Id (Name "G2_!!_v" Nothing 0 Nothing) tv
+                f = Lam TermL acc
+                    . Lam TermL v
+                    $ mkApp [ mkCons kv tenv
+                            , Type tv
+                            , Var v
+                            , Var acc]
+            in
+            -- This fold is inserted AFTER the simplifier works- we thus benefit from adjust applications of fold to append
+            unfoldAppend tenv kv $
+            mkApp [ Prim FoldLeft TyUnknown
+                    , f
+                    , App (mkEmpty kv tenv) (Type tv)
+                    , e]
+        go e = e
+
 instance Solver CVC5 where
-    check solver s pc = checkConstraintsPC (known_values s) (tyvar_env s) (type_env s) solver pc
-    solve con@(CVC5 _ avf _) = checkModelPC avf con
+    check solver s pc 
+        | containsZ3Only pc = return (Unknown "Z3 Only" ())
+        | otherwise = checkConstraintsPC (known_values s) (tyvar_env s) (type_env s) solver pc
+    solve con@(CVC5 _ avf _) s b is pcs
+        | containsZ3Only pcs = return (Unknown "Z3 Only" ())
+        | otherwise = checkModelPC avf con s b is pcs
     close = closeIO
+
+containsZ3Only :: PC.PathConds -> Bool
+containsZ3Only = getAny . evalASTs go
+    where
+        go (Prim Map _) = Any True
+        go (Prim MapConcat _) = Any True
+        go (Prim MapConcatI _) = Any True
+        go (Prim FoldLeft _) = Any True
+        go (Prim FoldLeftI _) = Any True
+        go (Lam _ _ _) = Any True
+        go _ = Any False
 
 instance Solver Ostrich where
     check solver s pc = checkConstraintsPC (known_values s) (tyvar_env s) (type_env s) solver pc
@@ -430,20 +484,31 @@ getCVC5 pr_smt time_out = do
     hhp <- getCVC5ProcessHandles Nothing time_out
     return $ CVC5 pr_smt arbValue hhp
 
-getSMT :: Config -> IO SomeSMTSolver
-getSMT = getSMTAV arbValue
+getSMT :: ArbValueFunc -> Config -> IO SomeSolver
+getSMT avf config = do
+    solvers <- mapM (getSMTAV avf config) (smt config)
+    return . F.foldl' comb (SomeSolver UnknownSolver) $ map toSomeSolver solvers
+    where
+        comb (SomeSolver sol1) (SomeSolver sol2) = SomeSolver $ sol1 :?> sol2
+        toSomeSolver (SomeSMTSolver solver) = SomeSolver solver
 
-getSMTAV :: ArbValueFunc -> Config -> IO SomeSMTSolver
-getSMTAV avf (Config { smt = ConZ3, smt_timeout = to, smt_path = path, print_smt = pr }) = do
+getSMTConverter :: ArbValueFunc -> Config -> IO SomeSMTSolver
+getSMTConverter avf config =
+    case smt config of
+        [] -> error "getSMTConverter: no SMT solver specified"
+        smt_:_ -> getSMTAV avf config smt_
+
+getSMTAV :: ArbValueFunc -> Config -> SMTSolver -> IO SomeSMTSolver
+getSMTAV avf (Config { smt_timeout = to, smt_path = path, print_smt = pr }) ConZ3 = do
     hhp <- getZ3ProcessHandles path (to * 1000)
     return $ SomeSMTSolver (Z3 SeqSolver pr avf hhp)
-getSMTAV avf (Config { smt = ConZ3Str3, smt_timeout = to, smt_path = path, print_smt = pr }) = do
+getSMTAV avf (Config { smt_timeout = to, smt_path = path, print_smt = pr }) ConZ3Str3 = do
     hhp <- getZ3ProcessHandles path (to * 1000)
     return $ SomeSMTSolver (Z3 Z3Str3 pr avf hhp)
-getSMTAV avf (Config { smt = ConCVC5, smt_timeout = to, smt_path = path, print_smt = pr }) = do
+getSMTAV avf (Config { smt_timeout = to, smt_path = path, print_smt = pr }) ConCVC5 = do
     hhp <- getCVC5ProcessHandles path (to * 1000)
     return $ SomeSMTSolver (CVC5 pr avf hhp)
-getSMTAV avf (Config { smt = ConOstrich, smt_timeout = to, smt_path = path, print_smt = pr }) = do
+getSMTAV avf (Config { smt_timeout = to, smt_path = path, print_smt = pr }) ConOstrich = do
     hhp <- getOstrichProcessHandles path (to * 1000)
     return $ SomeSMTSolver (Ostrich pr avf hhp)
 

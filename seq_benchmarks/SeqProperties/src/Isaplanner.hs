@@ -3,7 +3,7 @@
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 
-module Zeno where
+module Isaplanner where
 
 import Prelude
   ( Eq
@@ -35,7 +35,7 @@ import Prelude
 import G2.Plugin
 import G2.Plugin.Unsafe
 
-{-# ANN module ("--smt-tuples --higher-order uninterpreted")
+{-# ANN module ("--smt-tuples --higher-order uninterpreted --smt cvc5,z3 --time 90")
     #-}
 
 -- code here adapted from HipSpec.hs
@@ -101,13 +101,12 @@ nullSMT xs = (smtLen xs) == 0
 appendSMT :: [a] -> [a] -> [a]
 appendSMT = ($++)
 
-{-# ANN rev (SMTEquivIsWithConfig "revSMT" "--smt cvc5")
-    #-}
-rev :: [Nat] -> [Nat]
+{-# ANN rev (SMTEquivIs "revSMT") #-}
+rev :: [a] -> [a]
 rev [] = []
 rev (x:xs) = rev xs ++ [x]
 
-revSMT :: [Nat] -> [Nat]
+revSMT :: [a] -> [a]
 revSMT = smtReverse
 
 {-# ANN zip (SMTEquivIsWithConfig "zipSMT" "--smt-timeout 20")
@@ -120,7 +119,7 @@ zip (x:xs) (y:ys) = (x, y) : (zip xs ys)
 zipSMT :: [Nat] -> [Nat] -> [(Nat, Nat)]
 zipSMT = smtZip
 
-{-# ANN delete (SMTEquivIsWithConfig "deleteSMT" "--smt cvc5")
+{-# ANN delete (SMTEquivIs "deleteSMT")
     #-}
 delete :: Nat -> [Nat] -> [Nat]
 delete _ [] = []
@@ -133,11 +132,11 @@ deleteSMT :: Nat -> [Nat] -> [Nat]
 deleteSMT x xs = smtReplaceAll xs [x] []
 
 {-# ANN len (SMTEquivIs "lenSMT") #-}
-len :: [Nat] -> Nat
+len :: [a] -> Nat
 len [] = 0
 len (_:xs) = 1 + (len xs)
 
-lenSMT :: [Nat] -> Nat
+lenSMT :: [a] -> Nat
 lenSMT = smtLen
 
 {-# ANN elem (SMTEquivIs "elemSMT") #-}
@@ -164,16 +163,15 @@ dropSMT n xs =
     else xs
 
 {-# ANN take (SMTEquivIs "takeSMT") #-}
-take :: Nat -> [Nat] -> [Nat]
+take :: Nat -> [a] -> [a]
 take x _ | x <= 0 = []
 take _ [] = []
 take x (y:ys) = y : (take (x - 1) ys)
 
-takeSMT :: Nat -> [Nat] -> [Nat]
+takeSMT :: Nat -> [a] -> [a]
 takeSMT n xs = smtExtract xs 0 n
 
-{-# ANN count (SMTEquivIsWithConfig "countSMT" "--smt cvc5")
-    #-}
+{-# ANN count (SMTEquivIs "countSMT") #-}
 count :: Nat -> [Nat] -> Nat
 count x [] = 0
 count x (y:ys) =
@@ -192,7 +190,7 @@ map f (x:xs) = (f x) : (map f xs)
 mapSMT :: (Nat -> Nat) -> [Nat] -> [Nat]
 mapSMT = smtMap
 
-{-# ANN takeWhile (SMTEquivIsWithConfig "takeWhileSMT" "")
+{-# ANN takeWhile (SMTEquivIs "takeWhileSMT")
   #-}
 takeWhile :: (Nat -> Bool) -> [Nat] -> [Nat]
 takeWhile _ [] = []
@@ -210,13 +208,6 @@ takeWhileSMT p xs =
     case n of
         -1 -> xs
         _ -> smtExtract xs 0 n
-
--- takeWhileSMT :: (Nat -> Bool) -> [Nat] -> [Nat]
--- takeWhileSMT p xs =
---   let (as', _) = exists2 (\as bs -> xs `smtEq` (as $++ bs) &&
---                                     smtFoldLeft (\acc e -> acc && p e) True as && 
---                                     smtFoldLeft (\acc e -> acc && not (p e)) True (smtAt bs 0))
---   in as'
 
 {-# ANN dropWhile (SMTEquivIsWithConfig "dropWhileSMT" "--smt-timeout 20")
   #-}
@@ -236,13 +227,6 @@ dropWhileSMT p xs =
     case n of
         -1 -> []
         _ -> smtExtract xs n (smtLen xs - n)
-
--- dropWhileSMT :: (Nat -> Bool) -> [Nat] -> [Nat]
--- dropWhileSMT p xs =
---   let (_, bs') = exists2 (\as bs -> xs `smtEq` (as $++ bs) &&
---                                     smtFoldLeft (\acc e -> acc && p e) True as && 
---                                     smtFoldLeft (\acc e -> acc && not (p e)) True (smtAt bs 0))
---   in bs'
 
 {-# ANN filter (SMTEquivIs "filterSMT") #-}
 filter :: (Nat -> Bool) -> [Nat] -> [Nat]
@@ -284,13 +268,6 @@ sorted :: [Nat] -> Bool
 sorted [] = True
 sorted [x] = True
 sorted (x:y:ys) = (x <= y) && sorted (y:ys)
-
--- sortedSMT :: [Nat] -> Bool
--- sortedSMT xs =
---   case xs of
---     (y:ys) -> let (r, _) = smtFoldLeft (\(valid, e') e -> (valid && (e' <= e), e)) (True, y) ys
---               in r
---     _ -> True
 
 insort :: Nat -> [Nat] -> [Nat]
 insort n [] = [n]
@@ -349,18 +326,22 @@ prop_01 :: Nat -> [Nat] -> Bool
 prop_01 n xs
   = (take n xs ++ drop n xs =:= xs)
 
+{-# ANN prop_02 Prop #-}
 prop_02 :: Nat -> [Nat] -> [Nat] -> Bool
 prop_02 n xs ys
   = (count n xs + count n ys =:= count n (xs ++ ys))
 
+{-# ANN prop_03 Prop #-}
 prop_03 :: Nat -> [Nat] -> [Nat] -> Bool
 prop_03 n xs ys
   = proveBool (count n xs <= count n (xs ++ ys))
 
+{-# ANN prop_04 Prop #-}
 prop_04 :: Nat -> [Nat] -> Bool
 prop_04 n xs
   = (1 + (count n xs) =:= count n (n : xs))
 
+{-# ANN prop_05 Prop #-}
 prop_05 :: Nat -> Nat -> [Nat] -> Bool
 prop_05 n x xs
   = n =:= x ===> 1 + (count n xs) =:= count n (x : xs)
@@ -385,26 +366,32 @@ prop_10 :: Nat -> Bool
 prop_10 m
   = (m - m =:= 0)
 
+{-# ANN prop_11 Prop #-}
 prop_11 :: [Nat] -> Bool
 prop_11 xs
   = (drop 0 xs =:= xs)
 
+{-# ANN prop_12 Prop #-}
 prop_12 :: Nat -> (Nat -> Nat) -> [Nat] -> Bool
 prop_12 n f xs
   = (drop n (map f xs) =:= map f (drop n xs))
 
+{-# ANN prop_13 Prop #-}
 prop_13 :: Nat -> Nat -> [Nat] -> Bool
 prop_13 n x xs
   = (drop (1 + n) (x : xs) =:= drop n xs)
 
+{-# ANN prop_14 Prop #-}
 prop_14 :: (Nat -> Bool) -> [Nat] -> [Nat] -> Bool
 prop_14 p xs ys
   = (filter p (xs ++ ys) =:= (filter p xs) ++ (filter p ys))
 
+{-# ANN prop_15 Prop #-}
 prop_15 :: Nat -> [Nat] -> Bool
 prop_15 x xs
   = (len (ins x xs) =:= (1 + (len xs)))
 
+{-# ANN prop_16 Prop #-}
 prop_16 :: Nat -> [Nat] -> Bool
 prop_16 x xs
   = xs =:= [] ===> last (x:xs) =:= x
@@ -422,6 +409,7 @@ prop_19 :: Nat -> [Nat] -> Bool
 prop_19 n xs
   = (len (drop n xs) =:= len xs - n)
 
+{-# ANN prop_20 Prop #-}
 prop_20 :: [Nat] -> Bool
 prop_20 xs
   = (len (sort xs) =:= len xs)
@@ -446,26 +434,29 @@ prop_25 :: Nat -> Nat -> Bool
 prop_25 a b
   = ((max a b) === b =:= a <= b)
 
+{-# ANN prop_26 Prop #-}
 prop_26 :: Nat -> [Nat] -> [Nat] -> Bool
 prop_26 x xs ys
   = givenBool (x `elem` xs)
   ( proveBool (x `elem` (xs ++ ys)) )
 
+{-# ANN prop_27 Prop #-}
 prop_27 :: Nat -> [Nat] -> [Nat] -> Bool
 prop_27 x xs ys
   = givenBool (x `elem` ys)
   ( proveBool (x `elem` (xs ++ ys)) )
 
+{-# ANN prop_28 Prop #-}
 prop_28 :: Nat -> [Nat] -> Bool
 prop_28 x xs
   = proveBool (x `elem` (xs ++ [x]))
 
+{-# ANN prop_29 Prop #-}
 prop_29 :: Nat -> [Nat] -> Bool
 prop_29 x xs
   = proveBool (x `elem` ins1 x xs)
 
-{-# ANN prop_30 (PropWithConfig "--time 60")
-  #-}
+{-# ANN prop_30 Prop #-}
 prop_30 :: Nat -> [Nat] -> Bool
 prop_30 x xs
   = proveBool (x `elem` ins x xs)
@@ -486,60 +477,71 @@ prop_34 :: Nat -> Nat -> Bool
 prop_34 a b
   = (min a b === b =:= b <= a)
 
+{-# ANN prop_35 Prop #-}
 prop_35 :: [Nat] -> Bool
 prop_35 xs
   = (dropWhile (\_ -> False) xs =:= xs)
 
+{-# ANN prop_36 Prop #-}
 prop_36 :: [Nat] -> Bool
 prop_36 xs
   = (takeWhile (\_ -> True) xs =:= xs)
 
+{-# ANN prop_37 Prop #-}
 prop_37 :: Nat -> [Nat] -> Bool
 prop_37 x xs
   = proveBool (not (x `elem` delete x xs))
 
+{-# ANN prop_38 Prop #-}
 prop_38 :: Nat -> [Nat] -> Bool
 prop_38 n xs
   = (count n (xs ++ [n]) =:= 1 + (count n xs))
 
+{-# ANN prop_39 Prop #-}
 prop_39 :: Nat -> Nat -> [Nat] -> Bool
 prop_39 n x xs
   = (count n [x] + count n xs =:= count n (x:xs))
 
+{-# ANN prop_40 Prop #-}
 prop_40 :: [Nat] -> Bool
 prop_40 xs
   = (take 0 xs =:= [])
 
+{-# ANN prop_41 Prop #-}
 prop_41 :: Nat -> (Nat -> Nat) -> [Nat] -> Bool
 prop_41 n f xs
   = (take n (map f xs) =:= map f (take n xs))
 
+{-# ANN prop_42 Prop #-}
 prop_42 :: Nat -> Nat -> [Nat] -> Bool
 prop_42 n x xs
   = (take n (x:xs) =:= x : (take (n - 1) xs))
 
+{-# ANN prop_43 Prop #-}
 prop_43 :: (Nat -> Bool) -> [Nat] -> Bool
 prop_43 p xs
   = (takeWhile p xs ++ dropWhile p xs =:= xs)
 
-{-# ANN prop_44 (PropWithConfig "--smt cvc5,z3")
-  #-}
+{-# ANN prop_44 Prop #-}
 prop_44 :: Nat -> [Nat] -> [Nat] -> Bool
 prop_44 x xs ys
   = (zip (x:xs) ys =:= zipConcat x xs ys)
 
--- prop_45 :: Nat -> Nat -> [Nat] -> [Nat] -> Bool
--- prop_45 x y xs ys
---   = (zip (x:xs) (y:ys) =:= (x, y) : zip xs ys)
+{-# ANN prop_45 Prop #-}
+prop_45 :: Nat -> Nat -> [Nat] -> [Nat] -> Bool
+prop_45 x y xs ys
+  = (zip (x:xs) (y:ys) =:= (x, y) : zip xs ys)
 
--- prop_46 :: [Nat] -> Bool
--- prop_46 xs
---   = (zip ([] :: [Nat]) xs =:= [])
+{-# ANN prop_46 Prop #-}
+prop_46 :: [Nat] -> Bool
+prop_46 xs
+  = (zip ([] :: [Nat]) xs =:= [])
 
 prop_47 :: Tree Nat -> Bool
 prop_47 a
   = (height (mirror a) =:= height a)
 
+{-# ANN prop_48 Prop #-}
 prop_48 :: [Nat] -> Bool
 prop_48 xs
   = givenBool (not (null xs))
@@ -550,18 +552,22 @@ prop_49 :: [Nat] -> [Nat] -> Bool
 prop_49 xs ys
   = (butlast (xs ++ ys) =:= butlastConcat xs ys)
 
+{-# ANN prop_50 Prop #-}
 prop_50 :: [Nat] -> Bool
 prop_50 xs
   = (butlast xs =:= take (len xs - 1) xs)
 
+{-# ANN prop_51 Prop #-}
 prop_51 :: [Nat] -> Nat -> Bool
 prop_51 xs x
   = (butlast (xs ++ [x]) =:= xs)
 
+{-# ANN prop_52 Prop #-}
 prop_52 :: Nat -> [Nat] -> Bool
 prop_52 n xs
   = (count n xs =:= count n (rev xs))
 
+{-# ANN prop_53 Prop #-}
 prop_53 :: Nat -> [Nat] -> Bool
 prop_53 n xs
   = (count n xs =:= count n (sort xs))
@@ -570,45 +576,55 @@ prop_54 :: Nat -> Nat -> Bool
 prop_54 n m
   = ((m + n) - n =:= m)
 
+{-# ANN prop_55 Prop #-}
 prop_55 :: Nat -> [Nat] -> [Nat] -> Bool
 prop_55 n xs ys
   = (drop n (xs ++ ys) =:= drop n xs ++ drop (n - len xs) ys)
 
+{-# ANN prop_56 Prop #-}
 prop_56 :: Nat -> Nat -> [Nat] -> Bool
 prop_56 n m xs
   = (drop n (drop m xs) =:= drop (n + m) xs)
 
+{-# ANN prop_57 Prop #-}
 prop_57 :: Nat -> Nat -> [Nat] -> Bool
 prop_57 n m xs
   = (drop n (take m xs) =:= take (m - n) (drop n xs))
 
--- prop_58 :: Nat -> [Nat] -> [Nat] -> Bool
--- prop_58 n xs ys
---   = (drop n (zip xs ys) =:= zip (drop n xs) (drop n ys))
+{-# ANN prop_58 Prop #-}
+prop_58 :: Nat -> [Nat] -> [Nat] -> Bool
+prop_58 n xs ys
+  = (drop n (zip xs ys) =:= zip (drop n xs) (drop n ys))
 
+{-# ANN prop_59 Prop #-}
 prop_59 :: [Nat] -> [Nat] -> Bool
 prop_59 xs ys
   = ys =:= [] ===> last (xs ++ ys) =:= last xs
 
+{-# ANN prop_60 Prop #-}
 prop_60 :: [Nat] -> [Nat] -> Bool
 prop_60 xs ys
   = givenBool (not (null ys))
   ( (last (xs ++ ys) =:= last ys) )
 
+{-# ANN prop_61 Prop #-}
 prop_61 :: [Nat] -> [Nat] -> Bool
 prop_61 xs ys
   = (last (xs ++ ys) =:= lastOfTwo xs ys)
 
+{-# ANN prop_62 Prop #-}
 prop_62 :: [Nat] -> Nat -> Bool
 prop_62 xs x
   = givenBool (not (null xs))
   ( (last (x:xs) =:= last xs) )
 
+{-# ANN prop_63 Prop #-}
 prop_63 :: Nat -> [Nat] -> Bool
 prop_63 n xs
   = givenBool (n < len xs)
   ( (last (drop n xs) =:= last xs) )
 
+{-# ANN prop_64 Prop #-}
 prop_64 :: Nat -> [Nat] -> Bool
 prop_64 x xs
   = (last (xs ++ [x]) =:= x)
@@ -617,14 +633,17 @@ prop_65 :: Nat -> Nat -> Bool
 prop_65 i m =
   proveBool (i < 1 + (m + i))
 
+{-# ANN prop_66 Prop #-}
 prop_66 :: (Nat -> Bool) -> [Nat] -> Bool
 prop_66 p xs
   = proveBool (len (filter p xs) <= len xs)
 
+{-# ANN prop_67 Prop #-}
 prop_67 :: [Nat] -> Bool
 prop_67 xs
   = (len (butlast xs) =:= len xs - 1)
 
+{-# ANN prop_68 Prop #-}
 prop_68 :: Nat -> [Nat] -> Bool
 prop_68 n xs
   = proveBool (len (delete n xs) <= len xs)
@@ -638,37 +657,45 @@ prop_70 m n
   = givenBool (m <= n)
   ( proveBool (m <= 1 + n) )
 
+{-# ANN prop_71 Prop #-}
 prop_71 :: Nat -> Nat -> [Nat] -> Bool
 prop_71 x y xs
   = given (x === y =:= False)
   ( (elem x (ins y xs) =:= elem x xs) )
 
+{-# ANN prop_72 Prop #-}
 prop_72 :: Nat -> [Nat] -> Bool
 prop_72 i xs
   = (rev (drop i xs) =:= take (len xs - i) (rev xs))
 
+{-# ANN prop_73 Prop #-}
 prop_73 :: (Nat -> Bool) -> [Nat] -> Bool
 prop_73 p xs
   = (rev (filter p xs) =:= filter p (rev xs))
 
+{-# ANN prop_74 Prop #-}
 prop_74 :: Nat -> [Nat] -> Bool
 prop_74 i xs
   = (rev (take i xs) =:= drop (len xs - i) (rev xs))
 
+{-# ANN prop_75 Prop #-}
 prop_75 :: Nat -> Nat -> [Nat] -> Bool
 prop_75 n m xs
   = (count n xs + count n [m] =:= count n (m : xs))
 
+{-# ANN prop_76 Prop #-}
 prop_76 :: Nat -> Nat -> [Nat] -> Bool
 prop_76 n m xs
   = given (n === m =:= False)
   ( (count n (xs ++ [m]) =:= count n xs) )
 
+{-# ANN prop_77 Prop #-}
 prop_77 :: Nat -> [Nat] -> Bool
 prop_77 x xs
   = givenBool (sorted xs)
   ( proveBool (sorted (insort x xs)) )
 
+{-# ANN prop_78 Prop #-}
 prop_78 :: [Nat] -> Bool
 prop_78 xs
   = proveBool (sorted (sort xs))
@@ -677,29 +704,35 @@ prop_79 :: Nat -> Nat -> Nat -> Bool
 prop_79 m n k
   = ((1 + m - n) - (1 + k) =:= (m - n) - k)
 
+{-# ANN prop_80 Prop #-}
 prop_80 :: Nat -> [Nat] -> [Nat] -> Bool
 prop_80 n xs ys
   = (take n (xs ++ ys) =:= take n xs ++ take (n - len xs) ys)
 
--- prop_81 :: Nat -> Nat -> [Nat] -> Bool
--- prop_81 n m xs {- ys -}
---   = (take n (drop m xs) =:= drop m (take (n + m) xs))
+{-# ANN prop_81 Prop #-}
+prop_81 :: Nat -> Nat -> [Nat] -> Bool
+prop_81 n m xs {- ys -}
+  = (take n (drop m xs) =:= drop m (take (n + m) xs))
 
--- prop_82 :: Nat -> [Nat] -> [Nat] -> Bool
--- prop_82 n xs ys
---   = (take n (zip xs ys) =:= zip (take n xs) (take n ys))
+{-# ANN prop_82 Prop #-}
+prop_82 :: Nat -> [Nat] -> [Nat] -> Bool
+prop_82 n xs ys
+  = (take n (zip xs ys) =:= zip (take n xs) (take n ys))
 
--- prop_83 :: [Nat] -> [Nat] -> [Nat] -> Bool
--- prop_83 xs ys zs
---   = (zip (xs ++ ys) zs =:=
---            zip xs (take (len xs) zs) ++ zip ys (drop (len xs) zs))
+{-# ANN prop_83 Prop #-}
+prop_83 :: [Nat] -> [Nat] -> [Nat] -> Bool
+prop_83 xs ys zs
+  = (zip (xs ++ ys) zs =:=
+           zip xs (take (len xs) zs) ++ zip ys (drop (len xs) zs))
 
--- prop_84 :: [Nat] -> [Nat] -> [Nat] -> Bool
--- prop_84 xs ys zs
---   = (zip xs (ys ++ zs) =:=
---            zip (take (len ys) xs) ys ++ zip (drop (len ys) xs) zs)
+{-# ANN prop_84 Prop #-}
+prop_84 :: [Nat] -> [Nat] -> [Nat] -> Bool
+prop_84 xs ys zs
+  = (zip xs (ys ++ zs) =:=
+           zip (take (len ys) xs) ys ++ zip (drop (len ys) xs) zs)
 
--- prop_85 :: [Nat] -> [Nat] -> Bool
--- prop_85 xs ys
---   = (len xs =:= len ys) ===>
---     (zip (rev xs) (rev ys) =:= rev (zip xs ys))
+{-# ANN prop_85 Prop #-}
+prop_85 :: [Nat] -> [Nat] -> Bool
+prop_85 xs ys
+  = (len xs =:= len ys) ===>
+    (zip (rev xs) (rev ys) =:= rev (zip xs ys))

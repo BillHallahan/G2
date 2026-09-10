@@ -37,12 +37,15 @@ tests = testGroup "All Tests"
                                 , ("myIntersperseBegin2", "smtMyIntersperseBegin2")
 
                                 , ("myRev", "smtMyRev")
+                                , ("myRev2", "smtMyRev2")
 
                                 , ("makeFourthElemSix", "smtMakeFourthElemSix")
 
                                 -- Tuples
                                 , ("appTuple", "smtAppTuple")
                                 , ("pairA", "smtPairA")
+
+                                , ("concatA", "smtConcatA")
 
 -- This test fails on GitHub CI for GHC 9.8.4, specifically (works locally.)
 #if __GLASGOW_HASKELL__ >= 910 || __GLASGOW_HASKELL__ < 908
@@ -117,6 +120,8 @@ tests = testGroup "All Tests"
                                 , ("nonTerm3", "smtNonTerm3")
                                 ]
                                 [ "prop_01"
+                                , "prop_19"
+                                , "prop_44"
                                 , "prop_49" ]
                                 [ "myRev_propBad" ]
         , checkNebulaPackage "tests/RewriteVerify/PluginTests/Simple" ["add_assoc", "fg", "fg_toint"] ["f_one"]]

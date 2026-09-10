@@ -34,7 +34,7 @@ checkProp func_config equiv_annots simp_state@(IT.SimpleState { IT.expr_env = ee
             
             lam_uses = map argTypeToLamUse argtypes
             ts = map argTypeToType argtypes
-            is = map (Id (Name "__!!_x__" Nothing 0 Nothing)) ts
+            is = zipWith (\i -> Id (Name "__!!_x__" Nothing i Nothing)) [1..] ts
             e = L.mkLams (zip lam_uses is) (mkTrue kv)
         
             entry_smt = Name "__!!__G2__!!__entry_smt_name" Nothing 0 Nothing
@@ -58,7 +58,6 @@ check check_output func_config equiv_annots simp_state entry_real entry_smt_name
                                        , using_smt_lams = UseSMTLams
                                        , literal_tables = UseLiteralTables
                                        , search_strat = Subpath
-                                       , min_found = 1
                                        , smt_discard_on_unknown = KeepUnknown }
 
         let entry_id = Id entry_real_name $ typeOf TV.empty real_e
@@ -136,7 +135,7 @@ checkEquivInputOutput check_output func_config equiv_annots init_state bindings 
         -- If we run corr, we may get a "counterexample" that corr 0 = 2. However, the glitch here is actually that
         -- the specification of incorr is wrong. We figure this out by logging all values passed into and returned from
         -- SMT definitions, and then checking if those values actually conform to the behavior of the real function.
-        let smt_call_xs = (checkFCStateBindings eenv) ers bindings
+        let smt_call_xs = checkFCStateBindings eenv ers bindings
         mapM_ (\(func_n, new_s, new_b) -> do
             runG2WithConfig [] [] (Id func_n TyUnknown) "" [] [nameModule entry_real_name] new_s func_config new_b) smt_call_xs
 
@@ -183,7 +182,7 @@ checkFCStateBindings :: ExprEnv -> [ExecRes ()] -> Bindings -> [(Name, State (),
 checkFCStateBindings orig_eenv er bindings =     
     let new_state_bindings =
             concatMap (\ExecRes { final_state = s@State { expr_env = eenv, tyvar_env = tv_env, known_values = kv, type_classes = tc } } ->
-                map (\fc->
+                zipWith (\fc i ->
                         let
                             func_t = typeOf tv_env $ fromMaybe (error "runFunc: func not found") $ E.lookup (funcName fc) eenv
                             num_ty = length $ leadingTyForAllBindings func_t
@@ -221,9 +220,13 @@ checkFCStateBindings orig_eenv er bindings =
                             let_e = Let [(call_res_i, apply_to_args)] assert_eq
                         in
                         ( funcName fc
-                        , s { expr_env = eenv'', tyvar_env = tv_env', true_assert = False, curr_expr = CurrExpr Evaluate let_e }
+                        , s { expr_env = eenv''
+                            , tyvar_env = tv_env'
+                            , true_assert = False
+                            , curr_expr = CurrExpr Evaluate let_e
+                            , log_path = log_path s ++ [i] }
                         , bindings { input_names = map idName arg_ns, name_gen = ng' })
-                    ) (reached_fc_ticks s)
+                    ) (reached_fc_ticks s) [1..]
             ) er
     in new_state_bindings
 

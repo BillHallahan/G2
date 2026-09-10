@@ -882,7 +882,7 @@ adtTypeToSMTSeq _ (TyCon (Name "Integer" _ _ _) _) = SortSeq SortInt
 adtTypeToSMTSeq _ (TyCon (Name "Float" _ _ _) _) = SortSeq SortFloat
 adtTypeToSMTSeq _ (TyCon (Name "Double" _ _ _) _) = SortSeq SortDouble
 adtTypeToSMTSeq _ (TyCon (Name "Bool" _ _ _) _) = SortSeq SortBool
-adtTypeToSMTSeq tv t | TyCon n _:ts <- unTyApp t = SortSeq . ADTSort (nameToStr n) $ map (typeToSMT tv) ts
+adtTypeToSMTSeq tv t | TyCon _ _:_ <- unTyApp t = SortSeq (typeToSMT tv t)
 adtTypeToSMTSeq tv (TyVar (Id n _)) | Just t <- TV.deepLookupName tv n = adtTypeToSMTSeq tv t
 adtTypeToSMTSeq _ t = error $ "Unsupported type in adtTypeToSMTSeq: " ++ show t
 
@@ -914,8 +914,12 @@ declareDataTypes dts =
             let
                 par = TB.intercalate " " . map TB.string $ dt_tyvars dt
                 cons = map handle_cons . dt_constructors $ dt
+
+                (par_str, end_str) = case dt_tyvars dt of
+                                        [] -> ("", "")
+                                        _ -> ("par (" <> par <> ") (", ")")
             in
-            "(par (" <> par <> ") (" <> TB.intercalate " " cons <> "))"
+            "(" <> par_str <> TB.intercalate " " cons <> ")" <> end_str
 
         dt_list = TB.intercalate " "
                 $ map (\dt -> "(" <> TB.string (dt_name dt) <> " " <> (TB.string . show . length . dt_tyvars $ dt) <> ")") dts

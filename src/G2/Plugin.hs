@@ -199,7 +199,13 @@ runSymexAnnots :: [CommandLineOption]
                -> L.Name
                -> [SymEx]
                -> IO ()
-runSymexAnnots cmd_lne equiv_annots simp_state entry = mapM_ (runSymexAnnot cmd_lne equiv_annots simp_state entry)
+runSymexAnnots cmd_lne equiv_annots simp_state entry =
+    mapM_ (\symex -> do
+        r <- Ex.try (runSymexAnnot cmd_lne equiv_annots simp_state entry symex) :: IO (Either Ex.SomeException ())
+        case r of
+            Left e -> putStrLn $ displayException e
+            Right _ -> return ()
+        )
 
 runSymexAnnot :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> SymEx -> IO ()
 runSymexAnnot cmd_lne _ simp_state entry SymEx =

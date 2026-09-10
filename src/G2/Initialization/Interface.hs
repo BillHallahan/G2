@@ -63,23 +63,18 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
                         then E.insert (adjStr kv) 
                                       (Var (Id (checkStrLazy kv) TyUnknown)) eenv6
                         else eenv6
-        use_lams = using_smt_lams config == UseSMTLams && smt config == ConZ3
+        use_lams = using_smt_lams config == UseSMTLams && ConZ3 `elem` smt config
         eenv8 = if use_lams
                         then E.insert (usingSMTLams kv) 
                                       (mkTrue kv) eenv7
                         else eenv7
 
-        eenv9 = case E.lookupNameMod "usingStrReverse#" (Just "GHC.Prim") eenv of
-                    Just (using_smt_rev, _) | smt config == ConCVC5 ->
-                                    E.insert using_smt_rev (mkTrue kv) eenv8
-                    _ -> eenv8
-
         use_lts = literal_tables config == UseLiteralTables
-        eenv10 = if use_lts
-                    then E.insert (usingLiteralTables kv) (mkTrue kv) eenv9
-                    else eenv9
+        eenv9 = if use_lts
+                    then E.insert (usingLiteralTables kv) (mkTrue kv) eenv8
+                    else eenv8
 
-        s1 = s { IT.expr_env = eenv10
+        s1 = s { IT.expr_env = eenv9
                , IT.name_gen = ng3
                , IT.handles = hs}
         
