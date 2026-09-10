@@ -502,6 +502,8 @@ prop_38 :: Nat -> [Nat] -> Bool
 prop_38 n xs
   = (count n (xs ++ [n]) =:= 1 + (count n xs))
 
+{-# ANN prop_39 (PropWithConfig "--smt cvc5")
+  #-}
 prop_39 :: Nat -> Nat -> [Nat] -> Bool
 prop_39 n x xs
   = (count n [x] + count n xs =:= count n (x:xs))

@@ -119,9 +119,9 @@ tests = testGroup "All Tests"
                                 , ("nonTerm2", "smtNonTerm2")
                                 , ("nonTerm3", "smtNonTerm3")
                                 ]
-                                [ "countProp"
-                                , "prop_01"
+                                [ "prop_01"
                                 , "prop_19"
+                                , "prop_39"
                                 , "prop_44"
                                 , "prop_49" ]
                                 [ "myRev_propBad" ]
