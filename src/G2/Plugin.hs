@@ -129,6 +129,11 @@ compiledModules :: IORef (Maybe ([CommandLineOption], ExtractedG2, NameMap, Type
 compiledModules = unsafePerformIO $ newIORef Nothing
 {-# NOINLINE compiledModules #-}
 
+-- | Keep track of equivalence annotations loaded in by previous modules.
+prevEquivAnnots :: IORef (HM.HashMap L.Name L.Id)
+prevEquivAnnots = unsafePerformIO $ newIORef HM.empty
+{-# NOINLINE prevEquivAnnots #-}
+
 plugin :: Plugin
 plugin = defaultPlugin { installCoreToDos = install }
 
@@ -163,12 +168,16 @@ g2PluginPass' cmd_lne config env modguts = do
 
     -- Get the names of functions we are going to be symbolically executing
     ann_fs_g2 <- getBinderAnnotations new_nm new_tm modguts
+    prev_annots <- liftIO $ readIORef prevEquivAnnots
     let equivTo (Name _ eq_m _ _) (SMTEquivIs eq_n) | Just (smt_n, smt_e) <- (E.lookupNameMod (TX.pack eq_n) eq_m $ IT.expr_env very_simp_state) =
             Just (Id smt_n $ L.typeOf TV.empty smt_e)
         equivTo (Name _ eq_m _ _) (SMTEquivIsWithConfig eq_n _) | Just (smt_n, smt_e) <- (E.lookupNameMod (TX.pack eq_n) eq_m $ IT.expr_env very_simp_state) =
             Just (Id smt_n $ L.typeOf TV.empty smt_e)
         equivTo _ _ = Nothing
-        equiv_annots = HM.fromList $ mapMaybe (\(n, anns) -> (n,) <$> firstJust (equivTo n) anns) ann_fs_g2
+        
+        new_equiv_annots = HM.fromList $ mapMaybe (\(n, anns) -> (n,) <$> firstJust (equivTo n) anns) ann_fs_g2
+        equiv_annots = new_equiv_annots `HM.union` prev_annots
+    liftIO $ writeIORef prevEquivAnnots equiv_annots
 
     let fs_g2 = map fst ann_fs_g2 ++ map L.idName (HM.elems equiv_annots)
 
