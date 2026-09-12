@@ -477,7 +477,7 @@ adjustFunctions nm ex_g2 = do
     . adjustFunction ("pSmtAppend#", Just "G2.Plugin.Prim") nm (callPrim nm "strAppend#")
     . adjustFunction ("pSmtAt#", Just "G2.Plugin.Prim") nm (callPrim nm "strAt#")
     . adjustFunction ("pSmtContains#", Just "G2.Plugin.Prim") nm (callPrimIgnoringEq nm "strContains#")
-    . adjustFunction ("pSmtIndexOf#", Just "G2.Plugin.Prim") nm (callPrcallPrimIgnoringEqim nm "strIndexOf#")
+    . adjustFunction ("pSmtIndexOf#", Just "G2.Plugin.Prim") nm (callPrimIgnoringEq nm "strIndexOf#")
     . adjustFunction ("pSmtReplace#", Just "G2.Plugin.Prim") nm (callPrim nm "strReplace#")
     . adjustFunction ("pSmtReplaceAll#", Just "G2.Plugin.Prim") nm (callPrim nm "strReplaceAll#")
     . adjustFunction ("pSmtReverse#", Just "G2.Plugin.Prim") nm (callPrim nm "strReverse#")
@@ -554,7 +554,7 @@ smtAt xs (I# x) = xs `evalSeq` pSmtAt# xs x
 smtContains :: Eq a => [a] -> [a] -> Bool
 smtContains xs ys = xs `evalSeq` ys `evalSeq` pSmtContains# xs ys
 
-smtIndexOf :: [a] -> [a] -> Int -> Int
+smtIndexOf :: Eq a => [a] -> [a] -> Int -> Int
 smtIndexOf xs ys (I# i) = xs `evalSeq` ys `evalSeq` I# (pSmtIndexOf# xs ys i)
 
 smtReplace :: [a] -> [a] -> [a] -> [a]
@@ -653,7 +653,7 @@ smtAny p = smtFoldLeft (\acc x -> p x || acc) False
 smtAll :: (a -> Bool) -> [a] -> Bool
 smtAll p = smtFoldLeft (\acc x -> p x && acc) True
 
-smtZip :: [a] -> [b] -> [(a, b)]
+smtZip :: (Eq a, Eq b) => [a] -> [b] -> [(a, b)]
 smtZip xs ys | smtLen xs < smtLen ys = exists (\zs -> xs `smtEq` smtMap fst zs
                                                       && smtMap snd zs `smtPrefixOf` ys)
              | otherwise = exists (\zs -> smtMap fst zs `smtPrefixOf` xs

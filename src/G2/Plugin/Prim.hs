@@ -33,7 +33,11 @@ pSmtNth# _ _ = error "pSmtNth#: invalid index"
 
 {-# NOINLINE pSmtUpdate# #-}
 pSmtUpdate# :: [a] -> Int# -> [a] -> [a]
-pSmtUpdate# _ = error "pSmtUpdate#"
+pSmtUpdate# xs i sub
+  | I# i < 0 || I# i >= length xs = xs
+  | otherwise = prefix ++ take (length suffix) sub ++ drop (length sub) suffix
+  where
+    (prefix, suffix) = splitAt (I# i) xs
 
 {-# NOINLINE pSmtExtract# #-}
 pSmtExtract# :: [a] -> Int# -> Int# -> [a]
