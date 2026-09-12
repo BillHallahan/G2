@@ -505,8 +505,8 @@ adjustFunctions nm ex_g2 = do
 
     . adjustMkSymbolicPrim SNoLog "pSymGen#" (Just "G2.Plugin.Prim") nm
 
-    . adjustFunction ("$&&#", Just "G2.Plugin.Prim") nm (callPrim nm "&&#")
-    . adjustFunction ("$||#", Just "G2.Plugin.Prim") nm (callPrim nm "||#")
+    . adjustFunction ("$&&", Just "G2.Plugin.Prim") nm (callPrim nm "&&#")
+    . adjustFunction ("$||", Just "G2.Plugin.Prim") nm (callPrim nm "||#")
 
     . adjustAssert "assert" "G2.Plugin" nm
     $ adjustAssume (Just "G2.Plugin.Unsafe") nm ex_g2
@@ -634,20 +634,14 @@ smtReComp r = r `evalSeq` pSmtReComp# r
 
 -- Extended Functions
 
-($&&) :: Bool -> Bool -> Bool
-!x $&& !y = x $&&# y
-
-($||) :: Bool -> Bool -> Bool
-!x $|| !y = x $||# y
-
 smtConcat :: [[a]] -> [a]
 smtConcat = smtFoldLeft (\acc ys -> acc $++ ys) []
 
 smtAny :: (a -> Bool) -> [a] -> Bool
-smtAny p = smtFoldLeft (\acc x -> p x $|| acc) False
+smtAny p = smtFoldLeft (\acc x -> p x || acc) False
 
 smtAll :: (a -> Bool) -> [a] -> Bool
-smtAll p = smtFoldLeft (\acc x -> p x $&& acc) True
+smtAll p = smtFoldLeft (\acc x -> p x && acc) True
 
 smtZip :: [a] -> [b] -> [(a, b)]
 smtZip xs ys | smtLen xs < smtLen ys = exists (\zs -> xs `smtEq` smtMap fst zs
