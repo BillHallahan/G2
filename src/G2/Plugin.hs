@@ -45,6 +45,9 @@ module G2.Plugin (SymEx (..)
                 , smtReComp
 
                 -- Extended Sequence
+                , ($&&)
+                , ($||)
+                , smtConcat
                 , smtAny
                 , smtAll
                 , smtZip
@@ -98,6 +101,7 @@ import qualified G2.SMTSynth.Verify as V
 import qualified Data.Text as TX
 
 import System.Clock
+import G2.SMTSynth.Verify (TermCheck(DoTermCheck))
 
 data SymEx = SymEx
            | SymExWithConfig String
@@ -129,15 +133,20 @@ compiledModules :: IORef (Maybe ([CommandLineOption], ExtractedG2, NameMap, Type
 compiledModules = unsafePerformIO $ newIORef Nothing
 {-# NOINLINE compiledModules #-}
 
+-- | Keep track of equivalence annotations loaded in by previous modules.
+prevEquivAnnots :: IORef (HM.HashMap L.Name L.Id)
+prevEquivAnnots = unsafePerformIO $ newIORef HM.empty
+{-# NOINLINE prevEquivAnnots #-}
+
 plugin :: Plugin
 plugin = defaultPlugin { installCoreToDos = install }
 
-pluginConfig :: FilePath -> ParserInfo Config
-pluginConfig homedir = 
-    info (mkConfig homedir <**> helper)
-          ( fullDesc
-          <> progDesc "Symbolic Execution of Haskell code"
-          <> header "The G2 Symbolic Execution Engine" )
+-- pluginConfig :: FilePath -> ParserInfo Config
+-- pluginConfig homedir = 
+--     info (mkConfig homedir <**> helper)
+--           ( fullDesc
+--           <> progDesc "Symbolic Execution of Haskell code"
+--           <> header "The G2 Symbolic Execution Engine" )
 
 
 install :: [CommandLineOption] -> [CoreToDo] -> CoreM [CoreToDo]
@@ -156,19 +165,23 @@ g2PluginPass cmd_lne modguts = do
     _ <- g2PluginPass' cmd_lne' config env modguts
     return modguts
 
-g2PluginPass' :: [CommandLineOption] -> Config -> HscEnv -> ModGuts -> CoreM ()
+g2PluginPass' :: [CommandLineOption] -> PluginConfig -> HscEnv -> ModGuts -> CoreM ()
 g2PluginPass' cmd_lne config env modguts = do
-    (new_nm, new_tm, ex_g2, prev_explored) <- loadExtractedG2 cmd_lne config env modguts
+    (new_nm, new_tm, ex_g2, prev_explored) <- loadExtractedG2 cmd_lne (g2_config config) env modguts
     let very_simp_state = initSimpleState ex_g2 new_nm new_tm
 
     -- Get the names of functions we are going to be symbolically executing
     ann_fs_g2 <- getBinderAnnotations new_nm new_tm modguts
+    prev_annots <- liftIO $ readIORef prevEquivAnnots
     let equivTo (Name _ eq_m _ _) (SMTEquivIs eq_n) | Just (smt_n, smt_e) <- (E.lookupNameMod (TX.pack eq_n) eq_m $ IT.expr_env very_simp_state) =
             Just (Id smt_n $ L.typeOf TV.empty smt_e)
         equivTo (Name _ eq_m _ _) (SMTEquivIsWithConfig eq_n _) | Just (smt_n, smt_e) <- (E.lookupNameMod (TX.pack eq_n) eq_m $ IT.expr_env very_simp_state) =
             Just (Id smt_n $ L.typeOf TV.empty smt_e)
         equivTo _ _ = Nothing
-        equiv_annots = HM.fromList $ mapMaybe (\(n, anns) -> (n,) <$> firstJust (equivTo n) anns) ann_fs_g2
+        
+        new_equiv_annots = HM.fromList $ mapMaybe (\(n, anns) -> (n,) <$> firstJust (equivTo n) anns) ann_fs_g2
+        equiv_annots = new_equiv_annots `HM.union` prev_annots
+    liftIO $ writeIORef prevEquivAnnots equiv_annots
 
     let fs_g2 = map fst ann_fs_g2 ++ map L.idName (HM.elems equiv_annots)
 
@@ -228,7 +241,7 @@ runFunc cmd_lne simp_state entry
     | Just (entry_name, e) <- E.lookupNameMod (L.nameOcc entry) (L.nameModule entry) (IT.expr_env simp_state) = do
         -- Get a Config to run this specific function
         homedir <- liftIO $ getHomeDirectory
-        func_config <- liftIO . handleParseResult $ execParserPure defaultPrefs (pluginConfig homedir) cmd_lne
+        (PluginConfig { g2_config = func_config }) <- liftIO . handleParseResult $ execParserPure defaultPrefs (pluginConfig homedir) cmd_lne
 
         -- Run symbolic execution
         let entry_id = Id entry_name $ L.typeOf TV.empty e
@@ -266,7 +279,7 @@ checkProp cmd_lne equiv_annots simp_state entry_real = do
         -- Get a Config to run this specific function
         homedir <- liftIO getHomeDirectory
         func_config <- liftIO . handleParseResult $ execParserPure defaultPrefs (pluginConfig homedir) cmd_lne
-        V.checkProp func_config equiv_annots simp_state entry_real
+        V.checkProp (check_term func_config) (g2_config func_config) equiv_annots simp_state entry_real
 
 checkEquiv :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> String -> IO ()
 checkEquiv cmd_lne equiv_annots simp_state entry_real entry_smt 
@@ -275,7 +288,7 @@ checkEquiv cmd_lne equiv_annots simp_state entry_real entry_smt
         -- Get a Config to run this specific function
         homedir <- liftIO $ getHomeDirectory
         func_config <- liftIO . handleParseResult $ execParserPure defaultPrefs (pluginConfig homedir) cmd_lne
-        V.checkEquiv func_config equiv_annots simp_state entry_real entry_smt_name
+        V.checkEquiv (check_term func_config) (g2_config func_config) equiv_annots simp_state entry_real entry_smt_name
     | otherwise = do
         putStrLn "checkEquiv: functions not found"
         return ()
@@ -457,20 +470,20 @@ getModuleAnnot modguts = do
 
 adjustFunctions :: NameMap -> ExtractedG2 -> ExtractedG2
 adjustFunctions nm ex_g2 = do
-      adjustFunction ("pSmtEq#", Just "G2.Plugin.Prim") nm (callPrim nm "strEq#")
+      adjustFunction ("pSmtEq#", Just "G2.Plugin.Prim") nm (callPrimIgnoringEq nm "strEq#")
     . adjustFunction ("pSmtLen#", Just "G2.Plugin.Prim") nm (callPrim nm "strLen#")
     . adjustFunction ("pSmtNth#", Just "G2.Plugin.Prim") nm (callPrim nm "seqNthInt#")
     . adjustFunction ("pSmtUpdate#", Just "G2.Plugin.Prim") nm (callPrim nm "strUpdate#")
     . adjustFunction ("pSmtExtract#", Just "G2.Plugin.Prim") nm (callPrim nm "strSubstr#")
     . adjustFunction ("pSmtAppend#", Just "G2.Plugin.Prim") nm (callPrim nm "strAppend#")
     . adjustFunction ("pSmtAt#", Just "G2.Plugin.Prim") nm (callPrim nm "strAt#")
-    . adjustFunction ("pSmtContains#", Just "G2.Plugin.Prim") nm (callPrim nm "strContains#")
-    . adjustFunction ("pSmtIndexOf#", Just "G2.Plugin.Prim") nm (callPrim nm "strIndexOf#")
+    . adjustFunction ("pSmtContains#", Just "G2.Plugin.Prim") nm (callPrimIgnoringEq nm "strContains#")
+    . adjustFunction ("pSmtIndexOf#", Just "G2.Plugin.Prim") nm (callPrimIgnoringEq nm "strIndexOf#")
     . adjustFunction ("pSmtReplace#", Just "G2.Plugin.Prim") nm (callPrim nm "strReplace#")
     . adjustFunction ("pSmtReplaceAll#", Just "G2.Plugin.Prim") nm (callPrim nm "strReplaceAll#")
     . adjustFunction ("pSmtReverse#", Just "G2.Plugin.Prim") nm (callPrim nm "strReverse#")
-    . adjustFunction ("pSmtPrefixOf#", Just "G2.Plugin.Prim") nm (callPrim nm "strPrefixOf#")
-    . adjustFunction ("pSmtSuffixOf#", Just "G2.Plugin.Prim") nm (callPrim nm "strSuffixOf#")
+    . adjustFunction ("pSmtPrefixOf#", Just "G2.Plugin.Prim") nm (callPrimIgnoringEq nm "strPrefixOf#")
+    . adjustFunction ("pSmtSuffixOf#", Just "G2.Plugin.Prim") nm (callPrimIgnoringEq nm "strSuffixOf#")
 
     . adjustFunction ("pBuildLitTable#", Just "G2.Plugin.Prim") nm (callPrim nm "buildLitTable#")
     . adjustFunction ("pSmtMap#", Just "G2.Plugin.Prim") nm (callPrim nm "smtMap#")
@@ -493,7 +506,8 @@ adjustFunctions nm ex_g2 = do
 
     . adjustMkSymbolicPrim SNoLog "pSymGen#" (Just "G2.Plugin.Prim") nm
 
-    . adjustFunction ("$&&#", Just "G2.Plugin.Prim") nm (callPrim nm "&&#")
+    . adjustFunction ("$&&", Just "G2.Plugin.Prim") nm (callPrim nm "&&#")
+    . adjustFunction ("$||", Just "G2.Plugin.Prim") nm (callPrim nm "||#")
 
     . adjustAssert "assert" "G2.Plugin" nm
     $ adjustAssume (Just "G2.Plugin.Unsafe") nm ex_g2
@@ -504,10 +518,20 @@ callPrim nm n =
         Just prim_n -> L.Var (Id prim_n TyUnknown)
         Nothing -> error "callPrim: primitive not found"
 
+callPrimIgnoringEq :: NameMap -> TX.Text -> L.Expr 
+callPrimIgnoringEq nm n =
+    let
+        ty_i = Id (Name "a" Nothing 0 Nothing) TYPE
+        eq_i = Id (Name "e" Nothing 0 Nothing) TYPE
+    in
+    case HM.lookup (n, Just "GHC.Prim") nm of
+        Just prim_n -> L.Lam TypeL ty_i . L.Lam TermL eq_i $ L.App (L.Var (Id prim_n TyUnknown)) (L.Var ty_i)
+        Nothing -> error "callPrim: primitive not found"
+
 ------------------------------------------------------------------------------
 -- Functions for use in plugins
 ------------------------------------------------------------------------------
-smtEq :: [a] -> [a] -> Bool
+smtEq :: Eq a => [a] -> [a] -> Bool
 smtEq xs ys = xs `evalSeq` ys `evalSeq` pSmtEq# xs ys
 
 smtLen :: [a] -> Int
@@ -528,10 +552,10 @@ smtAppend xs ys = xs `evalSeq` ys `evalSeq` pSmtAppend# xs ys
 smtAt :: [a] -> Int -> [a]
 smtAt xs (I# x) = xs `evalSeq` pSmtAt# xs x
 
-smtContains :: [a] -> [a] -> Bool
+smtContains :: Eq a => [a] -> [a] -> Bool
 smtContains xs ys = xs `evalSeq` ys `evalSeq` pSmtContains# xs ys
 
-smtIndexOf :: [a] -> [a] -> Int -> Int
+smtIndexOf :: Eq a => [a] -> [a] -> Int -> Int
 smtIndexOf xs ys (I# i) = xs `evalSeq` ys `evalSeq` I# (pSmtIndexOf# xs ys i)
 
 smtReplace :: [a] -> [a] -> [a] -> [a]
@@ -546,10 +570,10 @@ smtReverse xs = xs `evalSeq` pSmtReverse# xs
 smtUpdate :: [a] -> Int -> [a] -> [a]
 smtUpdate xs (I# x) ys = xs `evalSeq` ys `evalSeq` pSmtUpdate# xs x ys
 
-smtPrefixOf :: [a] -> [a] -> Bool
+smtPrefixOf :: Eq a => [a] -> [a] -> Bool
 smtPrefixOf xs ys = xs `evalSeq` ys `evalSeq` pSmtPrefixOf# xs ys
 
-smtSuffixOf :: [a] -> [a] -> Bool
+smtSuffixOf :: Eq a => [a] -> [a] -> Bool
 smtSuffixOf xs ys = xs `evalSeq` ys `evalSeq` pSmtSuffixOf# xs ys
 
 smtMap :: (a -> b) -> [a] -> [b]
@@ -621,13 +645,16 @@ smtReComp r = r `evalSeq` pSmtReComp# r
 
 -- Extended Functions
 
+smtConcat :: [[a]] -> [a]
+smtConcat = smtFoldLeft (\acc ys -> acc $++ ys) []
+
 smtAny :: (a -> Bool) -> [a] -> Bool
 smtAny p = smtFoldLeft (\acc x -> p x || acc) False
 
 smtAll :: (a -> Bool) -> [a] -> Bool
 smtAll p = smtFoldLeft (\acc x -> p x && acc) True
 
-smtZip :: [a] -> [b] -> [(a, b)]
+smtZip :: (Eq a, Eq b) => [a] -> [b] -> [(a, b)]
 smtZip xs ys | smtLen xs < smtLen ys = exists (\zs -> xs `smtEq` smtMap fst zs
                                                       && smtMap snd zs `smtPrefixOf` ys)
              | otherwise = exists (\zs -> smtMap fst zs `smtPrefixOf` xs
@@ -657,3 +684,18 @@ tryMaybeUnsafe x = unsafePerformIO $ tryMaybe (let !y = x in return y)
 comp :: Eq a => a -> a -> a
 comp real_def smt_def = 
     let b = tryMaybeUnsafe smt_def == tryMaybeUnsafe real_def in G2.Plugin.assert b real_def
+
+------------------------------------------------------------------------------
+-- Configs
+------------------------------------------------------------------------------
+
+data PluginConfig = PluginConfig { check_term :: V.TermCheck, g2_config :: Config }
+
+pluginConfig :: String -> ParserInfo PluginConfig
+pluginConfig homedir =
+    info ((PluginConfig
+                <$> flag V.DoTermCheck V.NoTermCheck (long "no-term-check" <> help "Do not check termination")
+                <*> mkConfig homedir) <**> helper)
+          ( fullDesc
+          <> progDesc "G2 Symbolic Execution Plugin"
+          <> header "The G2 Symbolic Execution Engine" )

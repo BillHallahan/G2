@@ -177,12 +177,58 @@ simplifyAllStrings kv tenv e
               , mkApp [Prim StrReplaceAll str_ra_ty, xs, list, zs ]
               , mkApp [Prim StrReplaceAll str_ra_ty, ys, list, zs ]
               ]
+    -- Rewrite
+    --   (seq.contains (seq.replace_all xs (seq.unit x) ys) (seq.unit x))
+    -- to
+    --   (seq.contains ys (seq.unit x))
+    | [Prim StrContains str_cont_ty, e1 {- seq.replace_all ... -}, e2] <- unApp e
+    , [Prim StrReplaceAll _, _, rep {- seq.unit x -}, ys ] <- unApp e1
+    , [Data cons, _ {- type-}, _ {- head -}, App (Data emp) _] <- unApp rep
+    , dcName cons == dcCons kv
+    , dcName emp == dcEmpty kv
+    , rep == e2 = mkApp [Prim StrContains str_cont_ty, ys, rep]
+
+    -- Rewrite
+    --   (seq.replace_all (str.reverse xs) (seq.unit x) ys)
+    -- to
+    --   (seq.reverse (seq.replace_all xs (seq.unit x) ys))
+    -- if ys is a single character, or if ys is empty
+    | [Prim StrReplaceAll ty_rep, rev, rep {- seq.unit x -}, ys ] <- unApp e
+    , [Prim StrReverse ty_rev, xs] <- unApp rev
+    , [Data cons, _ {- type-}, _ {- head -}, App (Data emp) _] <- unApp rep
+    , shortString kv ys
+    , dcName cons == dcCons kv
+    , dcName emp == dcEmpty kv =
+        mkApp [ Prim StrReverse ty_rev
+              , mkApp [ Prim StrReplaceAll ty_rep, xs, rep, ys]
+              ]
+
+    -- Rewrite
+    --    seq.map f (seq.extract xs i j)
+    -- to be
+    --    (seq.extract (seq.map f xs) i j)
+    -- This both normalizes, making constraints easier to solver, and potentially allows the unfold append simplifier to fire on the map
+    | [ Prim Map ty_map, f, ext] <- unApp e
+    , [ Prim StrSubstr ty_substr, lst, i, j] <- unApp ext =
+        mkApp [ Prim StrSubstr ty_substr
+              , mkApp [ Prim Map ty_map, f, lst]
+              , i
+              , j]
 
     -- | [Prim Eq _, e1, e2] <- unApp e
     -- , [Prim StrIndexOf _, xs, ys, Lit (LitInt 0)] <- unApp e1
     -- , Lit (LitInt (- 1)) <- e2 = App (Prim Not TyUnknown) $ mkApp [ Prim StrContains TyUnknown, xs, ys]
 
 simplifyAllStrings _ _ e = e
+
+shortString :: KnownValues -> Expr -> Bool
+shortString kv e
+    | [Data cons, _ {- type-}, _ {- head -}, App (Data emp) _] <- unApp e
+    , dcName cons == dcCons kv
+    , dcName emp == dcEmpty kv = True
+    | App (Data emp) _ <- e
+    , dcName emp == dcEmpty kv  = True
+    | otherwise = False
 
 splitUpStrApp :: KnownValues -> TypeEnv -> Expr -> Maybe (Expr, Expr)
 splitUpStrApp _ _ e | [Prim StrAppend _, xs, ys] <- unApp e = Just (xs, ys)

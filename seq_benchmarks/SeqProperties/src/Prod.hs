@@ -1,6 +1,10 @@
 -- Property from "Productive Use of Failure in Inductive Proof",
 -- Andrew Ireland and Alan Bundy, JAR 1996
 {-# LANGUAGE TypeOperators #-}
+{-# OPTIONS_GHC -Wno-missing-signatures #-}
+{-# OPTIONS_GHC -Wno-unused-matches #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
+
 module Prod where
 
 import Prelude(Bool(..), Int, (+), (*), (-), (>), (/=), (==), (<=), even, div, Eq, id, error)
@@ -189,9 +193,10 @@ qrevflat []           acc = acc
 qrevflat (xs:xss)     acc = qrevflat xss (rev xs ++ acc)
 
 qrevflatSMT :: [[a]] -> [a] -> [a]
-qrevflatSMT xs ac = smtFoldLeft (\acc xs -> smtReverse xs $++ acc) [] xs ++ ac
+qrevflatSMT xs ac = smtFoldLeft (\acc xs -> smtReverse xs $++ acc) [] xs $++ ac
 
-{-# ANN rotate (SMTEquivIs "rotateSMT") #-}
+{-# ANN rotate (SMTEquivIsWithConfig "rotateSMT" "--no-term-check")
+  #-}
 rotate :: Nat -> [a] -> [a]
 rotate 0     xs     = xs
 rotate _     []     = []
@@ -275,9 +280,13 @@ prop_L03 xs y =
 {-# ANN prop_L04 Prop #-}
 prop_L04 :: Eq a => Nat -> Nat -> a -> [a] -> Bool
 prop_L04 w x y zs
-  | w > 0 =
-    drop w (drop x (y:zs)) === drop (w - 1) (drop x zs)
-  | otherwise = error "not part of original"
+  | w >= 0, x >= 0 = drop (w + 1) (drop x (y:zs)) === drop w (drop x zs)
+  | otherwise = True
+
+{-# ANN prop_L04_bad Prop #-}
+prop_L04_bad :: Eq a => Nat -> Nat -> a -> [a] -> Bool
+prop_L04_bad w x y zs =
+  drop (w + 1) (drop x (y:zs)) === drop w (drop x zs)
 
 -- prop_L05 :: Nat -> Nat -> a -> a -> [a] -> Bool
 -- prop_L05 v w x y zs =

@@ -17,7 +17,11 @@ common warnings
 
 library
     import:           warnings
-    exposed-modules:  Prod
+    exposed-modules:  
+                     DefinitionsFalse
+                   , EquivFalse
+                   , Isaplanner
+                   , Prod
     -- other-modules:
     -- other-extensions:
     build-depends:    base >=4.14

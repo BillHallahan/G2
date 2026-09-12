@@ -25,6 +25,7 @@ import Prelude
   , (<=)
   , (<)
   , (>=)
+  , (>)
   , (-)
   , Int
   , fst
@@ -379,6 +380,12 @@ prop_12 n f xs
 {-# ANN prop_13 Prop #-}
 prop_13 :: Nat -> Nat -> [Nat] -> Bool
 prop_13 n x xs
+  | n >= 0 = (drop (1 + n) (x : xs) =:= drop n xs)
+  | otherwise = True
+
+{-# ANN prop_13_false Prop #-}
+prop_13_false :: Nat -> Nat -> [Nat] -> Bool
+prop_13_false n x xs
   = (drop (1 + n) (x : xs) =:= drop n xs)
 
 {-# ANN prop_14 Prop #-}
@@ -406,7 +413,11 @@ prop_18 i m
 
 {-# ANN prop_19 Prop #-}
 prop_19 :: Nat -> [Nat] -> Bool
-prop_19 n xs
+prop_19 n xs = (len (drop n xs) =:= if n <= len xs then len xs - n else 0)
+
+{-# ANN prop_19_false Prop #-}
+prop_19_false :: Nat -> [Nat] -> Bool
+prop_19_false n xs
   = (len (drop n xs) =:= len xs - n)
 
 {-# ANN prop_20 Prop #-}
@@ -515,6 +526,12 @@ prop_41 n f xs
 {-# ANN prop_42 Prop #-}
 prop_42 :: Nat -> Nat -> [Nat] -> Bool
 prop_42 n x xs
+  | n >= 1 = (take n (x:xs) =:= x : (take (n - 1) xs))
+  | otherwise = True
+
+{-# ANN prop_42_bad Prop #-}
+prop_42_bad :: Nat -> Nat -> [Nat] -> Bool
+prop_42_bad n x xs
   = (take n (x:xs) =:= x : (take (n - 1) xs))
 
 {-# ANN prop_43 Prop #-}
@@ -584,11 +601,23 @@ prop_55 n xs ys
 {-# ANN prop_56 Prop #-}
 prop_56 :: Nat -> Nat -> [Nat] -> Bool
 prop_56 n m xs
+  | n >= 0, m >= 0 = (drop n (drop m xs) =:= drop (n + m) xs)
+  | otherwise = True
+
+{-# ANN prop_56_false Prop #-}
+prop_56_false :: Nat -> Nat -> [Nat] -> Bool
+prop_56_false n m xs
   = (drop n (drop m xs) =:= drop (n + m) xs)
 
 {-# ANN prop_57 Prop #-}
 prop_57 :: Nat -> Nat -> [Nat] -> Bool
 prop_57 n m xs
+  | n >= 0, m >= 0 = (drop n (take m xs) =:= take (m - n) (drop n xs))
+  | otherwise = True
+
+{-# ANN prop_57_false Prop #-}
+prop_57_false :: Nat -> Nat -> [Nat] -> Bool
+prop_57_false n m xs
   = (drop n (take m xs) =:= take (m - n) (drop n xs))
 
 {-# ANN prop_58 Prop #-}
@@ -641,6 +670,12 @@ prop_66 p xs
 {-# ANN prop_67 Prop #-}
 prop_67 :: [Nat] -> Bool
 prop_67 xs
+  | len xs > 0 = (len (butlast xs) =:= len xs - 1)
+  | otherwise = True
+
+{-# ANN prop_67_false Prop #-}
+prop_67_false :: [Nat] -> Bool
+prop_67_false xs
   = (len (butlast xs) =:= len xs - 1)
 
 {-# ANN prop_68 Prop #-}
@@ -712,6 +747,12 @@ prop_80 n xs ys
 {-# ANN prop_81 Prop #-}
 prop_81 :: Nat -> Nat -> [Nat] -> Bool
 prop_81 n m xs {- ys -}
+  | n >= 0, m >= 0 = (take n (drop m xs) =:= drop m (take (n + m) xs))
+  | otherwise = True
+
+{-# ANN prop_81_false Prop #-}
+prop_81_false :: Nat -> Nat -> [Nat] -> Bool
+prop_81_false n m xs {- ys -}
   = (take n (drop m xs) =:= drop m (take (n + m) xs))
 
 {-# ANN prop_82 Prop #-}

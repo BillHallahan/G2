@@ -494,6 +494,8 @@ prop_36 :: [Nat] -> Bool
 prop_36 xs
   = (takeWhile (\_ -> True) xs =:= xs)
 
+{-# ANN prop_37 (PropWithConfig "--smt cvc5")
+  #-}
 prop_37 :: Nat -> [Nat] -> Bool
 prop_37 x xs
   = proveBool (not (x `elem` delete x xs))
@@ -502,6 +504,8 @@ prop_38 :: Nat -> [Nat] -> Bool
 prop_38 n xs
   = (count n (xs ++ [n]) =:= 1 + (count n xs))
 
+{-# ANN prop_39 (PropWithConfig "--smt cvc5")
+  #-}
 prop_39 :: Nat -> Nat -> [Nat] -> Bool
 prop_39 n x xs
   = (count n [x] + count n xs =:= count n (x:xs))
@@ -510,6 +514,7 @@ prop_40 :: [Nat] -> Bool
 prop_40 xs
   = (take 0 xs =:= [])
 
+{-# ANN prop_41 Prop #-}
 prop_41 :: Nat -> (Nat -> Nat) -> [Nat] -> Bool
 prop_41 n f xs
   = (take n (map f xs) =:= map f (take n xs))
@@ -558,6 +563,8 @@ prop_51 :: [Nat] -> Nat -> Bool
 prop_51 xs x
   = (butlast (xs ++ [x]) =:= xs)
 
+{-# ANN prop_52 (PropWithConfig "--smt cvc5")
+  #-}
 prop_52 :: Nat -> [Nat] -> Bool
 prop_52 n xs
   = (count n xs =:= count n (rev xs))

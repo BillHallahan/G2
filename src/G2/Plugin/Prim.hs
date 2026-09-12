@@ -3,6 +3,7 @@
 module G2.Plugin.Prim ( module G2.Plugin.Prim
                       , LitTableInfo (..)) where
 
+import Data.List
 import GHC.Exts
 import GHC.Prim2
 
@@ -17,40 +18,52 @@ import GHC.Prim2
 -- Just use [x]
 
 {-# NOINLINE pSmtEq# #-}
-pSmtEq# :: [a] -> [a] -> Bool
-pSmtEq# _ _ = True
+pSmtEq# :: Eq a => [a] -> [a] -> Bool
+pSmtEq# = (==)
 
 {-# NOINLINE pSmtLen# #-}
 pSmtLen# :: [a] -> Int#
-pSmtLen# _ = 0#
+pSmtLen# xs = case length xs of I# x -> x
 
 {-# NOINLINE pSmtNth# #-}
 pSmtNth# :: [a] -> Int# -> a
-pSmtNth# _ = error "pSmtNth#"
+pSmtNth# (x:_) 0# = x
+pSmtNth# (_:xs) n | I# n > 0 = pSmtNth# xs (n -# 1#)
+pSmtNth# _ _ = error "pSmtNth#: invalid index"
 
 {-# NOINLINE pSmtUpdate# #-}
 pSmtUpdate# :: [a] -> Int# -> [a] -> [a]
-pSmtUpdate# _ = error "pSmtUpdate#"
+pSmtUpdate# xs i sub
+  | I# i < 0 || I# i >= length xs = xs
+  | otherwise = prefix ++ take (length suffix) sub ++ drop (length sub) suffix
+  where
+    (prefix, suffix) = splitAt (I# i) xs
 
 {-# NOINLINE pSmtExtract# #-}
 pSmtExtract# :: [a] -> Int# -> Int# -> [a]
-pSmtExtract# _ = error "pSmtExtract#"
+pSmtExtract# xs start len = take (I# len) $ drop (I# start) xs
 
 {-# NOINLINE pSmtAppend# #-}
 pSmtAppend# :: [a] -> [a] -> [a]
-pSmtAppend# _ _ = error "pSmtAppend#"
+pSmtAppend# = (++)
 
 {-# NOINLINE pSmtAt# #-}
 pSmtAt# :: [a] -> Int# -> [a]
-pSmtAt# _ _ = error "pSmtAt#"
+pSmtAt# (x:_) 0# = [x]
+pSmtAt# (_:xs) n | I# n > 0 = pSmtAt# xs (n -# 1#)
+pSmtAt# _ _ = []
 
 {-# NOINLINE pSmtContains# #-}
-pSmtContains# :: [a] -> [a] -> Bool
-pSmtContains# _ _ = error "pSmtContains#"
+pSmtContains# :: Eq a => [a] -> [a] -> Bool
+pSmtContains# = isInfixOf
 
 {-# NOINLINE pSmtIndexOf# #-}
-pSmtIndexOf# :: [a] -> [a] -> Int# -> Int#
-pSmtIndexOf# _ _ = error "pSmtIndexOf#"
+pSmtIndexOf# :: Eq a => [a] -> [a] -> Int# -> Int#
+pSmtIndexOf# xs ys i = go i (drop (I# i) ys)
+    where
+        go j zs | isPrefixOf xs zs = j
+        go j (_:zs) = go (j +# 1#) zs
+        go _ [] = -1#
 
 {-# NOINLINE pSmtReplace# #-}
 pSmtReplace# :: [a] -> [a] -> [a] -> [a]
@@ -62,23 +75,23 @@ pSmtReplaceAll# _ _ = error "pSmtReplaceAll#"
 
 {-# NOINLINE pSmtReverse# #-}
 pSmtReverse# :: [a] -> [a]
-pSmtReverse# _ = error "pSmtReverse#"
+pSmtReverse# = reverse
 
 {-# NOINLINE pSmtPrefixOf# #-}
-pSmtPrefixOf# :: [a] -> [a] -> Bool
-pSmtPrefixOf# _ _ = error "pSmtPrefixOf#"
+pSmtPrefixOf# :: Eq a => [a] -> [a] -> Bool
+pSmtPrefixOf# = isPrefixOf
 
 {-# NOINLINE pSmtSuffixOf# #-}
-pSmtSuffixOf# :: [a] -> [a] -> Bool
-pSmtSuffixOf# _ _ = error "pSmtSuffixOf#"
+pSmtSuffixOf# :: Eq a => [a] -> [a] -> Bool
+pSmtSuffixOf# = isSuffixOf
 
 {-# NOINLINE pSmtMap# #-}
 pSmtMap# :: (a -> b) -> [a] -> [b]
-pSmtMap# = error "pSmtMap#"
+pSmtMap# = map
 
 {-# NOINLINE pSmtFoldLeft# #-}
 pSmtFoldLeft# :: (a -> b -> a) -> a -> [b] -> a
-pSmtFoldLeft# = error "pSmtFoldLeft#"
+pSmtFoldLeft# = foldl'
 
 {-# NOINLINE pSmtFoldLeftI# #-}
 pSmtFoldLeftI# :: (Int# -> a -> b -> a) -> Int# -> a -> [b] -> a
@@ -144,6 +157,12 @@ pSymGen# = error "pSymGen#"
 -- Other
 ------------------------------------------------------------------------------
 
+{-# NOINLINE ($&&) #-}
 ($&&) :: Bool -> Bool -> Bool
 True $&& True = True
 _ $&& _ = False
+
+{-# NOINLINE ($||) #-}
+($||) :: Bool -> Bool -> Bool
+True $|| _ = True
+_ $|| b = b
