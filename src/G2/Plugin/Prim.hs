@@ -144,10 +144,10 @@ pSymGen# = error "pSymGen#"
 -- Other
 ------------------------------------------------------------------------------
 
-($&&) :: Bool -> Bool -> Bool
-True $&& True = True
-_ $&& _ = False
+($&&#) :: Bool -> Bool -> Bool
+True $&&# True = True
+_ $&&# _ = False
 
-($||) :: Bool -> Bool -> Bool
-True $|| _ = True
-_ $|| b = b
+($||#) :: Bool -> Bool -> Bool
+True $||# _ = True
+_ $||# b = b

@@ -45,6 +45,8 @@ module G2.Plugin (SymEx (..)
                 , smtReComp
 
                 -- Extended Sequence
+                , ($&&)
+                , ($||)
                 , smtConcat
                 , smtAny
                 , smtAll
@@ -503,8 +505,8 @@ adjustFunctions nm ex_g2 = do
 
     . adjustMkSymbolicPrim SNoLog "pSymGen#" (Just "G2.Plugin.Prim") nm
 
-    . adjustFunction ("$&&", Just "G2.Plugin.Prim") nm (callPrim nm "&&#")
-    . adjustFunction ("$||", Just "G2.Plugin.Prim") nm (callPrim nm "||#")
+    . adjustFunction ("$&&#", Just "G2.Plugin.Prim") nm (callPrim nm "&&#")
+    . adjustFunction ("$||#", Just "G2.Plugin.Prim") nm (callPrim nm "||#")
 
     . adjustAssert "assert" "G2.Plugin" nm
     $ adjustAssume (Just "G2.Plugin.Unsafe") nm ex_g2
@@ -631,6 +633,12 @@ smtReComp :: String -> String
 smtReComp r = r `evalSeq` pSmtReComp# r
 
 -- Extended Functions
+
+($&&) :: Bool -> Bool -> Bool
+!x $&& !y = x $&&# y
+
+($||) :: Bool -> Bool -> Bool
+!x $|| !y = x $||# y
 
 smtConcat :: [[a]] -> [a]
 smtConcat = smtFoldLeft (\acc ys -> acc $++ ys) []
