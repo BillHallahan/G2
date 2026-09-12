@@ -101,6 +101,7 @@ import qualified G2.SMTSynth.Verify as V
 import qualified Data.Text as TX
 
 import System.Clock
+import G2.SMTSynth.Verify (TermCheck(DoTermCheck))
 
 data SymEx = SymEx
            | SymExWithConfig String
@@ -140,12 +141,12 @@ prevEquivAnnots = unsafePerformIO $ newIORef HM.empty
 plugin :: Plugin
 plugin = defaultPlugin { installCoreToDos = install }
 
-pluginConfig :: FilePath -> ParserInfo Config
-pluginConfig homedir = 
-    info (mkConfig homedir <**> helper)
-          ( fullDesc
-          <> progDesc "Symbolic Execution of Haskell code"
-          <> header "The G2 Symbolic Execution Engine" )
+-- pluginConfig :: FilePath -> ParserInfo Config
+-- pluginConfig homedir = 
+--     info (mkConfig homedir <**> helper)
+--           ( fullDesc
+--           <> progDesc "Symbolic Execution of Haskell code"
+--           <> header "The G2 Symbolic Execution Engine" )
 
 
 install :: [CommandLineOption] -> [CoreToDo] -> CoreM [CoreToDo]
@@ -164,9 +165,9 @@ g2PluginPass cmd_lne modguts = do
     _ <- g2PluginPass' cmd_lne' config env modguts
     return modguts
 
-g2PluginPass' :: [CommandLineOption] -> Config -> HscEnv -> ModGuts -> CoreM ()
+g2PluginPass' :: [CommandLineOption] -> PluginConfig -> HscEnv -> ModGuts -> CoreM ()
 g2PluginPass' cmd_lne config env modguts = do
-    (new_nm, new_tm, ex_g2, prev_explored) <- loadExtractedG2 cmd_lne config env modguts
+    (new_nm, new_tm, ex_g2, prev_explored) <- loadExtractedG2 cmd_lne (g2_config config) env modguts
     let very_simp_state = initSimpleState ex_g2 new_nm new_tm
 
     -- Get the names of functions we are going to be symbolically executing
@@ -240,7 +241,7 @@ runFunc cmd_lne simp_state entry
     | Just (entry_name, e) <- E.lookupNameMod (L.nameOcc entry) (L.nameModule entry) (IT.expr_env simp_state) = do
         -- Get a Config to run this specific function
         homedir <- liftIO $ getHomeDirectory
-        func_config <- liftIO . handleParseResult $ execParserPure defaultPrefs (pluginConfig homedir) cmd_lne
+        (PluginConfig { g2_config = func_config }) <- liftIO . handleParseResult $ execParserPure defaultPrefs (pluginConfig homedir) cmd_lne
 
         -- Run symbolic execution
         let entry_id = Id entry_name $ L.typeOf TV.empty e
@@ -278,7 +279,7 @@ checkProp cmd_lne equiv_annots simp_state entry_real = do
         -- Get a Config to run this specific function
         homedir <- liftIO getHomeDirectory
         func_config <- liftIO . handleParseResult $ execParserPure defaultPrefs (pluginConfig homedir) cmd_lne
-        V.checkProp func_config equiv_annots simp_state entry_real
+        V.checkProp (check_term func_config) (g2_config func_config) equiv_annots simp_state entry_real
 
 checkEquiv :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> String -> IO ()
 checkEquiv cmd_lne equiv_annots simp_state entry_real entry_smt 
@@ -287,7 +288,7 @@ checkEquiv cmd_lne equiv_annots simp_state entry_real entry_smt
         -- Get a Config to run this specific function
         homedir <- liftIO $ getHomeDirectory
         func_config <- liftIO . handleParseResult $ execParserPure defaultPrefs (pluginConfig homedir) cmd_lne
-        V.checkEquiv func_config equiv_annots simp_state entry_real entry_smt_name
+        V.checkEquiv (check_term func_config) (g2_config func_config) equiv_annots simp_state entry_real entry_smt_name
     | otherwise = do
         putStrLn "checkEquiv: functions not found"
         return ()
@@ -683,3 +684,18 @@ tryMaybeUnsafe x = unsafePerformIO $ tryMaybe (let !y = x in return y)
 comp :: Eq a => a -> a -> a
 comp real_def smt_def = 
     let b = tryMaybeUnsafe smt_def == tryMaybeUnsafe real_def in G2.Plugin.assert b real_def
+
+------------------------------------------------------------------------------
+-- Configs
+------------------------------------------------------------------------------
+
+data PluginConfig = PluginConfig { check_term :: V.TermCheck, g2_config :: Config }
+
+pluginConfig :: String -> ParserInfo PluginConfig
+pluginConfig homedir =
+    info ((PluginConfig
+                <$> flag V.DoTermCheck V.NoTermCheck (long "no-term-check" <> help "Do not check termination")
+                <*> mkConfig homedir) <**> helper)
+          ( fullDesc
+          <> progDesc "G2 Symbolic Execution Plugin"
+          <> header "The G2 Symbolic Execution Engine" )

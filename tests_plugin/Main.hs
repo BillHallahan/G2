@@ -69,6 +69,9 @@ tests = testGroup "All Tests"
                                 , ("containsFour", "smtContainsFour")
                                 , ("noPat", "smtNoPat")
 
+                                -- NonTerm
+                                , ("dontCheck", "smtDontCheck")
+
                                 -- Zeno
                                 , ("len", "lenSMT")
                                 , ("rev", "revSMT")

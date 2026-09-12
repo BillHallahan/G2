@@ -207,17 +207,17 @@ filter p (x:xs) =
 filterSMT :: (Nat -> Bool) -> [Nat] -> [Nat]
 filterSMT p xs = smtFoldLeft (\acc e -> if p e then [e] $++ acc else acc) [] xs
 
--- {-# ANN butlast (SMTEquivIs "butlastSMT") #-}
--- butlast :: [Nat] -> [Nat]
--- butlast [] = []
--- butlast [x] = []
--- butlast (x:xs) = x:(butlast xs)
+{-# ANN butlast (SMTEquivIs "butlastSMT") #-}
+butlast :: [Nat] -> [Nat]
+butlast [] = []
+butlast [x] = []
+butlast (x:xs) = x:(butlast xs)
 
--- butlastSMT :: [Nat] -> [Nat]
--- butlastSMT xs =
---   if smtLen xs == 0
---     then []
---     else smtExtract xs 0 $ smtLen xs - 1
+butlastSMT :: [Nat] -> [Nat]
+butlastSMT xs =
+  if smtLen xs == 0
+    then []
+    else smtExtract xs 1 $ smtLen xs - 1
 
 {-# ANN last (SMTEquivIs "lastSMT") #-}
 last :: [Nat] -> Nat
@@ -271,7 +271,8 @@ qrevflat (xs:xss)     acc = qrevflat xss (rev xs ++ acc)
 qrevflatSMT :: [[a]] -> [a] -> [a]
 qrevflatSMT xs ac = smtFoldLeft (\acc xs -> acc $++ smtReverse xs) [] xs $++ ac
 
-{-# ANN rotate (SMTEquivIs "rotateSMT") #-}
+{-# ANN rotate (SMTEquivIsWithConfig "rotateSMT" "--no-term-check")
+    #-}
 rotate :: Nat -> [a] -> [a]
 rotate 0     xs     = xs
 rotate _     []     = []
