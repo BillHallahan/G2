@@ -41,7 +41,6 @@ tests = testGroup "All Tests"
 
                                 , ("makeFourthElemSix", "smtMakeFourthElemSix")
 
-                                -- , ("myAny", "myAnySMT")
                                 , ("myConcatMap", "myConcatMapSMT")
 
                                 -- Tuples

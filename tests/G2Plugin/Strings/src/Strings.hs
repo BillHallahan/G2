@@ -231,14 +231,6 @@ makeFourthElemSix xs = xs
 smtMakeFourthElemSix :: [Int] -> [Int]
 smtMakeFourthElemSix xs = smtUpdate xs 3 [6]
 
--- {-# ANN myAny (SMTEquivIs "myAnySMT") #-}
--- myAny :: (a -> Bool) -> [a] -> Bool
--- myAny _ [] = False
--- myAny p (x:xs) = p x || myAny p xs
-
--- myAnySMT :: (a -> Bool) -> [a] -> Bool
--- myAnySMT = smtAny
-
 {-# ANN myConcatMap (SMTEquivIs "myConcatMapSMT") #-}
 myConcatMap :: (a -> [b]) -> [a] -> [b]
 myConcatMap _ [] = []
@@ -246,7 +238,3 @@ myConcatMap g (x:xs) = g x ++ myConcatMap g xs
 
 myConcatMapSMT :: (a -> [b]) -> [a] -> [b]
 myConcatMapSMT g = smtConcat . smtMap g
-
-{-# ANN prop_any_bad Prop #-}
-prop_any_bad :: [Int] -> Bool
-prop_any_bad xs = myAny (>= 0) xs
