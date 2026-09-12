@@ -88,7 +88,9 @@ tests = testGroup "All Tests"
                                 , ("ins1", "ins1SMT")
                                 -- , ("sorted", "sortedSMT")
                                 , ("filter", "filterSMT")
+#if __GLASGOW_HASKELL__ >= 912 || __GLASGOW_HASKELL__ < 914
                                 , ("dropWhile", "dropWhileSMT")
+#endif
                                 , ("takeWhile", "takeWhileSMT")
                                 , ("zip", "zipSMT")
                                 ]
