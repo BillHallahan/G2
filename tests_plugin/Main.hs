@@ -40,7 +40,9 @@ tests = testGroup "All Tests"
                                 , ("myRev2", "smtMyRev2")
 
                                 , ("makeFourthElemSix", "smtMakeFourthElemSix")
+
                                 , ("myAny", "anySMT")
+                                , ("myConcatMap", "myConcatMapSMT")
 
                                 -- Tuples
                                 , ("appTuple", "smtAppTuple")
