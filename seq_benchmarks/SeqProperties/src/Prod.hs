@@ -193,7 +193,7 @@ qrevflat []           acc = acc
 qrevflat (xs:xss)     acc = qrevflat xss (rev xs ++ acc)
 
 qrevflatSMT :: [[a]] -> [a] -> [a]
-qrevflatSMT xs ac = smtFoldLeft (\acc xs -> smtReverse xs $++ acc) [] xs ++ ac
+qrevflatSMT xs ac = smtFoldLeft (\acc xs -> smtReverse xs $++ acc) [] xs $++ ac
 
 {-# ANN rotate (SMTEquivIs "rotateSMT") #-}
 rotate :: Nat -> [a] -> [a]

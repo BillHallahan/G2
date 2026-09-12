@@ -469,20 +469,20 @@ getModuleAnnot modguts = do
 
 adjustFunctions :: NameMap -> ExtractedG2 -> ExtractedG2
 adjustFunctions nm ex_g2 = do
-      adjustFunction ("pSmtEq#", Just "G2.Plugin.Prim") nm (callPrim nm "strEq#")
+      adjustFunction ("pSmtEq#", Just "G2.Plugin.Prim") nm (callPrimIgnoringEq nm "strEq#")
     . adjustFunction ("pSmtLen#", Just "G2.Plugin.Prim") nm (callPrim nm "strLen#")
     . adjustFunction ("pSmtNth#", Just "G2.Plugin.Prim") nm (callPrim nm "seqNthInt#")
     . adjustFunction ("pSmtUpdate#", Just "G2.Plugin.Prim") nm (callPrim nm "strUpdate#")
     . adjustFunction ("pSmtExtract#", Just "G2.Plugin.Prim") nm (callPrim nm "strSubstr#")
     . adjustFunction ("pSmtAppend#", Just "G2.Plugin.Prim") nm (callPrim nm "strAppend#")
     . adjustFunction ("pSmtAt#", Just "G2.Plugin.Prim") nm (callPrim nm "strAt#")
-    . adjustFunction ("pSmtContains#", Just "G2.Plugin.Prim") nm (callPrim nm "strContains#")
-    . adjustFunction ("pSmtIndexOf#", Just "G2.Plugin.Prim") nm (callPrim nm "strIndexOf#")
+    . adjustFunction ("pSmtContains#", Just "G2.Plugin.Prim") nm (callPrimIgnoringEq nm "strContains#")
+    . adjustFunction ("pSmtIndexOf#", Just "G2.Plugin.Prim") nm (callPrcallPrimIgnoringEqim nm "strIndexOf#")
     . adjustFunction ("pSmtReplace#", Just "G2.Plugin.Prim") nm (callPrim nm "strReplace#")
     . adjustFunction ("pSmtReplaceAll#", Just "G2.Plugin.Prim") nm (callPrim nm "strReplaceAll#")
     . adjustFunction ("pSmtReverse#", Just "G2.Plugin.Prim") nm (callPrim nm "strReverse#")
-    . adjustFunction ("pSmtPrefixOf#", Just "G2.Plugin.Prim") nm (callPrim nm "strPrefixOf#")
-    . adjustFunction ("pSmtSuffixOf#", Just "G2.Plugin.Prim") nm (callPrim nm "strSuffixOf#")
+    . adjustFunction ("pSmtPrefixOf#", Just "G2.Plugin.Prim") nm (callPrimIgnoringEq nm "strPrefixOf#")
+    . adjustFunction ("pSmtSuffixOf#", Just "G2.Plugin.Prim") nm (callPrimIgnoringEq nm "strSuffixOf#")
 
     . adjustFunction ("pBuildLitTable#", Just "G2.Plugin.Prim") nm (callPrim nm "buildLitTable#")
     . adjustFunction ("pSmtMap#", Just "G2.Plugin.Prim") nm (callPrim nm "smtMap#")
@@ -517,10 +517,20 @@ callPrim nm n =
         Just prim_n -> L.Var (Id prim_n TyUnknown)
         Nothing -> error "callPrim: primitive not found"
 
+callPrimIgnoringEq :: NameMap -> TX.Text -> L.Expr 
+callPrimIgnoringEq nm n =
+    let
+        ty_i = Id (Name "a" Nothing 0 Nothing) TYPE
+        eq_i = Id (Name "e" Nothing 0 Nothing) TYPE
+    in
+    case HM.lookup (n, Just "GHC.Prim") nm of
+        Just prim_n -> L.Lam TypeL ty_i . L.Lam TermL eq_i $ L.App (L.Var (Id prim_n TyUnknown)) (L.Var ty_i)
+        Nothing -> error "callPrim: primitive not found"
+
 ------------------------------------------------------------------------------
 -- Functions for use in plugins
 ------------------------------------------------------------------------------
-smtEq :: [a] -> [a] -> Bool
+smtEq :: Eq a => [a] -> [a] -> Bool
 smtEq xs ys = xs `evalSeq` ys `evalSeq` pSmtEq# xs ys
 
 smtLen :: [a] -> Int
@@ -541,7 +551,7 @@ smtAppend xs ys = xs `evalSeq` ys `evalSeq` pSmtAppend# xs ys
 smtAt :: [a] -> Int -> [a]
 smtAt xs (I# x) = xs `evalSeq` pSmtAt# xs x
 
-smtContains :: [a] -> [a] -> Bool
+smtContains :: Eq a => [a] -> [a] -> Bool
 smtContains xs ys = xs `evalSeq` ys `evalSeq` pSmtContains# xs ys
 
 smtIndexOf :: [a] -> [a] -> Int -> Int
@@ -559,10 +569,10 @@ smtReverse xs = xs `evalSeq` pSmtReverse# xs
 smtUpdate :: [a] -> Int -> [a] -> [a]
 smtUpdate xs (I# x) ys = xs `evalSeq` ys `evalSeq` pSmtUpdate# xs x ys
 
-smtPrefixOf :: [a] -> [a] -> Bool
+smtPrefixOf :: Eq a => [a] -> [a] -> Bool
 smtPrefixOf xs ys = xs `evalSeq` ys `evalSeq` pSmtPrefixOf# xs ys
 
-smtSuffixOf :: [a] -> [a] -> Bool
+smtSuffixOf :: Eq a => [a] -> [a] -> Bool
 smtSuffixOf xs ys = xs `evalSeq` ys `evalSeq` pSmtSuffixOf# xs ys
 
 smtMap :: (a -> b) -> [a] -> [b]
