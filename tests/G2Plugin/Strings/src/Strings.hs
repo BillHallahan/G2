@@ -230,3 +230,11 @@ makeFourthElemSix xs = xs
 
 smtMakeFourthElemSix :: [Int] -> [Int]
 smtMakeFourthElemSix xs = smtUpdate xs 3 [6]
+
+{-# ANN myAny (SMTEquivIs "myAnySMT") #-}
+myAny :: (a -> Bool) -> [a] -> Bool
+myAny _ [] = False
+myAny p (x:xs) = p x || myAny p xs
+
+myAnySMT :: (a -> Bool) -> [a] -> Bool
+myAnySMT = smtAny

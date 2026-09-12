@@ -1,6 +1,10 @@
 -- Property from "Productive Use of Failure in Inductive Proof",
 -- Andrew Ireland and Alan Bundy, JAR 1996
 {-# LANGUAGE TypeOperators #-}
+{-# OPTIONS_GHC -Wno-missing-signatures #-}
+{-# OPTIONS_GHC -Wno-unused-matches #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
+
 module Prod where
 
 import Prelude(Bool(..), Int, (+), (*), (-), (>), (/=), (==), (<=), even, div, Eq, id, error)

@@ -17,7 +17,8 @@ common warnings
 
 library
     import:           warnings
-    exposed-modules:  DefinitionsFalse
+    exposed-modules:  
+                      DefinitionsFalse
                     , Isaplanner
                     , Prod
     -- other-modules:

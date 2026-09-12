@@ -40,6 +40,7 @@ tests = testGroup "All Tests"
                                 , ("myRev2", "smtMyRev2")
 
                                 , ("makeFourthElemSix", "smtMakeFourthElemSix")
+                                , ("myAny", "anySMT")
 
                                 -- Tuples
                                 , ("appTuple", "smtAppTuple")
