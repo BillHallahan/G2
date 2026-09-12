@@ -238,3 +238,11 @@ myAny p (x:xs) = p x || myAny p xs
 
 myAnySMT :: (a -> Bool) -> [a] -> Bool
 myAnySMT = smtAny
+
+{-# ANN myConcatMap (SMTEquivIs "myConcatMapSMT") #-}
+myConcatMap :: (a -> [b]) -> [a] -> [b]
+myConcatMap _ [] = []
+myConcatMap f (x:xs) = f x ++ myConcatMap f xs
+
+myConcatMapSMT :: (a -> [b]) -> [a] -> [b]
+myConcatMapSMT f = smtConcat . smtMap f

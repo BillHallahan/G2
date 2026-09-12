@@ -617,8 +617,18 @@ funcToSMT1Prim tv ToRe e = ToReSMT (exprToSMT tv e)
 funcToSMT1Prim tv ReStar e = ReStarSMT (exprToSMT tv e)
 funcToSMT1Prim tv ReComp e = ReCompSMT (exprToSMT tv e)
 
-funcToSMT1Prim tv (IsConstructor dc) e = IsConstructorSMT (nameToStr $ dc_name dc) (exprToSMT tv e)
-funcToSMT1Prim tv (Selector dc i) e = SelectorSMT (nameToStr $ dc_name dc) i (exprToSMT tv e)
+funcToSMT1Prim tv (IsConstructor dc) e
+    | nameOcc (dc_name dc) == ":" = StrLenSMT (exprToSMT tv e) :> VInt 0
+    | nameOcc (dc_name dc) == "[]" = StrLenSMT (exprToSMT tv e) := VInt 0
+    | otherwise = IsConstructorSMT (nameToStr $ dc_name dc) (exprToSMT tv e)
+funcToSMT1Prim tv (Selector dc i) e
+    | nameOcc (dc_name dc) == ":" =
+        let smt_e = exprToSMT tv e in
+        case i of
+            1 -> SeqNthSMT smt_e (VInt 0)
+            2 -> StrSubstrSMT smt_e (VInt 1) (StrLenSMT smt_e :- VInt 1)
+            _ -> error "funcToSMT1Prim: invalid list selector"
+    | otherwise = SelectorSMT (nameToStr $ dc_name dc) i (exprToSMT tv e)
 
 funcToSMT1Prim _ err _ = error $ "funcToSMT1Prim: invalid Primitive " ++ show err
 

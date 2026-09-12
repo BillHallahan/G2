@@ -6,10 +6,10 @@ import qualified Data.List as L
 
 
 -- | Creates and applies new symbolic variables for arguments of Data Constructor
-concretizeSym :: Expr -> TypeEnv -> TyVarEnv -> [(Id, Type)] -> Maybe Coercion
+concretizeSym :: Expr -> KnownValues -> TypeEnv -> TyVarEnv -> [(Id, Type)] -> Maybe Coercion
               -> DataConPCMap -> ([(Name, Expr)], [Id], NameGen) -> DataCon -> (([(Name, Expr)], [Id], NameGen), ([PathCond], Expr))
-concretizeSym mexpr tenv tv bi maybeC dcpcm (concs, syms, ng) dc@(DataCon _ ts _ _)
-    | Just dcpc <- getDCPCInfo dc (typeOf tv mexpr) tenv tv dcpcm =
+concretizeSym mexpr kv tenv tv bi maybeC dcpcm (concs, syms, ng) dc@(DataCon _ ts _ _)
+    | Just dcpc <- getDCPCInfo dc (typeOf tv mexpr) kv tenv tv dcpcm =
         let (pcs, ng'', _, dcpc_concs, dcpc_syms) = applyDCPC ng' new_params mexpr dcpc
         in ((concs ++ dcpc_concs, syms ++ new_params ++ dcpc_syms, ng''), (pcs, dc''))
 
@@ -55,7 +55,7 @@ createCaseExpr :: Expr
 createCaseExpr mexpr tenv tv bi maybeC ti kv dcpcm ng dcs =
     let
         (new_id, ng') = freshId TyLitInt ng
-        ((concs, syms, ng''), dcs') = L.mapAccumL (concretizeSym mexpr tenv tv bi maybeC dcpcm) ([], [], ng') dcs
+        ((concs, syms, ng''), dcs') = L.mapAccumL (concretizeSym mexpr kv tenv tv bi maybeC dcpcm) ([], [], ng') dcs
 
         -- Create a case expression to choose on of viable DCs
         (mexpr', assume_pc) = createCaseExpr' kv new_id ti dcs'
