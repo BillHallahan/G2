@@ -47,9 +47,12 @@ module G2.Plugin (SymEx (..)
                 -- Extended Sequence
                 , ($&&)
                 , ($||)
+                , smtFilter
                 , smtConcat
                 , smtAny
                 , smtAll
+                , smtTake
+                , smtDrop
                 , smtZip
 
                 -- Checking
@@ -645,6 +648,9 @@ smtReComp r = r `evalSeq` pSmtReComp# r
 
 -- Extended Functions
 
+smtFilter :: (a -> Bool) -> [a] -> [a]
+smtFilter p = smtFoldLeft (\acc e -> if p e then acc $++ [e] else acc) []
+
 smtConcat :: [[a]] -> [a]
 smtConcat = smtFoldLeft (\acc ys -> acc $++ ys) []
 
@@ -653,6 +659,15 @@ smtAny p = smtFoldLeft (\acc x -> p x || acc) False
 
 smtAll :: (a -> Bool) -> [a] -> Bool
 smtAll p = smtFoldLeft (\acc x -> p x && acc) True
+
+smtTake :: Int -> [a] -> [a]
+smtTake n xs = smtExtract xs 0 n
+
+smtDrop :: Int -> [a] -> [a]
+smtDrop n xs = 
+  if n >= 0
+    then smtExtract xs n (smtLen xs - n)
+    else xs
 
 smtZip :: (Eq a, Eq b) => [a] -> [b] -> [(a, b)]
 smtZip xs ys | smtLen xs < smtLen ys = exists (\zs -> xs `smtEq` smtMap fst zs
