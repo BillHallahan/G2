@@ -47,12 +47,16 @@ module G2.Plugin (SymEx (..)
                 -- Extended Sequence
                 , ($&&)
                 , ($||)
+                , smtLast
+                , smtInit
                 , smtFilter
                 , smtConcat
                 , smtAny
                 , smtAll
                 , smtTake
                 , smtDrop
+                , smtTakeWhile
+                , smtDropWhile
                 , smtZip
 
                 -- Checking
@@ -602,7 +606,7 @@ smtMap' f xs | isSymEx# =
 smtFoldLeft :: (a -> b -> a) -> a -> [b] -> a
 smtFoldLeft f !x xs 
     | isSymEx# = xs `evalSeq` smtFoldLeft' f x xs
-    | otherwise = foldl' f x xs
+    | otherwise = F.foldl' f x xs
 
 smtFoldLeft' :: (a -> b -> a) -> a -> [b] -> a
 smtFoldLeft' f x xs =
@@ -651,6 +655,14 @@ smtReComp r = r `evalSeq` pSmtReComp# r
 
 -- Extended Functions
 
+smtLast :: [a] -> a
+smtLast [] = error "last was passed an empty list"
+smtLast xs = smtNth xs $ smtLen xs - 1 
+
+smtInit :: [a] -> [a]
+smtInit [] = error "init was passed an empty list"
+smtInit xs = smtExtract xs 0 $ smtLen xs - 1
+
 smtFilter :: (a -> Bool) -> [a] -> [a]
 smtFilter p = smtFoldLeft (\acc e -> if p e then acc $++ [e] else acc) []
 
@@ -671,6 +683,26 @@ smtDrop n xs =
   if n >= 0
     then smtExtract xs n (smtLen xs - n)
     else xs
+
+smtTakeWhile :: (a -> Bool) -> [a] -> [a]
+smtTakeWhile p xs =
+    let
+        bs = smtMap p xs
+        n = smtIndexOf bs [False] 0
+    in
+    case n of
+        -1 -> xs
+        _ -> smtExtract xs 0 n
+
+smtDropWhile :: (a -> Bool) -> [a] -> [a]
+smtDropWhile p xs =
+    let
+        bs = smtMap p xs
+        n = smtIndexOf bs [False] 0
+    in
+    case n of
+        -1 -> []
+        _ -> smtExtract xs n (smtLen xs - n)
 
 smtZip :: (Eq a, Eq b) => [a] -> [b] -> [(a, b)]
 smtZip xs ys | not isSymEx# = zip xs ys
