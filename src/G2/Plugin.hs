@@ -104,7 +104,6 @@ import qualified G2.SMTSynth.Verify as V
 import qualified Data.Text as TX
 
 import System.Clock
-import G2.SMTSynth.Verify (TermCheck(DoTermCheck))
 
 data SymEx = SymEx
            | SymExWithConfig String
@@ -512,14 +511,15 @@ adjustFunctions nm ex_g2 = do
     . adjustFunction ("$&&", Just "G2.Plugin.Prim") nm (callPrim nm "&&#")
     . adjustFunction ("$||", Just "G2.Plugin.Prim") nm (callPrim nm "||#")
 
+    . adjustFunction ("isSymEx#", Just "G2.Plugin.Prim") nm (callPrim nm "true#")
+
     . adjustAssert "assert" "G2.Plugin" nm
     $ adjustAssume (Just "G2.Plugin.Unsafe") nm ex_g2
 
 callPrim :: NameMap -> TX.Text -> L.Expr 
-callPrim nm n =
-    case HM.lookup (n, Just "GHC.Prim") nm of
+callPrim nm n = case HM.lookup (n, Just "GHC.Prim") nm of
         Just prim_n -> L.Var (Id prim_n TyUnknown)
-        Nothing -> error "callPrim: primitive not found"
+        Nothing -> error $ "callPrim: primitive not found"
 
 callPrimIgnoringEq :: NameMap -> TX.Text -> L.Expr 
 callPrimIgnoringEq nm n =
@@ -583,11 +583,12 @@ smtMap :: (a -> b) -> [a] -> [b]
 smtMap f xs = xs `evalSeq` smtMap' f xs 
 
 smtMap' :: (a -> b) -> [a] -> [b]
-smtMap' f xs = 
-    let !(LTI lt success inLT partial) = pBuildLitTable# f
-        !mapped = xs `evalSeq` pSmtMap# lt xs
-        !pt_a = if not partial then True else pSmtFoldLeft# (\acc e -> acc $&& inLT e) True xs
-    in assume pt_a $ if success then mapped else map f xs
+smtMap' f xs | isSymEx# = 
+        let !(LTI lt success inLT partial) = pBuildLitTable# f
+            !mapped = xs `evalSeq` pSmtMap# lt xs
+            !pt_a = if not partial then True else pSmtFoldLeft# (\acc e -> acc $&& inLT e) True xs
+        in assume pt_a $ if success then mapped else map f xs
+    | otherwise = map f xs
 
 -- type FuncTable a b = LitTableInfo a b
 
@@ -599,7 +600,9 @@ smtMap' f xs =
 --     let !pt_a = if not partial then True else pSmtFoldLeft# (\acc e -> acc $&& inLT e) True xs
 
 smtFoldLeft :: (a -> b -> a) -> a -> [b] -> a
-smtFoldLeft f !x xs = xs `evalSeq` smtFoldLeft' f x xs 
+smtFoldLeft f !x xs 
+    | isSymEx# = xs `evalSeq` smtFoldLeft' f x xs
+    | otherwise = foldl' f x xs
 
 smtFoldLeft' :: (a -> b -> a) -> a -> [b] -> a
 smtFoldLeft' f x xs =
@@ -670,7 +673,8 @@ smtDrop n xs =
     else xs
 
 smtZip :: (Eq a, Eq b) => [a] -> [b] -> [(a, b)]
-smtZip xs ys | smtLen xs < smtLen ys = exists (\zs -> xs `smtEq` smtMap fst zs
+smtZip xs ys | not isSymEx# = zip xs ys
+             | smtLen xs < smtLen ys = exists (\zs -> xs `smtEq` smtMap fst zs
                                                       && smtMap snd zs `smtPrefixOf` ys)
              | otherwise = exists (\zs -> smtMap fst zs `smtPrefixOf` xs
                                        && ys `smtEq` smtMap snd zs)

@@ -1,3 +1,7 @@
+{-# OPTIONS_GHC -Wno-missing-signatures #-}
+{-# OPTIONS_GHC -Wno-unused-matches #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
+
 module EquivFalse where
 
 import Prelude

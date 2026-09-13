@@ -143,7 +143,7 @@ pSmtReComp# = error "pSmtReComp#"
 
 {-# NOINLINE pIsSMTRep# #-}
 pIsSMTRep# :: [a] -> Bool
-pIsSMTRep# _ = error "pIsSMTRep#"
+pIsSMTRep# _ = True
 
 {-# NOINLINE pBuildLitTable# #-}
 pBuildLitTable# :: (a -> b) -> LitTableInfo a b
@@ -166,3 +166,7 @@ _ $&& _ = False
 ($||) :: Bool -> Bool -> Bool
 True $|| _ = True
 _ $|| b = b
+
+{-# NOINLINE isSymEx# #-}
+isSymEx# :: Bool
+isSymEx# = False
