@@ -104,7 +104,6 @@ import qualified G2.SMTSynth.Verify as V
 import qualified Data.Text as TX
 
 import System.Clock
-import G2.SMTSynth.Verify (TermCheck(DoTermCheck))
 
 data SymEx = SymEx
            | SymExWithConfig String
@@ -511,6 +510,8 @@ adjustFunctions nm ex_g2 = do
 
     . adjustFunction ("$&&", Just "G2.Plugin.Prim") nm (callPrim nm "&&#")
     . adjustFunction ("$||", Just "G2.Plugin.Prim") nm (callPrim nm "||#")
+
+    . adjustFunction ("isSymEx#", Just "G2.Plugin.Prim") nm (callPrim nm "true#")
 
     . adjustAssert "assert" "G2.Plugin" nm
     $ adjustAssume (Just "G2.Plugin.Unsafe") nm ex_g2
