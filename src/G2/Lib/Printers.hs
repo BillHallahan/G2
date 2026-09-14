@@ -928,11 +928,6 @@ prettyPathConds :: PrettyGuide -> PathConds -> T.Text
 prettyPathConds pg = T.intercalate "\n" . map (prettyPathCond pg) . PC.toList
 
 prettyPathCond :: PrettyGuide -> PathCond -> T.Text
-prettyPathCond pg (AltCond l e b) =
-    let
-        eq = mkLitHaskell NoHash l <> " = " <> mkDirtyExprHaskell pg e
-    in
-    if b then eq else "not (" <> eq <> ")"
 prettyPathCond pg (ExtCond e b) =
     if b then mkDirtyExprHaskell pg e else "not (" <> mkDirtyExprHaskell pg e <> ")"
 prettyPathCond pg (SoftPC pc) =

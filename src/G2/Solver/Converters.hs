@@ -411,12 +411,6 @@ pathConsToSMT tv (SoftPC pc) = AssertSoft (pathConsToSMT' tv pc) Nothing
 pathConsToSMT tv pc = Assert (pathConsToSMT' tv pc) 
 
 pathConsToSMT' :: TV.TyVarEnv -> PathCond -> SMTAST
-pathConsToSMT' tv (AltCond l e b) =
-    let
-        exprSMT = exprToSMT tv e
-        altSMT = altToSMT l e
-    in
-    if b then exprSMT := altSMT else (:!) (exprSMT := altSMT) 
 pathConsToSMT' tv (ExtCond e b) =
     let
         exprSMT = exprToSMT tv e
@@ -774,14 +768,6 @@ funcToSMT4Prim _ op _ _ _ _ = error $ "funcToSMT4Prim: invalid case with " ++ sh
 wrapChar :: SMTName -> SMTAST -> SMTAST
 wrapChar n v@(V vn SortChar) | n == vn = SeqUnitSMT v
 wrapChar n smt = modifyChildren (wrapChar n) smt
-
-altToSMT :: Lit -> Expr -> SMTAST
-altToSMT (LitInt i) _ = VInt i
-altToSMT (LitWord i) _ = VWord i
-altToSMT (LitFloat f) _ = VFloat f
-altToSMT (LitDouble d) _ = VDouble d
-altToSMT (LitChar c) _ = VChar c
-altToSMT am _ = error $ "Unhandled " ++ show am
 
 createUniqVarDecls :: [(Name, Sort)] -> [SMTHeader]
 createUniqVarDecls [] = []

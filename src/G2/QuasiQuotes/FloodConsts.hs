@@ -59,8 +59,6 @@ floodConstantList _ _ = Nothing
 -- means the PathCond is definitely unsatisfiable.  A return value of True means
 -- the PathCond may or may not be satisfiable. 
 pathCondMaybeSatisfiable :: ExprEnv -> TypeEnv -> TyVarEnv -> KnownValues -> TypeClasses -> PathCond -> Bool
-pathCondMaybeSatisfiable _ _ _ _ _ (AltCond l1 (Lit l2) b) = (l1 == l2) == b
-pathCondMaybeSatisfiable _ _ _ _ _ (AltCond _ _ _) = True
 pathCondMaybeSatisfiable eenv tenv tv_env kv tc (ExtCond e b) =
     let
         r = evalPrims eenv tenv tv_env kv tc e
