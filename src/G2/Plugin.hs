@@ -600,8 +600,7 @@ smtMap' f xs =
 --     let !pt_a = if not partial then True else pSmtFoldLeft# (\acc e -> acc $&& inLT e) True xs
 
 smtFoldLeft :: (a -> b -> a) -> a -> [b] -> a
-smtFoldLeft f !x xs | isSymEx# = xs `evalSeq` smtFoldLeft' f x xs 
-                    | otherwise = F.foldl' f x xs
+smtFoldLeft f !x xs = xs `evalSeq` smtFoldLeft' f x xs 
 
 smtFoldLeft' :: (a -> b -> a) -> a -> [b] -> a
 smtFoldLeft' f x xs =
