@@ -705,8 +705,7 @@ smtDropWhile p xs =
         _ -> smtExtract xs n (smtLen xs - n)
 
 smtZip :: (Eq a, Eq b) => [a] -> [b] -> [(a, b)]
-smtZip xs ys | not isSymEx# = zip xs ys
-             | smtLen xs < smtLen ys = exists (\zs -> xs `smtEq` smtMap fst zs
+smtZip xs ys | smtLen xs < smtLen ys = exists (\zs -> xs `smtEq` smtMap fst zs
                                                       && smtMap snd zs `smtPrefixOf` ys)
              | otherwise = exists (\zs -> smtMap fst zs `smtPrefixOf` xs
                                        && ys `smtEq` smtMap snd zs)
