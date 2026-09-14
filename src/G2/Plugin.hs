@@ -581,8 +581,7 @@ smtSuffixOf :: Eq a => [a] -> [a] -> Bool
 smtSuffixOf xs ys = xs `evalSeq` ys `evalSeq` pSmtSuffixOf# xs ys
 
 smtMap :: (a -> b) -> [a] -> [b]
-smtMap f xs | isSymEx# = xs `evalSeq` smtMap' f xs 
-            | otherwise = map f xs
+smtMap f xs = xs `evalSeq` smtMap' f xs 
 
 smtMap' :: (a -> b) -> [a] -> [b]
 smtMap' f xs = 
@@ -601,7 +600,8 @@ smtMap' f xs =
 --     let !pt_a = if not partial then True else pSmtFoldLeft# (\acc e -> acc $&& inLT e) True xs
 
 smtFoldLeft :: (a -> b -> a) -> a -> [b] -> a
-smtFoldLeft f !x xs = xs `evalSeq` smtFoldLeft' f x xs 
+smtFoldLeft f !x xs | isSymEx# = xs `evalSeq` smtFoldLeft' f x xs 
+                    | otherwise = F.foldl' f x xs
 
 smtFoldLeft' :: (a -> b -> a) -> a -> [b] -> a
 smtFoldLeft' f x xs =
