@@ -581,7 +581,8 @@ smtSuffixOf :: Eq a => [a] -> [a] -> Bool
 smtSuffixOf xs ys = xs `evalSeq` ys `evalSeq` pSmtSuffixOf# xs ys
 
 smtMap :: (a -> b) -> [a] -> [b]
-smtMap f xs = xs `evalSeq` smtMap' f xs 
+smtMap f xs | isSymEx# = xs `evalSeq` smtMap' f xs 
+            | otherwise = map f xs
 
 smtMap' :: (a -> b) -> [a] -> [b]
 smtMap' f xs = 
