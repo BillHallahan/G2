@@ -143,7 +143,7 @@ smtMyLookup x xs
             snd_xs = smtMap snd xs
 -}
 
-{-# ANN myLookupBad (SMTEquivIsWithConfig "smtMyLookupBad" "")
+{-# ANN myLookupBad (SMTEquivIsWithConfig "smtMyLookupBad" "--smt-timeout 30")
     #-}
 myLookupBad :: A -> [(A, A)] -> Maybe A
 myLookupBad _ [] = Nothing

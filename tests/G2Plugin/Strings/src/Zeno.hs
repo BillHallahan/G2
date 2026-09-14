@@ -35,7 +35,7 @@ import Prelude
 import G2.Plugin
 import G2.Plugin.Unsafe
 
-{-# ANN module ("--smt-tuples --higher-order uninterpreted")
+{-# ANN module ("--smt-tuples --higher-order uninterpreted --time 600")
     #-}
 
 -- code here adapted from HipSpec.hs
@@ -218,7 +218,7 @@ takeWhileSMT p xs =
 --                                     smtFoldLeft (\acc e -> acc && not (p e)) True (smtAt bs 0))
 --   in as'
 
-{-# ANN dropWhile (SMTEquivIsWithConfig "dropWhileSMT" "--smt-timeout 40")
+{-# ANN dropWhile (SMTEquivIsWithConfig "dropWhileSMT" "--smt-timeout 60")
   #-}
 dropWhile :: (Nat -> Bool) -> [Nat] -> [Nat]
 dropWhile _ [] = []
