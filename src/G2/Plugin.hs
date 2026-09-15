@@ -511,8 +511,6 @@ adjustFunctions nm ex_g2 = do
     . adjustFunction ("$&&", Just "G2.Plugin.Prim") nm (callPrim nm "&&#")
     . adjustFunction ("$||", Just "G2.Plugin.Prim") nm (callPrim nm "||#")
 
-    . adjustFunction ("isSymEx#", Just "G2.Plugin.Prim") nm (callPrim nm "true#")
-
     . adjustAssert "assert" "G2.Plugin" nm
     $ adjustAssume (Just "G2.Plugin.Unsafe") nm ex_g2
 

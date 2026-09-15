@@ -166,7 +166,3 @@ _ $&& _ = False
 ($||) :: Bool -> Bool -> Bool
 True $|| _ = True
 _ $|| b = b
-
-{-# NOINLINE isSymEx# #-}
-isSymEx# :: Bool
-isSymEx# = False
