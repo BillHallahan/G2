@@ -23,3 +23,11 @@ nonTerm3 (x:xs) ys = x:nonTerm3 xs ys
 
 smtNonTerm3 :: [Int] -> [Int] -> [Int]
 smtNonTerm3 xs ys = xs $++ ys
+
+{-# ANN dontCheck (SMTEquivIsWithConfig "smtDontCheck" "--no-term-check")
+    #-}
+dontCheck :: [Int] -> [Int]
+dontCheck = dontCheck
+
+smtDontCheck :: [Int] -> [Int]
+smtDontCheck xs = xs
