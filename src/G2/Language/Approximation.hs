@@ -519,10 +519,6 @@ applySolver solver extraPC s1 s2 =
 extractCond :: PathCond -> Expr
 extractCond (ExtCond e True) = e
 extractCond (ExtCond e False) = App (Prim Not TyUnknown) e
-extractCond (AltCond l e True) =
-  App (App (Prim Eq TyUnknown) e) (Lit l)
-extractCond (AltCond l e False) =
-  App (App (Prim Neq TyUnknown) e) (Lit l)
 extractCond _ = error "Not Supported"
 
 lookupConcOrSymState :: Name -> State t -> Maybe E.ConcOrSym

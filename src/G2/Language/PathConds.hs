@@ -112,8 +112,7 @@ unionMapMaybePCGroup f pcg =
 -- | Path conditions represent logical constraints on our current execution
 -- path. We can have path constraints enforced due to case/alt branching, due
 -- to assertion / assumptions made, or some externally coded factors.
-data PathCond = AltCond Lit Expr Bool -- ^ The expression and Lit must match
-              | ExtCond Expr Bool -- ^ The expression must be a (true) boolean
+data PathCond = ExtCond Expr Bool -- ^ The expression must be a (true) boolean
               | SoftPC PathCond -- ^ A `PathCond` to satisfy if possible, but which is not absolutely required.
               | MinimizePC Expr -- ^ An expression to minimize
               | AssumePC Id Integer (HS.HashSet HashedPathCond) -- ^ An implication- if the `Id` equals the integer, that implies the `HashedPathCond` in the `HS.HashSet`
@@ -125,7 +124,6 @@ type Assertion = PathCond
 instance Hashable PathCond where
     hashWithSalt s pc = s `hashWithSalt` hash pc
 
-    hash (AltCond l e b) = (1 :: Int) `hashWithSalt` l `hashWithSalt` e `hashWithSalt` b
     hash (ExtCond e b) = (2 :: Int) `hashWithSalt` e `hashWithSalt` b
     hash (SoftPC pc) = (3 :: Int) `hashWithSalt` pc
     hash (MinimizePC e) = (4 :: Int) `hashWithSalt` e
@@ -245,7 +243,6 @@ relatedSets (PathConds ufm) =
     P.map (\(k, v) -> PathConds $ UF.insert k v c_ufm) $ HM.toList (UF.toSimpleMap ufm) 
 
 varIdsInPC :: PathCond -> [Id]
-varIdsInPC (AltCond _ e _) = varIds e
 varIdsInPC (ExtCond e _) = varIds e
 varIdsInPC (MinimizePC e) = varIds e
 varIdsInPC (SoftPC pc) = varIdsInPC pc
@@ -346,30 +343,23 @@ instance ASTContainer PathConds Type where
 
 instance ASTContainer PathCond Expr where
     containedASTs (ExtCond e _ )   = [e]
-    containedASTs (AltCond _ e _) = [e]
     containedASTs (MinimizePC e) = [e]
     containedASTs (SoftPC pc) = containedASTs pc
     containedASTs (AssumePC _ _ pc) = containedASTs pc
 
     modifyContainedASTs f (ExtCond e b) = ExtCond (f e) b
-    modifyContainedASTs f (AltCond a e b) =
-        AltCond (modifyContainedASTs f a) (f e) b
     modifyContainedASTs f (MinimizePC e) = MinimizePC $ f e
     modifyContainedASTs f (SoftPC pc) = SoftPC $ modifyContainedASTs f pc
     modifyContainedASTs f (AssumePC i num pc) = AssumePC i num (modifyContainedASTs f pc)
 
 instance ASTContainer PathCond Type where
     containedASTs (ExtCond e _)   = containedASTs e
-    containedASTs (AltCond e a _) = containedASTs e ++ containedASTs a
     containedASTs (MinimizePC pc) = containedASTs pc
     containedASTs (SoftPC pc) = containedASTs pc
     containedASTs (AssumePC i _ pc) = containedASTs i ++ containedASTs pc
 
     modifyContainedASTs f (ExtCond e b) = ExtCond e' b
       where e' = modifyContainedASTs f e
-    modifyContainedASTs f (AltCond e a b) = AltCond e' a' b
-      where e' = modifyContainedASTs f e
-            a' = modifyContainedASTs f a
     modifyContainedASTs f (MinimizePC pc) = MinimizePC $ modifyContainedASTs f pc
     modifyContainedASTs f (SoftPC pc) = SoftPC $ modifyContainedASTs f pc
     modifyContainedASTs f (AssumePC i num pc) = AssumePC (modifyContainedASTs f i) num (modifyContainedASTs f pc)
@@ -416,19 +406,16 @@ instance Ided PCGroup where
     ids = ids . pcs
 
 instance Named PathCond where
-    names (AltCond _ e _) = names e
     names (ExtCond e _) = names e
     names (MinimizePC pc) = names pc
     names (SoftPC pc) = names pc
     names (AssumePC i _ pc) = names i <> names pc
 
-    rename old new (AltCond l e b) = AltCond l (rename old new e) b
     rename old new (ExtCond e b) = ExtCond (rename old new e) b
     rename old new (MinimizePC pc) = MinimizePC (rename old new pc)
     rename old new (SoftPC pc) = SoftPC (rename old new pc)
     rename old new (AssumePC i num pc) = AssumePC (rename old new i) num (rename old new pc)
 
-    renames hm (AltCond l e b) = AltCond l (renames hm e) b
     renames hm (ExtCond e b) = ExtCond (renames hm e) b
     renames hm (MinimizePC pc) = MinimizePC (renames hm pc)
     renames hm (SoftPC pc) = SoftPC (renames hm pc)
@@ -438,7 +425,6 @@ instance Ided PathConds where
     ids = ids . toUFMap
 
 instance Ided PathCond where
-    ids (AltCond _ e _) = ids e
     ids (ExtCond e _) = ids e
     ids (MinimizePC pc) = ids pc
     ids (SoftPC pc) = ids pc

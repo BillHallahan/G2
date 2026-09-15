@@ -292,8 +292,6 @@ pcToExprBool :: KnownValues -> PathCond -> Expr
 pcToExprBool kv pc =
     case pc of
         ExtCond expr bool -> if bool then expr else mkApp [Prim Not (doubleBoolTy kv), expr]
-        AltCond lit var bool -> let eq_e = mkApp [Prim Eq (tripleBoolTy kv), Lit lit, var]
-                                in if bool then eq_e else mkApp [Prim Not (doubleBoolTy kv), eq_e]
         _ -> error $ "unhandled pc:\n" ++ show pc
 
 tripleBoolTy :: KnownValues -> Type

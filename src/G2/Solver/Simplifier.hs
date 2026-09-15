@@ -262,7 +262,6 @@ smallEqPC kv (ExtCond e True)
 
 smallEqPC kv (ExtCond (Var (Id n _)) True) = Just (n, mkTrue kv)
 smallEqPC kv (ExtCond (Var (Id n _)) False) = Just (n, mkFalse kv)
-smallEqPC _ (AltCond l (Var (Id n _)) True) = Just (n, Lit l)
 smallEqPC _ _ = Nothing
 
 -- Concretize symbolic literal wrappers. For example Char variables are converted to (C# c#) for some fresh c#
