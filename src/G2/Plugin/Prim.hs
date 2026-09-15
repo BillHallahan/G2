@@ -7,6 +7,12 @@ import Data.List
 import GHC.Exts
 import GHC.Prim2
 
+-- Many of the functions in this module have concrete definitions, which can be used
+-- when regularly executing code using functions from this module (i.e. if code using
+-- these functions is compiled via GHC and run.) For the purpose of symbolic execution,
+-- the `adjustFunctions` function in G2.Plugin overwrites the definitions in this file
+-- with calls to appropriate G2 primitives.
+
 ------------------------------------------------------------------------------
 -- String Functions
 ------------------------------------------------------------------------------
