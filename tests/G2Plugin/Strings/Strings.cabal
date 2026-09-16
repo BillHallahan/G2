@@ -24,10 +24,12 @@ library
                       , Tuples
                       , Regex
                       , Zeno
+                      , KMP
     -- other-modules:
     -- other-extensions:
     build-depends:    base >=4.14
                     , g2 >= 0.1.0.2
+                    , array >= 0.5.8.0
     hs-source-dirs:   src
     ghc-options:      -fplugin=G2.Plugin
     default-language: Haskell2010

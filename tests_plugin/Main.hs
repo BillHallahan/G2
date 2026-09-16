@@ -91,6 +91,9 @@ tests = testGroup "All Tests"
                                 , ("dropWhile", "dropWhileSMT")
                                 , ("takeWhile", "takeWhileSMT")
                                 , ("zip", "zipSMT")
+
+                                -- KMP
+                                , ("containsKmp", "containsSmt")
                                 ]
 
                                 -- Non-equivalent functions
