@@ -99,7 +99,7 @@ reduceNewPC discard_unknown_states config bindings solver simplifier ng (SplitSt
 
         scrut_smt_rep = case unwrapped_ce of
                             Case e _ _ _ 
-                                | DCPC.allInDCPC tenv $ typeOf tv_env e -> True
+                                | DCPC.allInDCPC kv tenv $ typeOf tv_env e -> True
                                 | TyCon n _ <- typeOf tv_env e -> n == KV.tyBool kv
                             _ -> False
         

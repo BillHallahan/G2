@@ -41,6 +41,8 @@ tests = testGroup "All Tests"
 
                                 , ("makeFourthElemSix", "smtMakeFourthElemSix")
 
+                                , ("myConcatMap", "myConcatMapSMT")
+
                                 -- Tuples
                                 , ("appTuple", "smtAppTuple")
                                 , ("pairA", "smtPairA")
@@ -66,6 +68,9 @@ tests = testGroup "All Tests"
                                 , ("isNum", "smtIsNum")
                                 , ("containsFour", "smtContainsFour")
                                 , ("noPat", "smtNoPat")
+
+                                -- NonTerm
+                                , ("dontCheck", "smtDontCheck")
 
                                 -- Zeno
                                 , ("len", "lenSMT")
@@ -119,10 +124,16 @@ tests = testGroup "All Tests"
                                 , ("nonTerm2", "smtNonTerm2")
                                 , ("nonTerm3", "smtNonTerm3")
                                 ]
-                                [ "prop_01"
+                                [ 
+                                --Zeno
+                                  "prop_01"
                                 , "prop_19"
+                                , "prop_37"
+                                , "prop_39"
+                                , "prop_41"
                                 , "prop_44"
-                                , "prop_49" ]
+                                , "prop_49"
+                                , "prop_52" ]
                                 [ "myRev_propBad" ]
         , checkNebulaPackage "tests/RewriteVerify/PluginTests/Simple" ["add_assoc", "fg", "fg_toint"] ["f_one"]]
 

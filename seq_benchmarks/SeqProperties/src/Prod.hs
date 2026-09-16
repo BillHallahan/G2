@@ -1,6 +1,10 @@
 -- Property from "Productive Use of Failure in Inductive Proof",
 -- Andrew Ireland and Alan Bundy, JAR 1996
 {-# LANGUAGE TypeOperators #-}
+{-# OPTIONS_GHC -Wno-missing-signatures #-}
+{-# OPTIONS_GHC -Wno-unused-matches #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
+
 module Prod where
 
 import Prelude(Bool(..), Int, (+), (*), (-), (>), (/=), (==), (<=), even, div, Eq, id, error)
@@ -189,16 +193,17 @@ qrevflat []           acc = acc
 qrevflat (xs:xss)     acc = qrevflat xss (rev xs ++ acc)
 
 qrevflatSMT :: [[a]] -> [a] -> [a]
-qrevflatSMT xs ac = smtFoldLeft (\acc xs -> smtReverse xs $++ acc) [] xs ++ ac
+qrevflatSMT xs ac = smtFoldLeft (\acc xs -> smtReverse xs $++ acc) [] xs $++ ac
 
-{-# ANN rotate (SMTEquivIs "rotateSMT") #-}
+{-# ANN rotate (SMTEquivIsWithConfig "rotateSMT" "--no-term-check")
+  #-}
 rotate :: Nat -> [a] -> [a]
 rotate 0     xs     = xs
 rotate _     []     = []
 rotate n     (x:xs) = rotate (n - 1) (xs ++ [x])
 
 rotateSMT :: Nat -> [a] -> [a]
-rotateSMT n xs = let k = n `mod` smtLen xs in smtExtract xs n (smtLen xs - n) $++ smtExtract xs 0 n
+rotateSMT n xs = let k = n `mod` smtLen xs in smtExtract xs k (smtLen xs - k) $++ smtExtract xs 0 k
 
 {-# ANN elem (SMTEquivIs "elemSMT") #-}
 elem :: Nat -> [Nat] -> Bool
@@ -275,22 +280,49 @@ prop_L03 xs y =
 {-# ANN prop_L04 Prop #-}
 prop_L04 :: Eq a => Nat -> Nat -> a -> [a] -> Bool
 prop_L04 w x y zs
-  | w > 0 =
-    drop w (drop x (y:zs)) === drop (w - 1) (drop x zs)
-  | otherwise = error "not part of original"
+  | w >= 0, x >= 0 = drop (w + 1) (drop x (y:zs)) === drop w (drop x zs)
+  | otherwise = True
 
--- prop_L05 :: Nat -> Nat -> a -> a -> [a] -> Bool
--- prop_L05 v w x y zs =
---   drop (S v) (drop (S w) (x : (y : zs))) === drop (S v) (drop w (x : zs))
+{-# ANN prop_L04_bad Prop #-}
+prop_L04_bad :: Eq a => Nat -> Nat -> a -> [a] -> Bool
+prop_L04_bad w x y zs =
+  drop (w + 1) (drop x (y:zs)) === drop w (drop x zs)
 
--- prop_L06 :: Nat -> Nat -> Nat -> a -> [a] -> Bool
--- prop_L06 v w x y z =
---   drop (S v) (drop w (drop x (y:z))) === drop v (drop w (drop x z))
+{-# ANN prop_L05 Prop #-}
+prop_L05 :: Eq a => Nat -> Nat -> a -> a -> [a] -> Bool
+prop_L05 v w x y zs 
+  | v >= 0, w >= 0 = drop (v + 1) (drop (w + 1) (x : (y : zs))) === drop (v + 1) (drop w (x : zs))
+  | otherwise = True
 
--- prop_L07 :: Nat -> Nat -> Nat -> a -> a -> [a] -> Bool
--- prop_L07 u v w x y z =
---   drop (S u) (drop v (drop (S w) (x : (y : z)))) ===
---   drop (S u) (drop v (drop w (x:z)))
+{-# ANN prop_L05_bad Prop #-}
+prop_L05_bad :: Eq a => Nat -> Nat -> a -> a -> [a] -> Bool
+prop_L05_bad v w x y zs =
+  drop (v + 1) (drop (w + 1) (x : (y : zs))) === drop (v + 1) (drop w (x : zs))
+
+{-# ANN prop_L06 Prop #-}
+prop_L06 :: Eq a => Nat -> Nat -> Nat -> a -> [a] -> Bool
+prop_L06 v w x y z
+  | v >= 0, w >= 0, x >= 0 = drop (v + 1) (drop w (drop x (y:z))) === drop v (drop w (drop x z))
+  | otherwise = True
+
+{-# ANN prop_L06_bad Prop #-}
+prop_L06_bad :: Eq a => Nat -> Nat -> Nat -> a -> [a] -> Bool
+prop_L06_bad v w x y z =
+  drop (v + 1) (drop w (drop x (y:z))) === drop v (drop w (drop x z))
+
+{-# ANN prop_L07 Prop #-}
+prop_L07 :: Eq a => Nat -> Nat -> Nat -> a -> a -> [a] -> Bool
+prop_L07 u v w x y z 
+  | u >= 0, v >= 0, w >= 0 =
+    drop (u + 1) (drop v (drop (w + 1) (x : (y : z)))) ===
+    drop (u + 1) (drop v (drop w (x:z)))
+  | otherwise = True
+
+{-# ANN prop_L07_bad Prop #-}
+prop_L07_bad :: Eq a => Nat -> Nat -> Nat -> a -> a -> [a] -> Bool
+prop_L07_bad u v w x y z =
+  drop (u + 1) (drop v (drop (w + 1) (x : (y : z)))) ===
+  drop (u + 1) (drop v (drop w (x:z)))
 
 {-# ANN prop_L08 Prop #-}
 prop_L08 :: Eq a => [a] -> a -> Bool

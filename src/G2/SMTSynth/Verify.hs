@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings, TupleSections #-}
 
-module G2.SMTSynth.Verify ( checkEquiv
+module G2.SMTSynth.Verify ( TermCheck (..)
+                          , checkEquiv
                           , checkProp
                           , insertFCTick ) where
 
@@ -21,11 +22,13 @@ import Data.List
 import Data.Maybe
 import qualified Data.Text as T
 
-checkEquiv :: Config -> HM.HashMap Name Id -> SimpleState -> Name -> Name -> IO ()
+data TermCheck = DoTermCheck | NoTermCheck deriving Eq
+
+checkEquiv :: TermCheck -> Config -> HM.HashMap Name Id -> SimpleState -> Name -> Name -> IO ()
 checkEquiv = check equivOutput
 
-checkProp :: Config -> HM.HashMap Name Id -> SimpleState -> Name -> IO ()
-checkProp func_config equiv_annots simp_state@(IT.SimpleState { IT.expr_env = eenv, IT.known_values = kv }) entry_real
+checkProp :: TermCheck -> Config -> HM.HashMap Name Id -> SimpleState -> Name -> IO ()
+checkProp term_check func_config equiv_annots simp_state@(IT.SimpleState { IT.expr_env = eenv, IT.known_values = kv }) entry_real
     | Just (entry_real_name, real_e) <- E.lookupNameMod (nameOcc entry_real) (L.nameModule entry_real) (IT.expr_env simp_state)
     , let t = L.typeOf TV.empty real_e
     , returnType t == L.tyBool kv = do
@@ -42,13 +45,13 @@ checkProp func_config equiv_annots simp_state@(IT.SimpleState { IT.expr_env = ee
 
             simp_state' = simp_state { IT.expr_env = E.insert entry_smt e eenv }
 
-        check propOutput func_config (HM.insert entry_real_name smt_id equiv_annots) simp_state' entry_real entry_smt
+        check propOutput term_check func_config (HM.insert entry_real_name smt_id equiv_annots) simp_state' entry_real entry_smt
     | otherwise = do
         putStrLn "checkEquiv: functions not found"
         return ()
 
-check :: CheckOutput -> Config -> HM.HashMap Name Id -> SimpleState -> Name -> Name -> IO ()
-check check_output func_config equiv_annots simp_state entry_real entry_smt_name
+check :: CheckOutput -> TermCheck -> Config -> HM.HashMap Name Id -> SimpleState -> Name -> Name -> IO ()
+check check_output term_check func_config equiv_annots simp_state entry_real entry_smt_name
     | Just (entry_real_name, real_e) <- E.lookupNameMod (nameOcc entry_real) (nameModule entry_real) (IT.expr_env simp_state) = do
         -- Get a Config to run this specific function
         let func_config' = func_config { step_limit = False
@@ -67,7 +70,7 @@ check check_output func_config equiv_annots simp_state entry_real entry_smt_name
                                 func_config'
             bindings' = bindings { higher_order_inst = HS.empty }
         
-        case checkTermination entry_real_name real_e of
+        case term_check == NoTermCheck || checkTermination entry_real_name real_e of
             True -> checkEquivInputOutput check_output func_config' equiv_annots init_state bindings' entry_id real_e entry_smt_name
             False -> putStrLn $ if_not_proven check_output entry_real_name entry_smt_name
                                     <> ", termination not proven"

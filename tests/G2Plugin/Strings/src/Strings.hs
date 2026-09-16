@@ -177,7 +177,7 @@ smtMyIntersperseApp1 _ [] = [1]
 smtMyIntersperseApp1 _ [x] = [1, x]
 smtMyIntersperseApp1 x (i:ys) = smtFoldLeft (\acc y -> acc $++ ([x] $++ [y])) [1, i] ys
 
-{-# ANN myRev (SMTEquivIsWithConfig "smtMyRev" "--print-smt --smt cvc5,z3")
+{-# ANN myRev (SMTEquivIsWithConfig "smtMyRev" "--smt cvc5,z3")
     #-}
 myRev :: [Int] -> [Int]
 myRev [] = []
@@ -230,3 +230,11 @@ makeFourthElemSix xs = xs
 
 smtMakeFourthElemSix :: [Int] -> [Int]
 smtMakeFourthElemSix xs = smtUpdate xs 3 [6]
+
+{-# ANN myConcatMap (SMTEquivIs "myConcatMapSMT") #-}
+myConcatMap :: (a -> [b]) -> [a] -> [b]
+myConcatMap _ [] = []
+myConcatMap g (x:xs) = g x ++ myConcatMap g xs
+
+myConcatMapSMT :: (a -> [b]) -> [a] -> [b]
+myConcatMapSMT g = smtConcat . smtMap g
