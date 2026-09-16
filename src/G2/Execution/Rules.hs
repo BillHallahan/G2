@@ -846,7 +846,7 @@ adjustExprEnvAndPathConds ::
                   -> [Name]
                   -> ([PathCond], NameGen, EEDiff, EESymDiff)
 adjustExprEnvAndPathConds kv tenv tv ng dcpm dc dc_e mexpr params dcargs
-    | Just dcpc <- getDCPCInfo dc (typeOf tv mexpr) tenv tv dcpm =
+    | Just dcpc <- getDCPCInfo dc (typeOf tv mexpr) kv tenv tv dcpm =
         let (pcs, ng', _, concs, syms) = applyDCPC ng new_ids (Var mexpr) dcpc
         in (pcs, ng', mexpr_dc:concs, syms)
     | typeOf tv mexpr == tyBool kv =
@@ -906,7 +906,7 @@ createExtCond s ngen dcpm mexpr cvar (dcon, bindees, aexpr)
             , new_curr_expr = CurrExpr Evaluate aexpr'
             , new_conc_types = [], new_sym_types = []
             , new_mut_vars = [] }, ngen)
-    | Just dcpc <- getDCPCInfo dcon (typeOf (tyvar_env s) mexpr) (type_env s) (tyvar_env s) dcpm =
+    | Just dcpc <- getDCPCInfo dcon (typeOf (tyvar_env s) mexpr) (known_values s) (type_env s) (tyvar_env s) dcpm =
         let
             mexpr_t = typeOf tvnv mexpr
 

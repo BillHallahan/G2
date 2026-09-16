@@ -211,21 +211,24 @@ mkDCArg (pc, ng, be, concs, syms) (ArgConcretize { binder_name = bn, fresh_vars 
     in
     (pc', ng', be', (idName i, e'):concs, fv' ++ syms)
 
-getDCPCInfo :: DataCon -> Type -> TypeEnv -> TyVarEnv -> DataConPCMap -> Maybe DataConPCInfo
-getDCPCInfo dc t tenv tv_env dcpm
+getDCPCInfo :: DataCon -> Type -> KnownValues -> TypeEnv -> TyVarEnv -> DataConPCMap -> Maybe DataConPCInfo
+getDCPCInfo dc t kv tenv tv_env dcpm
     | Just dcpcs <- HM.lookup (dcName dc) dcpm
     , _:ty_args <- T.unTyApp t
     , Just dcpc <- L.lookup ty_args dcpcs = Just dcpc
     | Just dcpcs <- HM.lookup (dcName dc) dcpm
     , _:ty_args <- T.unTyApp $ T.tyVarSubst tv_env t
-    , all (allInDCPC tenv) ty_args = getDefaultDCPC ty_args dcpcs
+    , all (allInDCPC kv tenv) ty_args = getDefaultDCPC ty_args dcpcs
     | otherwise = Nothing
 
-allInDCPC :: TypeEnv -> Type -> Bool
-allInDCPC tenv t
+allInDCPC :: KnownValues -> TypeEnv -> Type -> Bool
+allInDCPC kv tenv t
     | TyCon n _:ts <- T.unTyApp t
     , Just (DataTyCon { to_smt = True }) <- HM.lookup n tenv
-    , all (allInDCPC tenv) ts = True
+    , all (allInDCPC kv tenv) ts = True
+    | TyCon n _:ts <- T.unTyApp t
+    , n == KV.tyList kv
+    , all (allInDCPC kv tenv) ts = True
     | otherwise = T.isPrimType t
 
 getDefaultDCPC :: [Type] -> [([Type], DataConPCInfo)] -> Maybe DataConPCInfo
