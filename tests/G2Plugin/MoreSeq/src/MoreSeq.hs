@@ -18,7 +18,7 @@ fSMT :: [(Int, Int)] -> [(Int, Int)]
 fSMT = smtMap (\(x, y) -> if x > 0 then (x, y) else (x, y + 1))
 -}
 
-{-# ANN g (SMTEquivIsWithConfig "gSMT" "--print-smt")
+{-# ANN g (SMTEquivIsWithConfig "gSMT" "")
     #-}
 g :: [(Int, Int)] -> [Int]
 g [] = []

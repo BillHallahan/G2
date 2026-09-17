@@ -45,7 +45,7 @@ inLitTableMode s = let lit_stack = lit_table_stack s
                        non_empty = isJust $ S.pop lit_stack
                    in non_empty
 
-updateLiteralTable :: PathConds -> Expr -> LitTable -> LitTable
+updateLiteralTable :: [PathCond] -> Expr -> LitTable -> LitTable
 updateLiteralTable pcs e lt@(LitTable { lt_mapping = ltm }) = lt { lt_mapping = (pcs, e):ltm }
 
 getLTArg :: State t -> [Id]
@@ -69,13 +69,12 @@ stopUpdateLastExpl stck = case S.pop stck of
 -- We need to make sure the resulting expressions in the lit table only have
 -- True as possible values. We check for this and add the expression
 -- to the PathConds if it is True, or if it is an expression we can make True
-makeAllTrue :: KnownValues -> [(PathConds, Expr)] -> [[PathCond]]
+makeAllTrue :: KnownValues -> [([PathCond], Expr)] -> [[PathCond]]
 makeAllTrue _ [] = []
-makeAllTrue kv ((pcs, e):xs) | Just True <- getBool kv e = (PC.toList pcs):makeAllTrue kv xs
+makeAllTrue kv ((pcs, e):xs) | Just True <- getBool kv e = pcs:makeAllTrue kv xs
 makeAllTrue kv ((pcs, e):xs) =
-    let lst = PC.toList pcs
-        pc1 = ExtCond e True
-        lst1 = pc1:lst
+    let pc1 = ExtCond e True
+        lst1 = pc1:pcs
         rest = makeAllTrue kv xs
     in lst1:rest
 
@@ -237,7 +236,7 @@ litTableToLamNonBool s ng lt = do
                         Just $ L.foldl'
                                 (\prev_exp (pcs, e) ->
                                     mkApp [ Prim Ite TyUnknown
-                                          , (pcsToExprBool kv $ PC.toList pcs)
+                                          , (pcsToExprBool kv pcs)
                                           , (wrap e $ typeOf tv_env e)
                                           , prev_exp ]
                                 )
@@ -352,7 +351,7 @@ createPartialHandler lt kv elem_id =
     if not $ lt_partial lt then (Prim UnspecifiedOutput TyUnknown, mkFalse kv)
     else (lam_exp, mkTrue kv)
     where
-        lt_conds = map (PC.toList . fst) $ lt_mapping lt
+        lt_conds = map fst $ lt_mapping lt
         or_exp = mkDisjunction kv lt_conds
         lam_exp = mkLams (map (TermL,) elem_id) or_exp
 

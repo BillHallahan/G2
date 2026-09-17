@@ -71,7 +71,7 @@ reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state 
             Just (ng', first_s, pcs, other_diffs) ->
                 let prev_stck = stopUpdateLastExpl $ exec_stack first_s
                     diffs_pushed = foldr S.push prev_stck $ map wrap other_diffs
-                    expl_pushed = S.push (LitTableFrame (Exploring (PC.fromList pcs)) True) diffs_pushed
+                    expl_pushed = S.push (LitTableFrame (Exploring pcs) True) diffs_pushed
 
                     new_stack = if not $ isTyFun (typeOf tv_env $ unwrapped_ce) then expl_pushed else exec_stack first_s
 
