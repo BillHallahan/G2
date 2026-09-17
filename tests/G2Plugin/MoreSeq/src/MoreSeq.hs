@@ -39,7 +39,7 @@ instance Eq A where
 
 data MyI = MyI A deriving Eq
 
-{-# ANN h (SMTEquivIsWithConfig "hSMT" "--print-smt")
+{-# ANN h (SMTEquivIsWithConfig "hSMT" "")
     #-}
 h :: [(MyI, MyI)] -> [MyI]
 h [] = []

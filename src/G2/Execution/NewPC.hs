@@ -95,38 +95,13 @@ reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state 
                             _ -> False
         
         conc_entry_to_selector n e
-            | [Data dc, _] <- unApp e
-            , isPrimWrapperDC kv dc = [(n, e)]
             | Data dc:es <- unApp e = to_selector dc es (Var . Id n $ typeOf tv_env e)
-                -- let
-                --     dc_t = typeOf tv_env e
-                --     i = Id n dc_t
-                --     es' = filter (not . isType) es
-                -- in
-                -- zipWith (\v j -> case v of
-                --                     (Var (Id vn vt)) -> 
-                --                         let
-                --                             t = TyFun dc_t vt
-                --                         in
-                --                         (vn, mkApp [Prim (Selector dc j) t, Var i])
-                --                     _ -> error "reduceNewPC: expected var") es' [1 :: Int ..]
             | otherwise = []
         
         pc_to_selector (ExtCond e True)
             | [ Prim Eq _, e1, e2 ] <- unApp e
             , Data dc:es <- unApp e1
             , [ Prim (Selector _ _) _, _] <- unApp e2 = to_selector dc es e2
-            -- let
-            --     dc_t = typeOf tv_env e1
-            --     es' = filter (not . isType) es
-            -- in
-            -- zipWith (\v j -> case v of
-            --                         (Var (Id vn vt)) -> 
-            --                             let
-            --                                 t = TyFun dc_t vt
-            --                             in
-            --                             (vn, mkApp [Prim (Selector dc j) t, e2])
-            --                         _ -> error "reduceNewPC: expected var") es' [1 :: Int ..]
         pc_to_selector _ = []
 
         to_selector dc es e2 = 
