@@ -11,7 +11,6 @@ module G2.Execution.LiteralTable
     ) where
 
 import qualified G2.Language.Stack as S
-import qualified G2.Language.PathConds as PC
 import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.CallGraph as CG
@@ -20,7 +19,6 @@ import G2.Language.Syntax
 import G2.Language.Support
 import G2.Language.Naming
 import G2.Language.Expr
-import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.List as L
 import Data.Maybe
