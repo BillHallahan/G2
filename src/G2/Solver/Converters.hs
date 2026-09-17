@@ -188,8 +188,11 @@ toSMTHeaders' kv tv tenv pc =
         dc_types = fixTypes $ evalASTs getADTTypes pc
         tenv' = HM.toList $ HM.filterWithKey (\n adt-> n `elem` dc_types && to_smt adt) tenv        
         pc' = PC.toList pc
+
+        smt_dcs = mapMaybe (uncurry (datatypeDecls kv tv)) tenv'
+        declare_decls = if null smt_dcs then [] else [DeclareDatatypes smt_dcs]
     in
-    [DeclareDatatypes $ mapMaybe (uncurry (datatypeDecls kv tv)) tenv']
+    declare_decls
     ++
     pcVarDecls tv pc
     ++
