@@ -868,11 +868,11 @@ prettyLitTable :: PrettyGuide -> LitTable -> T.Text
 prettyLitTable pg (LitTable { lt_arg = lta, lt_rec_funs = ltf, lt_mapping = ltm
                             , lt_errored = lte, lt_init_pcs = lip, lt_partial = ltp
                             , lt_ret_ty = lrt })
-    | HM.null ltm = header <> "empty literal table"
+    | L.null ltm = header <> "empty literal table"
     | otherwise =
         header <> (T.intercalate "\n----------------\n"
                        (map (\(conds, e) -> prettyPathConds pg conds <> "\n->\n" <> mkDirtyExprHaskell pg e)
-                       (HM.toList ltm)))
+                        ltm))
         <> "\n-- end lit table --"
     where
         sym_id = T.intercalate " " $ map (mkIdHaskell pg) lta

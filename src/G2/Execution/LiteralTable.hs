@@ -32,7 +32,7 @@ introduceLitTable s n is t = s { lit_table_stack = lts
     where lts = S.push lt (lit_table_stack s)
           lt = LitTable { lt_arg = is
                         , lt_rec_funs = HS.empty
-                        , lt_mapping = HM.empty
+                        , lt_mapping = []
                         , lt_errored = False
                         , lt_init_pcs = path_conds s
                         , lt_partial = False
@@ -46,7 +46,7 @@ inLitTableMode s = let lit_stack = lit_table_stack s
                    in non_empty
 
 updateLiteralTable :: PathConds -> Expr -> LitTable -> LitTable
-updateLiteralTable pcs e lt@(LitTable { lt_mapping = ltm }) = lt { lt_mapping = HM.insert pcs e ltm }
+updateLiteralTable pcs e lt@(LitTable { lt_mapping = ltm }) = lt { lt_mapping = (pcs, e):ltm }
 
 getLTArg :: State t -> [Id]
 getLTArg s = let (table, _) = case S.pop $ lit_table_stack s of
@@ -179,7 +179,7 @@ litTableToLam' s ng lt =
     if lt_errored lt then
         Just (mkUnsuccessfulRet kv tenv tv_env, [], ng)
     else
-        case HM.toList $ lt_mapping lt of
+        case lt_mapping lt of
             [] ->
                 mkIdLam s ng lt
             ((_, e):_) | typeOf tv_env e == tyBool kv ->
@@ -200,8 +200,7 @@ litTableToLamBool s ng lt = do
     (elem_var_to_unboxed_name, ng1) <- mkLamArg s ng lt
     let (elem_var, _) = unzip elem_var_to_unboxed_name
 
-    let lt_lst = HM.toList $ lt_mapping lt
-        lt_trues = makeAllTrue kv lt_lst
+    let lt_trues = makeAllTrue kv $ lt_mapping lt
 
         -- At this point, we know the literal table is non-empty, since we are creating a lambda for
         -- a boolean-returning function
@@ -226,7 +225,6 @@ litTableToLamNonBool s ng lt = do
         kv = known_values s
         tv_env = tyvar_env s
         tenv = type_env s
-        lt_lst = HM.toList $ lt_mapping lt
     -- `Char`s are represented as one character `String`s here, so we
     -- need to extract the first character.
         wrap e t = if t == tyChar kv
@@ -234,7 +232,7 @@ litTableToLamNonBool s ng lt = do
                        else e
     -- At this point, we assume there are no `Error`s in the literal table. This
     -- means we have a total function, and we can pick one option to be the default.
-    ite_exp <- case lt_lst of
+    ite_exp <- case lt_mapping lt of
                     ((_ {- We ignore the PathConds for the default -}, def_e):rest) ->
                         Just $ L.foldl'
                                 (\prev_exp (pcs, e) ->
@@ -345,7 +343,7 @@ topLTNonEmpty s =
         Nothing -> False
 
 ltNonEmpty :: LitTable -> Bool
-ltNonEmpty lt = not $ null (HM.toList $ lt_mapping lt)
+ltNonEmpty = not . null . lt_mapping
 
 -- If the literal table is partial, we want to create a function that
 -- returns True when an input is covered and False when it is not
@@ -354,7 +352,7 @@ createPartialHandler lt kv elem_id =
     if not $ lt_partial lt then (Prim UnspecifiedOutput TyUnknown, mkFalse kv)
     else (lam_exp, mkTrue kv)
     where
-        lt_conds = map (PC.toList . fst) $ (HM.toList . lt_mapping) lt
+        lt_conds = map (PC.toList . fst) $ lt_mapping lt
         or_exp = mkDisjunction kv lt_conds
         lam_exp = mkLams (map (TermL,) elem_id) or_exp
 

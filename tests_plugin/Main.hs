@@ -19,6 +19,11 @@ main = do
 tests :: TestTree
 tests = testGroup "All Tests"
         [ checkG2Package "tests/G2Plugin/Simple" ["f", "g", "recCall"]
+        , checkG2PackageEquiv "tests/G2Plugin/MoreSeq"
+                                [ ("h", "hSMT") ]
+                                []
+                                []
+                                []
         , checkG2PackageEquiv "tests/G2Plugin/Strings"
                                 -- Equivalent functions
                                 [
