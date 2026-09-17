@@ -22,6 +22,7 @@ import G2.Execution.MutVar
 import G2.Execution.LiteralTable
 import G2.Config.Config (DiscardUnknownStates (KeepUnknown))
 
+import Control.Exception
 import Data.List
 import Data.Maybe
 import qualified Data.Sequence as Seq
@@ -104,6 +105,9 @@ reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state 
             | [ Prim Eq _, e1, e2 ] <- unApp e
             , Data dc:es <- unApp e1
             , [ Prim (Selector _ _) _, _] <- unApp e2 = to_selector dc es e2
+            | [ Prim Eq _, e1, e2 ] <- unApp e
+            , Var (Id n t) <- e1
+            , [ Prim (Selector _ _) _, _] <- unApp e2 = assert (isPrimType t) [(n, e2)]
         pc_to_selector _ = []
 
         to_selector dc es e2 = 

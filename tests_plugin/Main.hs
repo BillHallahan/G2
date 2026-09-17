@@ -20,7 +20,8 @@ tests :: TestTree
 tests = testGroup "All Tests"
         [ checkG2Package "tests/G2Plugin/Simple" ["f", "g", "recCall"]
         , checkG2PackageEquiv "tests/G2Plugin/MoreSeq"
-                                [ ("h", "hSMT") ]
+                                [ ("g", "gSMT")
+                                , ("h", "hSMT") ]
                                 []
                                 []
                                 []

@@ -18,8 +18,7 @@ fSMT :: [(Int, Int)] -> [(Int, Int)]
 fSMT = smtMap (\(x, y) -> if x > 0 then (x, y) else (x, y + 1))
 -}
 
-{-
-{-# ANN g (SMTEquivIsWithConfig "gSMT" "--max-outputs 1 --log-states a_g_raw --log-after-n 370")
+{-# ANN g (SMTEquivIsWithConfig "gSMT" "--print-smt")
     #-}
 g :: [(Int, Int)] -> [Int]
 g [] = []
@@ -28,7 +27,6 @@ g ((x, y):xs) | x > 0 = x:g xs
 
 gSMT :: [(Int, Int)] -> [Int]
 gSMT = smtMap (\(x, y) -> if x > 0 then x else y)
--}
 
 data A = A | B
 
