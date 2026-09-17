@@ -95,6 +95,8 @@ reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state 
                             _ -> False
         
         conc_entry_to_selector n e
+            | [Data dc, _] <- unApp e
+            , isPrimWrapperDC kv dc = [(n, e)]
             | Data dc:es <- unApp e = to_selector dc es (Var . Id n $ typeOf tv_env e)
             | otherwise = []
         
