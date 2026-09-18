@@ -11,7 +11,6 @@ module G2.Execution.LiteralTable
     ) where
 
 import qualified G2.Language.Stack as S
-import qualified G2.Language.PathConds as PC
 import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.CallGraph as CG
@@ -20,7 +19,6 @@ import G2.Language.Syntax
 import G2.Language.Support
 import G2.Language.Naming
 import G2.Language.Expr
-import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.List as L
 import Data.Maybe
@@ -32,7 +30,7 @@ introduceLitTable s n is t = s { lit_table_stack = lts
     where lts = S.push lt (lit_table_stack s)
           lt = LitTable { lt_arg = is
                         , lt_rec_funs = HS.empty
-                        , lt_mapping = HM.empty
+                        , lt_mapping = []
                         , lt_errored = False
                         , lt_init_pcs = path_conds s
                         , lt_partial = False
@@ -45,8 +43,8 @@ inLitTableMode s = let lit_stack = lit_table_stack s
                        non_empty = isJust $ S.pop lit_stack
                    in non_empty
 
-updateLiteralTable :: PathConds -> Expr -> LitTable -> LitTable
-updateLiteralTable pcs e lt@(LitTable { lt_mapping = ltm }) = lt { lt_mapping = HM.insert pcs e ltm }
+updateLiteralTable :: [PathCond] -> Expr -> LitTable -> LitTable
+updateLiteralTable pcs e lt@(LitTable { lt_mapping = ltm }) = lt { lt_mapping = (pcs, e):ltm }
 
 getLTArg :: State t -> [Id]
 getLTArg s = let (table, _) = case S.pop $ lit_table_stack s of
@@ -69,13 +67,12 @@ stopUpdateLastExpl stck = case S.pop stck of
 -- We need to make sure the resulting expressions in the lit table only have
 -- True as possible values. We check for this and add the expression
 -- to the PathConds if it is True, or if it is an expression we can make True
-makeAllTrue :: KnownValues -> [(PathConds, Expr)] -> [[PathCond]]
+makeAllTrue :: KnownValues -> [([PathCond], Expr)] -> [[PathCond]]
 makeAllTrue _ [] = []
-makeAllTrue kv ((pcs, e):xs) | Just True <- getBool kv e = (PC.toList pcs):makeAllTrue kv xs
+makeAllTrue kv ((pcs, e):xs) | Just True <- getBool kv e = pcs:makeAllTrue kv xs
 makeAllTrue kv ((pcs, e):xs) =
-    let lst = PC.toList pcs
-        pc1 = ExtCond e True
-        lst1 = pc1:lst
+    let pc1 = ExtCond e True
+        lst1 = pc1:pcs
         rest = makeAllTrue kv xs
     in lst1:rest
 
@@ -179,7 +176,7 @@ litTableToLam' s ng lt =
     if lt_errored lt then
         Just (mkUnsuccessfulRet kv tenv tv_env, [], ng)
     else
-        case HM.toList $ lt_mapping lt of
+        case lt_mapping lt of
             [] ->
                 mkIdLam s ng lt
             ((_, e):_) | typeOf tv_env e == tyBool kv ->
@@ -200,8 +197,7 @@ litTableToLamBool s ng lt = do
     (elem_var_to_unboxed_name, ng1) <- mkLamArg s ng lt
     let (elem_var, _) = unzip elem_var_to_unboxed_name
 
-    let lt_lst = HM.toList $ lt_mapping lt
-        lt_trues = makeAllTrue kv lt_lst
+    let lt_trues = makeAllTrue kv $ lt_mapping lt
 
         -- At this point, we know the literal table is non-empty, since we are creating a lambda for
         -- a boolean-returning function
@@ -226,7 +222,6 @@ litTableToLamNonBool s ng lt = do
         kv = known_values s
         tv_env = tyvar_env s
         tenv = type_env s
-        lt_lst = HM.toList $ lt_mapping lt
     -- `Char`s are represented as one character `String`s here, so we
     -- need to extract the first character.
         wrap e t = if t == tyChar kv
@@ -234,12 +229,12 @@ litTableToLamNonBool s ng lt = do
                        else e
     -- At this point, we assume there are no `Error`s in the literal table. This
     -- means we have a total function, and we can pick one option to be the default.
-    ite_exp <- case lt_lst of
+    ite_exp <- case lt_mapping lt of
                     ((_ {- We ignore the PathConds for the default -}, def_e):rest) ->
                         Just $ L.foldl'
                                 (\prev_exp (pcs, e) ->
                                     mkApp [ Prim Ite TyUnknown
-                                          , (pcsToExprBool kv $ PC.toList pcs)
+                                          , (pcsToExprBool kv pcs)
                                           , (wrap e $ typeOf tv_env e)
                                           , prev_exp ]
                                 )
@@ -345,7 +340,7 @@ topLTNonEmpty s =
         Nothing -> False
 
 ltNonEmpty :: LitTable -> Bool
-ltNonEmpty lt = not $ null (HM.toList $ lt_mapping lt)
+ltNonEmpty = not . null . lt_mapping
 
 -- If the literal table is partial, we want to create a function that
 -- returns True when an input is covered and False when it is not
@@ -354,7 +349,7 @@ createPartialHandler lt kv elem_id =
     if not $ lt_partial lt then (Prim UnspecifiedOutput TyUnknown, mkFalse kv)
     else (lam_exp, mkTrue kv)
     where
-        lt_conds = map (PC.toList . fst) $ (HM.toList . lt_mapping) lt
+        lt_conds = map fst $ lt_mapping lt
         or_exp = mkDisjunction kv lt_conds
         lam_exp = mkLams (map (TermL,) elem_id) or_exp
 

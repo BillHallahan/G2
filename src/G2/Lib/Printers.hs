@@ -829,7 +829,7 @@ prettyFrame pg (LitTableFrame ltc up) = header <> update_str <> ":\n" <> printLi
 
 printLiteralTableCond :: PrettyGuide -> LitTableCond -> T.Text
 printLiteralTableCond pg ltc
-    | (Exploring pc) <- ltc = "exploring " <> prettyPathConds pg pc
+    | (Exploring pc) <- ltc = "exploring " <> prettyPathConds pg (PC.fromList pc)
     | (Diff sd pc) <- ltc = prettyStateDiff pg sd <> "\nold conds to put back:\n"
                                 <> prettyPathConds pg pc <> "---\n"
     | (StartedBuilding n) <- ltc = "started building " <> mkNameHaskell pg n
@@ -868,11 +868,11 @@ prettyLitTable :: PrettyGuide -> LitTable -> T.Text
 prettyLitTable pg (LitTable { lt_arg = lta, lt_rec_funs = ltf, lt_mapping = ltm
                             , lt_errored = lte, lt_init_pcs = lip, lt_partial = ltp
                             , lt_ret_ty = lrt })
-    | HM.null ltm = header <> "empty literal table"
+    | L.null ltm = header <> "empty literal table"
     | otherwise =
         header <> (T.intercalate "\n----------------\n"
-                       (map (\(conds, e) -> prettyPathConds pg conds <> "\n->\n" <> mkDirtyExprHaskell pg e)
-                       (HM.toList ltm)))
+                       (map (\(conds, e) -> prettyPathConds pg (PC.fromList conds) <> "\n->\n" <> mkDirtyExprHaskell pg e)
+                        ltm))
         <> "\n-- end lit table --"
     where
         sym_id = T.intercalate " " $ map (mkIdHaskell pg) lta

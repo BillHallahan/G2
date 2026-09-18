@@ -185,11 +185,14 @@ toSMTHeaders kv tv tenv pc = addSetLogic  (toSMTHeaders' kv tv tenv pc)
 toSMTHeaders' :: KnownValues -> TV.TyVarEnv -> TypeEnv -> PathConds -> [SMTHeader]
 toSMTHeaders' kv tv tenv pc =
     let
-        dc_types = evalASTs getADTTypes pc
+        dc_types = fixTypes $ evalASTs getADTTypes pc
         tenv' = HM.toList $ HM.filterWithKey (\n adt-> n `elem` dc_types && to_smt adt) tenv        
         pc' = PC.toList pc
+
+        smt_dcs = mapMaybe (uncurry (datatypeDecls kv tv)) tenv'
+        declare_decls = if null smt_dcs then [] else [DeclareDatatypes smt_dcs]
     in
-    mapMaybe (uncurry (datatypeDecls kv tv)) tenv'
+    declare_decls
     ++
     pcVarDecls tv pc
     ++
@@ -199,6 +202,11 @@ toSMTHeaders' kv tv tenv pc =
         getADTTypes (TyVar (Id n _)) | Just (TV.TyConc t) <- TV.lookupConcOrSym n tv = getADTTypes t
         getADTTypes (TyApp t1 t2) = getADTTypes t1 `HS.union` getADTTypes t2
         getADTTypes _ = HS.empty
+
+        fixTypes hs =
+            let hs' = mconcat . map fixTypes' $ HS.toList hs in 
+            if hs == hs' then hs else fixTypes hs'
+        fixTypes' n = evalASTs getADTTypes $ HM.lookup n tenv
 
 -- |  Determines an appropriate SetLogic command, and adds it to the headers
 addSetLogic :: [SMTHeader] -> [SMTHeader]
@@ -721,7 +729,8 @@ funcToSMT2Prim tv MapConcatI (Lam _ (Id n1 t1) (Lam _ (Id n2 t2) e)) xs =
        (wrapChar n1' $ wrapChar n2' (exprToSMT tv e))
        (exprToSMT tv xs)
 
-funcToSMT2Prim tv op lhs rhs = error $ "funcToSMT2Prim: invalid case with (tyvar_env, op, lhs, rhs): " ++ show (tv, op, lhs, rhs)
+funcToSMT2Prim tv op lhs rhs =
+    error $ "funcToSMT2Prim: invalid case with:\ntv_env = " ++ show tv ++ "\n(op, lhs, rhs) = " ++ show (op, lhs, rhs)
 
 funcToSMT3Prim :: TV.TyVarEnv -> Primitive -> Expr -> Expr -> Expr -> SMTAST
 funcToSMT3Prim tv Fp x y z = FpSMT  (exprToSMT tv x) (exprToSMT tv y) (exprToSMT tv z)
@@ -794,7 +803,7 @@ createUniqVarDecls ((n,SortChar):xs) =
 createUniqVarDecls ((n,SortFunc srt_args sort_ret):xs) = DeclareFun (nameToStr n) srt_args sort_ret:createUniqVarDecls xs
 createUniqVarDecls ((n,s):xs) = VarDecl (nameToBuilder n) s:createUniqVarDecls xs
 
-datatypeDecls :: KnownValues -> TV.TyVarEnv -> Name -> AlgDataTy -> Maybe SMTHeader
+datatypeDecls :: KnownValues -> TV.TyVarEnv -> Name -> AlgDataTy -> Maybe SMTDataType
 datatypeDecls kv tv_env n (DataTyCon { bound_ids = is, data_cons = dcs })
     | n /= KV.tyInt kv
     , n /= KV.tyInteger kv
@@ -811,7 +820,7 @@ datatypeDecls kv tv_env n (DataTyCon { bound_ids = is, data_cons = dcs })
                   ) dcs
         smt_dt = SmtDT { dt_name = nameToStr n, dt_tyvars = map (nameToStr . idName) is, dt_constructors = dts}
     in
-    Just $ DeclareDatatypes [ smt_dt ]
+    Just smt_dt
 datatypeDecls _ _ _ _ = Nothing
 
 selectorName :: String -> Int -> String
