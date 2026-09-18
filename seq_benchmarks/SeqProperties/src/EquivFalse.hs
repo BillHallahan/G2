@@ -279,7 +279,8 @@ rotate _     []     = []
 rotate n     (x:xs) = rotate (n - 1) (xs ++ [x])
 
 rotateSMT :: Nat -> [a] -> [a]
-rotateSMT n xs = let k = n in smtExtract xs n (smtLen xs - n) $++ smtExtract xs 0 n
+rotateSMT n xs | smtLen xs == 0 = []
+               | otherwise = let k = n in smtExtract xs n (smtLen xs - n) $++ smtExtract xs 0 n
 
 {-# ANN elem (SMTEquivIs "elemSMT") #-}
 elem :: Nat -> [Nat] -> Bool

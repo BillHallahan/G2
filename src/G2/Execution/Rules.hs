@@ -2057,10 +2057,9 @@ retLitTableFrame dus solver simplifier s ng ltc up stck = case ltc of
         -- so we scan the stack
         e = unwrapCurrExpr $ curr_expr s
         frames = S.toList $ exec_stack s
-        explorings = filterJust $ map getExploringConds frames
-        all_pcs = L.foldl' PC.union PC.empty explorings
+        explorings = concat . filterJust $ map getExploringConds frames
         updated_lts = if up
-            then S.modifyTop (updateLiteralTable all_pcs e) $ lit_table_stack s
+            then S.modifyTop (updateLiteralTable explorings e) $ lit_table_stack s
             else lit_table_stack s
         updated_state = s { exec_stack = stck, lit_table_stack = updated_lts }
 
@@ -2119,9 +2118,9 @@ filterJust :: [Maybe a] -> [a]
 filterJust [] = []
 filterJust x = map fromJust $ filter isJust x
 
-getExploringConds :: Frame -> Maybe PathConds
+getExploringConds :: Frame -> Maybe [PathCond]
 getExploringConds (LitTableFrame (Exploring pc) _) = Just pc
 getExploringConds _ = Nothing
 
 makeExploring :: LTUpdate -> StateDiff -> Frame
-makeExploring up sd = (LitTableFrame (Exploring (PC.fromList $ new_path_conds sd)) up)
+makeExploring up sd = (LitTableFrame (Exploring $ new_path_conds sd) up)

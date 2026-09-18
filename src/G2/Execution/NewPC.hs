@@ -24,6 +24,7 @@ import G2.Execution.MutVar
 import G2.Execution.LiteralTable
 import G2.Config.Config (DiscardUnknownStates (KeepUnknown))
 
+import Control.Exception
 import Data.List
 import Data.Maybe
 import qualified Data.Sequence as Seq
@@ -68,13 +69,15 @@ reduceNewPC _ _ _ _ _ ng (SingleState state) = return (ng, [state])
 reduceNewPC discard_unknown_states config bindings solver simplifier ng (SplitStatePieces state state_diffs)
     | inLitTableMode state
     , scrut_smt_rep || all (null . new_conc_entries) state_diffs = do
-        let state_diffs' = map elim_conc_entries state_diffs
+        let 
+            -- Rewrite concrete entries and path constraints to use selectors
+            state_diffs' = map (conc_entries_and_pcs_to_selectors) state_diffs
         res <- reduceToFirstDiff discard_unknown_states solver simplifier ng state state_diffs'
         case res of
             Just (ng', first_s, pcs, other_diffs) ->
                 let prev_stck = stopUpdateLastExpl $ exec_stack first_s
                     diffs_pushed = foldr S.push prev_stck $ map wrap other_diffs
-                    expl_pushed = S.push (LitTableFrame (Exploring (PC.fromList pcs)) True) diffs_pushed
+                    expl_pushed = S.push (LitTableFrame (Exploring pcs) True) diffs_pushed
 
                     new_stack = if not $ isTyFun (typeOf tv_env $ unwrapped_ce) then expl_pushed else exec_stack first_s
 
@@ -106,27 +109,55 @@ reduceNewPC discard_unknown_states config bindings solver simplifier ng (SplitSt
         conc_entry_to_selector n e
             | [Data dc, _] <- unApp e
             , isPrimWrapperDC kv dc = [(n, e)]
-            | Data dc:es <- unApp e =
-                let
-                    dc_t = typeOf tv_env e
-                    i = Id n dc_t
-                    es' = filter (not . isType) es
-                in
-                zipWith (\v j -> case v of
-                                    (Var (Id vn vt)) -> 
-                                        let
-                                            t = TyFun dc_t vt
-                                        in
-                                        (vn, mkApp [Prim (Selector dc j) t, Var i])
-                                    _ -> error "reduceNewPC: expected var") es' [1 :: Int ..]
+            | Data dc:es <- unApp e = to_selector dc es (Var . Id n $ typeOf tv_env e)
             | otherwise = []
+        
+        pc_to_selector (ExtCond e True)
+            | [ Prim Eq _, e1, e2 ] <- unApp e
+            , Data dc:es <- unApp e1
+            , [ Prim (Selector _ _) _, _] <- unApp e2 = to_selector dc es e2
+            | [ Prim Eq _, e1, e2 ] <- unApp e
+            , Var (Id n t) <- e1
+            , [ Prim (Selector _ _) _, _] <- unApp e2 = assert (isPrimType t) [(n, e2)]
+        pc_to_selector _ = []
+
+        to_selector dc es e2 = 
+            let
+                dc_t = typeOf tv_env (mkApp $ Data dc:es)
+                es' = filter (not . isType) es
+            in
+            zipWith (\v j -> case v of
+                                (Var (Id vn vt)) -> 
+                                    let
+                                        t = TyFun dc_t vt
+                                    in
+                                    (vn, mkApp [Prim (Selector dc j) t, e2])
+                                _ -> error "reduceNewPC: expected var") es' [1 :: Int ..]
 
         isType (Type _) = True
         isType _ = False
 
         -- For types being branched on in literal tables, we want to avoid concretization,
-        -- only using the path conds
-        elim_conc_entries d = d { new_conc_entries = concatMap (uncurry conc_entry_to_selector) $ new_conc_entries d}
+        -- only using the path conds.
+        -- When we get a concrete entry like:
+        --      x -> (y, z)
+        -- we rewrite to a concrete entry
+        --      x -> (selector-(,)-1 x, selector-(,)-2 x)
+        -- so that we do not rely on specific variable names `y` and `z` in a literal table.
+        --
+        -- We may then later have a case on a selector:
+        --     case selector-(,)-1 x of
+        --         Nothing -> ...
+        --         Just y -> ...
+        -- we will get a path cond like:
+        --     Just y == selector-(,)-1 x
+        -- we want to turn this into a concrete entry:
+        --     y -> selector-Just-1 (selector-(,)-1 x)
+        -- so that, again, we do not rely on specific names `y` in the literal table
+        conc_entries_and_pcs_to_selectors d =
+            d { new_conc_entries = concatMap (uncurry conc_entry_to_selector) (new_conc_entries d)
+                                ++ concatMap pc_to_selector (new_path_conds d)
+              , new_path_conds = filter (null . pc_to_selector) (new_path_conds d) }
 
         -- Suppose we have:
         --   x == Just y
