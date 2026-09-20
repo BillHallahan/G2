@@ -31,6 +31,7 @@ data SMTHeader = Assert !SMTAST
                | AssertSoft !SMTAST (Maybe T.Text)
                | Minimize !SMTAST
                | DefineFun SMTName [(SMTName, Sort)] Sort !SMTAST
+               | DefineFunRec SMTName [(SMTName, Sort)] Sort !SMTAST
                | DeclareFun SMTName [Sort] Sort
                | DeclareDatatypes [SMTDataType]
                | VarDecl SMTNameBldr Sort
@@ -45,6 +46,7 @@ data SMTDataType = SmtDT { dt_name :: SMTName
 
 -- | Various logics supported by (some) SMT solvers 
 data Logic = ALL
+           | HO_ALL
            | QF_LIA
            | QF_LRA
            | QF_NIA
@@ -546,12 +548,13 @@ instance ASTContainer SMTHeader SMTAST where
     containedASTs (AssertSoft a _) = [a]
     containedASTs (Minimize a) = [a]
     containedASTs (DefineFun _ _ _ a) = [a]
+    containedASTs (DefineFunRec _ _ _ a) = [a]
     containedASTs _ = []
 
     modifyContainedASTs f (Assert a) = Assert (f a)
     modifyContainedASTs f (AssertSoft a lbl) = AssertSoft (f a) lbl
     modifyContainedASTs f (Minimize a) = Minimize (f a)
-    modifyContainedASTs f (DefineFun n ars r a) = DefineFun n ars r (f a)
+    modifyContainedASTs f (DefineFunRec n ars r a) = DefineFunRec n ars r (f a)
     modifyContainedASTs _ s = s
 
 instance ASTContainer SMTAST Sort where

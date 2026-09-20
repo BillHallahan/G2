@@ -299,12 +299,21 @@ insort n (x:xs) =
     True -> n : x : xs
     _ -> x : (insort n xs)
 
+{-# ANN ins (SMTEquivIsWithConfig "insSMT" "--smt cvc5")
+  #-}
 ins :: Nat -> [Nat] -> [Nat]
 ins n [] = [n]
 ins n (x:xs) =
   case n < x of
     True -> n : x : xs
     _ -> x : (ins n xs)
+
+insSMT :: Nat -> [Nat] -> [Nat]
+insSMT n xs =
+    let
+        pre_xs = takeWhileSMT (\x -> not (n < x)) xs
+    in
+    pre_xs $++ [n] $++ dropSMT (smtLen pre_xs) xs
 
 {-# ANN ins1 (SMTEquivIs "ins1SMT") #-}
 ins1 :: Nat -> [Nat] -> [Nat]
