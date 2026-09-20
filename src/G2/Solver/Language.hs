@@ -368,6 +368,7 @@ instance AST SMTAST where
     children (FoldLeftSMT _ _ _ _ x y z) = [x, y, z]
     children (FoldLeftISMT _ _ _ _ _ _ w x y z) = [w, x, y, z]
     children (LambdaSMT _ x) = [x]
+    children (AppLam x y) = [x, y]
 
     children (InReSMT x y) = [x, y]
     children (ToReSMT x) = [x]
@@ -495,6 +496,7 @@ instance AST SMTAST where
     modifyChildren f (FoldLeftISMT idx idx_t n1 s1 n2 s2 w x y z) =
         FoldLeftISMT idx idx_t n1 s1 n2 s2 (f w) (f x) (f y) (f z)
     modifyChildren f (LambdaSMT binds body) = LambdaSMT binds (f body)
+    modifyChildren f (AppLam x y) = AppLam (f x) (f y)
 
     modifyChildren f (InReSMT x y) = InReSMT (f x) (f y)
     modifyChildren f (ToReSMT x) = ToReSMT (f x)

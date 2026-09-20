@@ -17,6 +17,8 @@ module G2.Solver.Converters
     , toSolverASTSeqZ3
     , toSolverASTSeqCVC5
 
+    , addSetLogic
+
     , exprToSMT --WOULD BE NICE NOT TO EXPORT THIS
     , typeToSMT --WOULD BE NICE NOT TO EXPORT THIS
     , toSolverAST --WOULD BE NICE NOT TO EXPORT THIS
@@ -66,9 +68,13 @@ import qualified G2.Language.TyVarEnv as TV
 #if MIN_VERSION_text_builder(0,6,8)
 import qualified TextBuilder as TB
 type Builder = TB.TextBuilder
+tbToText :: Builder -> T.Text
+tbToText = TB.toText
 #else
 import qualified Text.Builder as TB
 type Builder = TB.Builder
+tbToText :: Builder -> DT.Text
+tbToText = TB.run
 #endif
 
 type PrintSMT = Bool
@@ -83,6 +89,9 @@ class Solver con => SMTConverter con where
     closeIO :: con -> IO ()
 
     reset :: con -> IO ()
+
+    setLogic :: con -> [GenSeqFunc] -> [SMTHeader] -> [SMTHeader]
+    setLogic _ _ = addSetLogic
 
     checkSatInstr :: con -> IO ()
     maybeCheckSatResult :: con -> IO (Maybe (Result () () ()))
@@ -125,7 +134,7 @@ instance Hashable GenSeqFunc
 
 checkConstraintsPC :: SMTConverter con => KnownValues -> TV.TyVarEnv -> TypeEnv -> con -> [GenSeqFunc] -> PathConds -> IO (Result () () ())
 checkConstraintsPC kv tv tenv con gen_seq_fun pc = do
-    let headers = toSMTHeaders kv tv tenv gen_seq_fun pc
+    let headers = toSMTHeaders con kv tv tenv gen_seq_fun pc
     checkConstraints con headers
 
 checkConstraints :: SMTConverter con => con -> [SMTHeader] -> IO (Result () () ())
@@ -170,7 +179,7 @@ getModelVal avf con s@(State { expr_env = eenv, type_env = tenv, known_values = 
 
 solveNumericConstraintsPC :: SMTConverter con => TV.TyVarEnv -> con -> KnownValues -> TypeEnv -> [GenSeqFunc] -> PathConds -> NameGen -> IO (Result SatRes () ())
 solveNumericConstraintsPC tv con kv tenv gen_seq_fun pc ng = do
-    let headers = toSMTHeaders kv tv tenv gen_seq_fun pc
+    let headers = toSMTHeaders con kv tv tenv gen_seq_fun pc
     let vs = map (\(n', srt) -> (nameToStr n', srt)) . HS.toList . pcVars tv $ pc
     let ty_map = HM.fromList . map (\(Id n t) -> (nameToStr n, t)) . HS.toList $ PC.allIds pc
 
@@ -195,8 +204,8 @@ constraintsToModelOrUnsatCoreNoReset = checkSatGetModelOrUnsatCoreNoReset
 -- we need only consider the types and path constraints of that state.
 -- We can also pass in some other Expr Container to instantiate names from, which is
 -- important if you wish to later be able to scrape variables from those Expr's
-toSMTHeaders :: KnownValues -> TV.TyVarEnv -> TypeEnv -> [GenSeqFunc] -> PathConds -> [SMTHeader]
-toSMTHeaders kv tv tenv gen_seq_fun pc = addSetLogic gen_seq_fun (toSMTHeaders' kv tv tenv gen_seq_fun pc)
+toSMTHeaders :: SMTConverter con => con -> KnownValues -> TV.TyVarEnv -> TypeEnv -> [GenSeqFunc] -> PathConds -> [SMTHeader]
+toSMTHeaders con kv tv tenv gen_seq_fun pc = setLogic con gen_seq_fun (toSMTHeaders' kv tv tenv gen_seq_fun pc)
 
 toSMTHeaders' :: KnownValues -> TV.TyVarEnv -> TypeEnv -> [GenSeqFunc] -> PathConds -> [SMTHeader]
 toSMTHeaders' kv tv tenv gen_seq_fun pc =
@@ -229,9 +238,8 @@ toSMTHeaders' kv tv tenv gen_seq_fun pc =
         fixTypes' n = evalASTs getADTTypes $ HM.lookup n tenv
 
 -- |  Determines an appropriate SetLogic command, and adds it to the headers
-addSetLogic :: [GenSeqFunc] -> [SMTHeader] -> [SMTHeader]
-addSetLogic (_:_) xs = SetLogic HO_ALL:xs
-addSetLogic _ xs =
+addSetLogic :: [SMTHeader] -> [SMTHeader]
+addSetLogic xs =
     let
         lia = isLIA xs
         lra = isLRA xs
@@ -455,7 +463,7 @@ defineFunMap tv_env t1 t2 =
                           , Func seq_map [f, StrSubstrSMT xs (VInt 1) (StrLenSMT xs :- VInt 1)]])
 
 seqMapName :: Sort -> Sort -> SMTName
-seqMapName s1 s2 = "|seq.map " <> (T.unpack . TB.toText $ sortName s1) <> " -> " <> (T.unpack . TB.toText $ sortName s2) <> "|"
+seqMapName s1 s2 = "|seq.map " <> (T.unpack . tbToText $ sortName s1) <> " -> " <> (T.unpack . tbToText $ sortName s2) <> "|"
 
 -------------------------------------------------------------------------------
 -- Path Constraints to Asserts

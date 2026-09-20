@@ -262,6 +262,17 @@ instance SMTConverter CVC5 where
         when print_smt_ $ putStrLn "(reset)"
         T.hPutStr h_in "(reset)"
 
+    setLogic _ (_:_) xs = SetLogic HO_ALL:xs
+    setLogic _ _ xs
+        | containsLam xs = SetLogic HO_ALL:xs
+        | otherwise = addSetLogic xs
+        where
+            containsLam = getAny . evalASTs go
+                where
+                    go (LambdaSMT _ _) = Any True
+                    go _ = Any False
+
+
     checkSatInstr con = do
         let (h_in, _, _) = getIO con
         T.hPutStrLn h_in "(check-sat)"
