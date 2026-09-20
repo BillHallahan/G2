@@ -73,7 +73,7 @@ tbToText = TB.toText
 #else
 import qualified Text.Builder as TB
 type Builder = TB.Builder
-tbToText :: Builder -> DT.Text
+tbToText :: Builder -> T.Text
 tbToText = TB.run
 #endif
 
