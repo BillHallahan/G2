@@ -444,13 +444,18 @@ defineFunMap tv_env t1 t2 =
 
         f = V "f" f_srt
         xs = V "xs" xs_srt
+
+        seq_map = seqMapName x_srt ret_elem_srt
     in
-    DefineFunRec "seq.map" [ ("f", f_srt), ("xs", xs_srt)] ret_sort $
+    DefineFunRec seq_map [ ("f", f_srt), ("xs", xs_srt)] ret_sort $
         IteSMT 
             (StrLenSMT xs := VInt 0)
             (SeqEmptySMT ret_elem_srt)
             (StrAppendSMT [ SeqUnitSMT (Func "f" [SeqNthSMT xs (VInt 0)])
-                          , Func "seq.map" [f, StrSubstrSMT xs (VInt 1) (StrLenSMT xs :- VInt 1)]])
+                          , Func seq_map [f, StrSubstrSMT xs (VInt 1) (StrLenSMT xs :- VInt 1)]])
+
+seqMapName :: Sort -> Sort -> SMTName
+seqMapName s1 s2 = "|seq.map " <> (T.unpack . TB.toText $ sortName s1) <> " -> " <> (T.unpack . TB.toText $ sortName s2) <> "|"
 
 -------------------------------------------------------------------------------
 -- Path Constraints to Asserts
@@ -758,7 +763,7 @@ funcToSMT2Prim tv Map (Lam _ (Id n1 t1) e) xs =
     let
         n1' = nameToStr n1
     in
-    MapSMT n1' (typeToSMT tv t1) (wrapChar n1' (exprToSMT tv e)) (exprToSMT tv xs)
+    MapSMT n1' (typeToSMT tv t1) (typeToSMT tv . returnType $ typeOf tv e) (wrapChar n1' (exprToSMT tv e)) (exprToSMT tv xs)
 funcToSMT2Prim tv MapConcat (Lam _ (Id n1 t1) e) xs =
     let
         n1' = nameToStr n1
@@ -1193,8 +1198,13 @@ toSolverASTSeq use_at = go
         go (StrUpdateSMT x y z) = function3 "seq.update" (goBack x) (goBack y) (goBack z)
         go (SeqNthSMT x y) = function2 "seq.nth" (goBack x) (goBack y)
         go (SeqEmptySMT s) = "(as seq.empty (Seq " <> sortName s <> "))"
-        go (MapSMT n1 s1 x y) =
-            "(seq.map (lambda ((" <> TB.string n1 <> " " <> sortNameLam s1 <> ")) "
+        go (MapSMT n1 s1 s2 x y) =
+            let
+                n = case use_at of
+                        UseAt -> TB.string $ seqMapName s1 s2
+                        NoAt -> "seq.map"
+            in
+            "(" <> n <> " (lambda ((" <> TB.string n1 <> " " <> sortNameLam s1 <> ")) "
                     <> goBack x <> ") " <> goBack y <> ")"
         go (MapConcatSMT n1 s1 accum_s x y) =
             "(seq.fold_left (lambda ((G2_INTERNAL_acc " <> sortNameLam accum_s <> ") ("
