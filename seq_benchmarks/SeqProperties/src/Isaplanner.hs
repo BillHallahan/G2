@@ -270,12 +270,20 @@ sorted [] = True
 sorted [x] = True
 sorted (x:y:ys) = (x <= y) && sorted (y:ys)
 
+{-# ANN insort (SMTEquivIs "insortSMT") #-}
 insort :: Nat -> [Nat] -> [Nat]
 insort n [] = [n]
 insort n (x:xs) =
   case n <= x of
     True -> n : x : xs
     _ -> x : (insort n xs)
+
+insortSMT :: Nat -> [Nat] -> [Nat]
+insortSMT n xs =
+    let
+        pre_xs = takeWhileSMT (\x -> not (n <= x)) xs
+    in
+    pre_xs $++ [n] $++ dropSMT (smtLen pre_xs) xs
 
 {-# ANN ins (SMTEquivIs "insSMT") #-}
 ins :: Nat -> [Nat] -> [Nat]

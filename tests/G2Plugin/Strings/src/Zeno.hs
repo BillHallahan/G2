@@ -299,7 +299,7 @@ insort n (x:xs) =
     True -> n : x : xs
     _ -> x : (insort n xs)
 
-{-# ANN ins (SMTEquivIsWithConfig "insSMT" "--smt cvc5")
+{-# ANN ins (SMTEquivIsWithConfig "insSMT" "--smt cvc5 --smt-timeout 20")
   #-}
 ins :: Nat -> [Nat] -> [Nat]
 ins n [] = [n]

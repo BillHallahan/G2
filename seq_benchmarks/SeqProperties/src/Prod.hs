@@ -240,12 +240,30 @@ isort :: [Nat] -> [Nat]
 isort [] = []
 isort (x:xs) = insert x (isort xs)
 
+{-# ANN insert (SMTEquivIs "insertSMT") #-}
 insert :: Nat -> [Nat] -> [Nat]
 insert n [] = [n]
 insert n (x:xs) =
   case n <= x of
     True -> n : x : xs
     False -> x : (insert n xs)
+
+insertSMT :: Nat -> [Nat] -> [Nat]
+insertSMT n xs =
+    let
+        pre_xs = takeWhileSMT (\x -> not (n <= x)) xs
+    in
+    pre_xs $++ [n] $++ dropSMT (smtLen pre_xs) xs
+
+takeWhileSMT :: (Nat -> Bool) -> [Nat] -> [Nat]
+takeWhileSMT p xs =
+    let
+        bs = smtMap p xs
+        n = smtIndexOf bs [False] 0
+    in
+    case n of
+        -1 -> xs
+        _ -> smtExtract xs 0 n
 
 {-# ANN count (SMTEquivIs "countSMT") #-}
 count :: Nat -> [Nat] -> Nat
