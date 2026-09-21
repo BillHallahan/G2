@@ -5,7 +5,7 @@ module ListMonad where
 import Prelude hiding ((>>=), return, map, concat)
 import G2.Plugin
 
-{-# ANN module ("--smt-tuples --higher-order uninterpreted --smt cvc5,z3 --time 120")
+{-# ANN module ("--smt-tuples --higher-order uninterpreted --smt cvc5,z3 --time 300")
     #-}
 
 (===) :: Eq a => a -> a -> Bool

@@ -31,7 +31,7 @@ import Prelude
 import G2.Plugin
 import G2.Plugin.Unsafe
 
-{-# ANN module ("--smt-tuples --higher-order uninterpreted --smt cvc5,z3 --time 120")
+{-# ANN module ("--smt-tuples --higher-order uninterpreted --smt cvc5,z3 --time 300")
     #-}
 
 type Nat = Int

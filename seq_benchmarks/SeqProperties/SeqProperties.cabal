@@ -18,8 +18,11 @@ common warnings
 library
     import:           warnings
     exposed-modules:  
-                     Isaplanner
-                  
+                     DefinitionsFalse
+                   , EquivFalse
+                   , Isaplanner
+                   , ListMonad
+                   , Prod
     -- other-modules:
     -- other-extensions:
     build-depends:    base >=4.14
