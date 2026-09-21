@@ -32,7 +32,9 @@ jobs:
         cabal-version: ${{ matrix.compiler.cabal }}
 
     - run: cabal update
-    - run: cabal configure --enable-tests -f ${{ matrix.test.lh }}
+    - run: cabal configure -j --enable-tests -f ${{ matrix.test.lh }}
+    - if: matrix.compiler.ghc >= '9.8'
+      run: cabal configure --append --semaphore
     - run: cabal freeze
     # - uses: actions/cache@v3
     #   with:
