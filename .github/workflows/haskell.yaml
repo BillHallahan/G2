@@ -18,8 +18,8 @@ jobs:
                     { ghc: '9.2.8', cabal: '3.10' },
                     { ghc: '9.4.4', cabal: '3.10' },
                     { ghc: '9.6.1', cabal: '3.10' },
-                    { ghc: '9.8.4', cabal: '3.10' },
-                    { ghc: '9.10.3', cabal: '3.10' },
+                    { ghc: '9.8.4', cabal: '3.12' },
+                    { ghc: '9.10.3', cabal: '3.12' },
                     { ghc: '9.12.2', cabal: '3.12' } ]
         test: [ { test: test, lh: '-support-lh' },
                 { test: test-g2q, lh: '-support-lh' } ]
@@ -32,9 +32,9 @@ jobs:
         cabal-version: ${{ matrix.compiler.cabal }}
 
     - run: cabal update
-    - if: matrix.compiler.ghc < '9.8'
+    - if: matrix.compiler.ghc < '9.8' || matrix.compiler.cabal < '3.12'
       run: cabal configure -j --enable-tests -f ${{ matrix.test.lh }}
-    - if: matrix.compiler.ghc >= '9.8'
+    - if: matrix.compiler.ghc >= '9.8' && matrix.compiler.cabal >= '3.12'
       run: cabal configure -j --semaphore --enable-tests -f ${{ matrix.test.lh }}
     - run: cabal freeze
     # - uses: actions/cache@v3
