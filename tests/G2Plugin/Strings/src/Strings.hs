@@ -55,6 +55,15 @@ addOneAll (x:xs) = x + 1:addOneAll xs
 smtAddOneAll :: [Int] -> [Int]
 smtAddOneAll = smtMap (\x -> x + 1)
 
+{-# ANN addOneAllCVC5 (SMTEquivIsWithConfig "smtAddOneAllCVC5" "--smt cvc5")
+    #-}
+addOneAllCVC5 :: [Int] -> [Int]
+addOneAllCVC5 [] = []
+addOneAllCVC5 (x:xs) = x + 1:addOneAllCVC5 xs
+
+smtAddOneAllCVC5 :: [Int] -> [Int]
+smtAddOneAllCVC5 = smtMap (\x -> x + 1)
+
 {-# ANN addTwoAll (SMTEquivIs "smtAddTwoAll") #-}
 addTwoAll :: [Int] -> [Int]
 addTwoAll [] = []

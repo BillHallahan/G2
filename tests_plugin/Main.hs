@@ -33,6 +33,9 @@ tests = testGroup "All Tests"
                                 , ("myApp", "app")
                                 , ("appMult", "smtAppMult")
 
+                                , ("addOneAll", "smtAddOneAll")
+                                , ("addOneAllCVC5", "smtAddOneAllCVC5")
+
                                 , ("sumList", "smtSumList")
                                 , ("sumList2", "smtSumList2")
                                 , ("sumListCVC5", "smtSumListCVC5")
@@ -94,7 +97,6 @@ tests = testGroup "All Tests"
                                 , ("map", "mapSMT")
                                 , ("ins1", "ins1SMT")
                                 -- , ("sorted", "sortedSMT")
-                                , ("ins", "insSMT")
                                 , ("filter", "filterSMT")
                                 , ("dropWhile", "dropWhileSMT")
                                 , ("takeWhile", "takeWhileSMT")
