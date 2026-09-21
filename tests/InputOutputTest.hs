@@ -27,6 +27,7 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputsSymFuncConstraintsSubPath
                        , checkInputOutputsSymFuncConstraintsSubPathSMTLists
                        , checkInputOutputsSymFuncConstraintsSubPathReturnsTrue
+                       , checkInputOutputOfPaths
                        , checkInputOutputsInstType
                        , checkInputOutputsWithValidate
                        , checkInputOutputsWithTemplatesAndHpc) where
@@ -210,6 +211,14 @@ checkInputOutputsSymFuncConstraintsSubPathReturnsTrue :: FilePath -> [(String, I
 checkInputOutputsSymFuncConstraintsSubPathReturnsTrue src tests = do
     checkInputOutput'
         (do config <- mkConfigTestIO; return (config { higherOrderSolver = SymConstraints, smt = ConCVC5, search_strat = Subpath, subpath_length = 8, returnsTrue = True }))
+        src
+        tests
+
+-- TODO: Need a better way to check output of paths function
+checkInputOutputOfPaths :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
+checkInputOutputOfPaths src tests = do
+    checkInputOutput'
+        (do config <- mkConfigTestIO; return (config {higherOrderSolver = SingleFunc, paths_nrpc = Nrpc, timeLimit = 60 }))
         src
         tests
 

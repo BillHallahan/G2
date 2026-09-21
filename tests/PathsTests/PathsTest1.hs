@@ -24,8 +24,7 @@ test3 list = case [] of
 
 data Tree a = Empty | Node a (Tree a) (Tree a)
 
-data List a = Nil | a :> List a 
-
+data List a = Nil | a :> List a deriving Eq
 test4 :: List (Tree Int) -> Int
 test4 xs = case xs of
     Nil -> 0

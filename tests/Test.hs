@@ -829,7 +829,18 @@ testFileTests = testGroup "TestFiles"
                                                                        [ ("propFalse", 1000 * 1000, [AtLeast 5])
                                                                        , ("prop2", 1000 * 1000, [AtLeast 5]) ]
     , checkInputOutputsSymFuncConstraintsSubPathReturnsTrue "tests/HigherOrder/UncurryHigherOrder.hs" [ ("prop", 1000, [Exactly 1]) ]
-
+    , checkInputOutputOfPaths "tests/PathsTests/PathsTest1.hs" [ ("test1", 2000, [Exactly 1])
+                                                                , ("test2", 2000, [Exactly 2])
+                                                                , ("test3", 2000, [Exactly 1])
+                                                                , ("test4", 2000, [Exactly 1])
+                                                                , ("test5", 2000, [Exactly 1])
+                                                                , ("test6", 2000, [Exactly 1])
+                                                                ]
+    , checkInputOutputOfPaths "tests/PathsTests/PathsTest2.hs" [ ("test1", 2000, [Exactly 2])
+                                                                , ("test2", 2000, [AtLeast 4])
+                                                                , ("test3", 2000, [AtLeast 4])
+                                                                , ("test4", 2000, [AtLeast 2])
+                                                                ]
     , checkExprRetTrueSymFunc "tests/HigherOrder/HigherAssume.hs" 2500 "propA" [Exactly 0]
 
     , checkInputOutputsSymFuncConstraints "tests/HigherOrder/HigherChar1.hs" [("eval", 10000, [AtLeast 2])]
