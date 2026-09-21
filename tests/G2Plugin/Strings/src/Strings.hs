@@ -79,6 +79,15 @@ sumList2 (x:xs) = x + sumList xs
 smtSumList2 :: [Int] -> Int
 smtSumList2 xs = smtFoldLeft (\x y -> y + x) 0 xs
 
+{-# ANN sumListCVC5 (SMTEquivIsWithConfig "smtSumListCVC5" "--smt cvc5")
+    #-}
+sumListCVC5 :: [Int] -> Int
+sumListCVC5 [] = 0
+sumListCVC5 (x:xs) = x + sumList xs
+
+smtSumListCVC5 :: [Int] -> Int
+smtSumListCVC5 xs = smtFoldLeft (\x y -> x + y) 0 xs
+
 {-
 {-# ANN sumListInit9 (SMTEquivIsWithConfig "smtSumListInit9" "") #-}
 sumListInit9 :: [Int] -> Int

@@ -35,6 +35,7 @@ tests = testGroup "All Tests"
 
                                 , ("sumList", "smtSumList")
                                 , ("sumList2", "smtSumList2")
+                                , ("sumListCVC5", "smtSumListCVC5")
 
                                 , ("myIntersperse", "smtMyIntersperse")
                                 , ("myIntersperse2", "smtMyIntersperse2")

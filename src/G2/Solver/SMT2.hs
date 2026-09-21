@@ -123,7 +123,6 @@ containsZ3Only = getAny . evalASTs go
     where
         go (Prim MapConcat _) = Any True
         go (Prim MapConcatI _) = Any True
-        go (Prim FoldLeft _) = Any True
         go (Prim FoldLeftI _) = Any True
         go _ = Any False
 
@@ -131,8 +130,10 @@ requiredSeqFuncs :: TyVarEnv -> PC.PathConds -> [GenSeqFunc]
 requiredSeqFuncs tv_env = HS.toList . evalASTs go
     where
         go e
-            | [Prim Map _, e1, _] <- unApp e
+            | [Prim Map _, e1] <- unApp e
             , TyFun t1 t2 <- typeOf tv_env e1 = HS.singleton $ GenMap t1 t2
+            | [Prim FoldLeft _, e1] <- unApp e
+            , TyFun t1 (TyFun t2 _) <- typeOf tv_env e1 = HS.singleton $ GenFold t1 t2
             | otherwise = HS.empty
 
 instance Solver Ostrich where
