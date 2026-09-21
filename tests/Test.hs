@@ -1078,6 +1078,8 @@ baseTests = testGroup "Base"
     , checkInputOutputs "tests/BaseTests/Ratio.hs" [ ("manipRatio", 20000, [AtLeast 5])
                                                    , ("callApprox", 20000, [AtLeast 5]) ]
     , checkInputOutput "tests/BaseTests/ZipList.hs" "callApp" 2000 [AtLeast 10]
+    , checkInputOutputs "tests/BaseTests/UnsafeIO.hs" [ ("numTest", 1000, [Exactly 2])
+                                                      , ("rwNumTest", 1000, [Exactly 2]) ]
     ]
 
 primTests :: TestTree
