@@ -163,6 +163,9 @@ pSymGen# = error "pSymGen#"
 -- Other
 ------------------------------------------------------------------------------
 
+infixr 3 $&&
+infixr 2 $||
+
 {-# NOINLINE ($&&) #-}
 ($&&) :: Bool -> Bool -> Bool
 True $&& True = True

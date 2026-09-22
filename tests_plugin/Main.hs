@@ -22,7 +22,8 @@ tests = testGroup "All Tests"
         , checkG2PackageEquiv "tests/G2Plugin/MoreSeq"
                                 [ ("g", "gSMT")
                                 , ("h", "hSMT") ]
-                                [ ("badEquiv", "smtBadEquiv") ]
+                                [ ("badEquiv", "smtBadEquiv")
+                                , ("headFalse", "headFalseSMT") ]
                                 []
                                 ["badEquivProp"]
         , checkG2PackageEquiv "tests/G2Plugin/Strings"
