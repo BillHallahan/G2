@@ -223,12 +223,12 @@ checkFCStateBindings orig_eenv er bindings = concatMap checkExecRes er
                         eenv'' = foldr (\(Id n _, e) -> E.insert n e) eenv' (zip var_args_ns . drop num_ty $ arguments fc)
 
                         -- Set up the current expression
-                        apply_to_args = mkApp $ Var (Id (funcName fc) func_t):map Var arg_ns
+                        apply_to_args = mkApp $ Var (Id (funcName fc) func_t):map (Type . TyVar) ty_args_ns ++ map Var var_args_ns
                         ret_val = returns fc
-                        t = returnType $ typeOf tv_env apply_to_args
+                        t = tyVarSubst tv_env' . returnType $ typeOf tv_env' apply_to_args
 
                         eq_func = Var (Id (eqFunc kv) TyUnknown)
-                        eq_dict = fromMaybe (error $ "checkEquiv: could not generate Eq typeclass" ++ "\n" ++ show (typeOf tv_env t) ++ "\n" ++ show t ++ "\n" ++ show ret_val)
+                        eq_dict = fromMaybe (error $ "checkEquiv: could not generate Eq typeclass" ++ "\n" ++ show t ++ "\n" ++ show ret_val)
                                 $ typeClassInst  tc HM.empty (KV.eqTC kv) t
                         
                         call_res_i = Id (Name "CALL_!!_RES_G2__" Nothing 0 Nothing) t
