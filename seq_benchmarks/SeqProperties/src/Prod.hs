@@ -236,9 +236,13 @@ union [] ys = ys
 unionSMT :: [Nat] -> [Nat] -> [Nat]
 unionSMT xs ys = smtFoldLeft (\acc x -> if smtContains ys [x] then acc else acc $++ [x]) [] xs $++ ys
 
+{-# ANN isort (SMTEquivIs "isortSMT") #-}
 isort :: [Nat] -> [Nat]
 isort [] = []
 isort (x:xs) = insert x (isort xs)
+
+isortSMT :: [Nat] -> [Nat]
+isortSMT = smtFoldLeft (\acc x -> insertSMT x acc) []
 
 {-# ANN insert (SMTEquivIs "insertSMT") #-}
 insert :: Nat -> [Nat] -> [Nat]
@@ -274,9 +278,15 @@ count n [] = 0
 countSMT :: Nat -> [Nat] -> Nat
 countSMT e xs = (smtLen xs) - (smtLen (smtReplaceAll xs [e] []))
 
+{-# ANN sorted (SMTEquivIs "sortedSMT") #-}
 sorted :: [Nat] -> Bool
 sorted (x:y:xs) = (x <= y) && sorted (y:xs)
 sorted _        = True
+
+{-# ANN sorted (SMTEquivIsWithConfig "sortedSMT" "--no-term-check")
+  #-}
+sortedSMT :: [Nat] -> Bool
+sortedSMT xs = xs == isortSMT xs
 
 -- end Definitions
 
@@ -302,9 +312,9 @@ prop_L04 w x y zs
   | w >= 0, x >= 0 = drop (w + 1) (drop x (y:zs)) === drop w (drop x zs)
   | otherwise = True
 
-{-# ANN prop_L04_bad Prop #-}
-prop_L04_bad :: Eq a => Nat -> Nat -> a -> [a] -> Bool
-prop_L04_bad w x y zs =
+{-# ANN prop_L04_false Prop #-}
+prop_L04_false :: Eq a => Nat -> Nat -> a -> [a] -> Bool
+prop_L04_false w x y zs =
   drop (w + 1) (drop x (y:zs)) === drop w (drop x zs)
 
 {-# ANN prop_L05 Prop #-}
@@ -313,9 +323,9 @@ prop_L05 v w x y zs
   | v >= 0, w >= 0 = drop (v + 1) (drop (w + 1) (x : (y : zs))) === drop (v + 1) (drop w (x : zs))
   | otherwise = True
 
-{-# ANN prop_L05_bad Prop #-}
-prop_L05_bad :: Eq a => Nat -> Nat -> a -> a -> [a] -> Bool
-prop_L05_bad v w x y zs =
+{-# ANN prop_L05_false Prop #-}
+prop_L05_false :: Eq a => Nat -> Nat -> a -> a -> [a] -> Bool
+prop_L05_false v w x y zs =
   drop (v + 1) (drop (w + 1) (x : (y : zs))) === drop (v + 1) (drop w (x : zs))
 
 {-# ANN prop_L06 Prop #-}
@@ -324,9 +334,9 @@ prop_L06 v w x y z
   | v >= 0, w >= 0, x >= 0 = drop (v + 1) (drop w (drop x (y:z))) === drop v (drop w (drop x z))
   | otherwise = True
 
-{-# ANN prop_L06_bad Prop #-}
-prop_L06_bad :: Eq a => Nat -> Nat -> Nat -> a -> [a] -> Bool
-prop_L06_bad v w x y z =
+{-# ANN prop_L06_false Prop #-}
+prop_L06_false :: Eq a => Nat -> Nat -> Nat -> a -> [a] -> Bool
+prop_L06_false v w x y z =
   drop (v + 1) (drop w (drop x (y:z))) === drop v (drop w (drop x z))
 
 {-# ANN prop_L07 Prop #-}
@@ -337,9 +347,9 @@ prop_L07 u v w x y z
     drop (u + 1) (drop v (drop w (x:z)))
   | otherwise = True
 
-{-# ANN prop_L07_bad Prop #-}
-prop_L07_bad :: Eq a => Nat -> Nat -> Nat -> a -> a -> [a] -> Bool
-prop_L07_bad u v w x y z =
+{-# ANN prop_L07_false Prop #-}
+prop_L07_false :: Eq a => Nat -> Nat -> Nat -> a -> a -> [a] -> Bool
+prop_L07_false u v w x y z =
   drop (u + 1) (drop v (drop (w + 1) (x : (y : z)))) ===
   drop (u + 1) (drop v (drop w (x:z)))
 

@@ -264,11 +264,15 @@ lastSMT xs =
     then 0
     else smtNth xs $ smtLen xs - 1
 
--- {-# ANN sorted (SMTEquivIs "sortedSMT") #-}
+{-# ANN sorted (SMTEquivIsWithConfig "sortedSMT" "--no-term-check")
+  #-}
 sorted :: [Nat] -> Bool
 sorted [] = True
 sorted [x] = True
 sorted (x:y:ys) = (x <= y) && sorted (y:ys)
+
+sortedSMT :: [Nat] -> Bool
+sortedSMT xs = xs == sortSMT xs
 
 {-# ANN insort (SMTEquivIs "insortSMT") #-}
 insort :: Nat -> [Nat] -> [Nat]
@@ -314,9 +318,13 @@ ins1SMT n xs =
     then xs
     else xs $++ [n]
 
+{-# ANN sort (SMTEquivIs "sortSMT") #-}
 sort :: [Nat] -> [Nat]
 sort [] = []
 sort (x:xs) = insort x (sort xs)
+
+sortSMT :: [Nat] -> [Nat]
+sortSMT = smtFoldLeft (\acc x -> insortSMT x acc) []
 
 butlastConcat :: [Nat] -> [Nat] -> [Nat]
 butlastConcat xs [] = butlast xs
@@ -545,9 +553,9 @@ prop_42 n x xs
   | n >= 1 = (take n (x:xs) =:= x : (take (n - 1) xs))
   | otherwise = True
 
-{-# ANN prop_42_bad Prop #-}
-prop_42_bad :: Nat -> Nat -> [Nat] -> Bool
-prop_42_bad n x xs
+{-# ANN prop_42_false Prop #-}
+prop_42_false :: Nat -> Nat -> [Nat] -> Bool
+prop_42_false n x xs
   = (take n (x:xs) =:= x : (take (n - 1) xs))
 
 {-# ANN prop_43 Prop #-}

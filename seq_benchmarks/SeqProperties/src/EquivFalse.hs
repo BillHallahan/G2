@@ -192,9 +192,11 @@ dropWhileSMT :: (Nat -> Bool) -> [Nat] -> [Nat]
 dropWhileSMT p xs =
     let
         bs = smtMap p xs
-        n = smtIndexOf bs [False] 0
+        n = smtIndexOf bs [True] 0
     in
-    smtExtract xs n (smtLen xs - n)
+    case n of
+        -1 -> []
+        _ -> smtExtract xs n (smtLen xs - n)
 
 {-# ANN filter (SMTEquivIs "filterSMT") #-}
 filter :: (Nat -> Bool) -> [Nat] -> [Nat]
