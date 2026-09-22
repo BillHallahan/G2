@@ -289,9 +289,8 @@ elem :: Nat -> [Nat] -> Bool
 elem _ []     = False
 elem n (x:xs) = (n == x) || elem n xs
 
--- Still a correct specification
 elemSMT :: Nat -> [Nat] -> Bool
-elemSMT n xs = smtContains xs [n]
+elemSMT n xs = smtContains [n] xs
 
 {-# ANN intersect (SMTEquivIs "intersectSMT") #-}
 intersect :: [Nat] -> [Nat] -> [Nat]
