@@ -214,9 +214,13 @@ elem n (x:xs) = (n == x) || elem n xs
 elemSMT :: Nat -> [Nat] -> Bool
 elemSMT n xs = smtContains xs [n]
 
+{-# ANN subset (SMTEquivIs "subsetSMT") #-}
 subset :: [Nat] -> [Nat] -> Bool
 subset []     ys = True
 subset (x:xs) ys = x `elem` ys && subset xs ys
+
+subsetSMT :: [Nat] -> [Nat] -> Bool
+subsetSMT xs ys = smtAll (\x -> smtContains ys [x]) xs
 
 {-# ANN intersect (SMTEquivIs "intersectSMT") #-}
 intersect :: [Nat] -> [Nat] -> [Nat]
