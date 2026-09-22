@@ -323,9 +323,9 @@ checkEquiv cmd_lne equiv_annots simp_state entry_real entry_smt
 orderAnnotations :: ExprEnv -> [(L.Name, [SymEx])] -> [(L.Name, [SymEx])]
 orderAnnotations eenv symexes =
     let
-        cg = getCallGraph eenv
+        cg = getCallGraph $ E.filterWithKey (\k _ -> k `elem` map fst symexes)  eenv
         
-        in_ord = concat . reverse $ nameLevels cg
+        in_ord = concat $ bottomUpNameLevels cg
         ord_map = HM.fromList $ zip in_ord [1 :: Int ..]
         lookup_ind = flip HM.lookup ord_map . fst
     in
