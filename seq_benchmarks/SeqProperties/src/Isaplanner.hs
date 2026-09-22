@@ -429,7 +429,7 @@ prop_18 i m
 
 {-# ANN prop_19 Prop #-}
 prop_19 :: Nat -> [Nat] -> Bool
-prop_19 n xs = (len (drop n xs) =:= if n <= len xs then len xs - n else 0)
+prop_19 n xs = (len (drop n xs) =:= if n <= len xs then len xs - (max 0 n) else 0)
 
 {-# ANN prop_19_false Prop #-}
 prop_19_false :: Nat -> [Nat] -> Bool

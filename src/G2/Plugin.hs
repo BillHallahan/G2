@@ -201,9 +201,12 @@ g2PluginPass' cmd_lne config env modguts = do
     (imports_nm, import_tnm, injected_exg2) <- setUpImports cmd_lne comp_nm new_tm env ex_g2 prev_explored (comp_name Seq.:<| rel_names)
     let simp_state = initSimpleState injected_exg2 imports_nm import_tnm
 
+    let mod_name = unpackFS . moduleNameFS . moduleName $ mg_module modguts
+
     let ord_ann_fs_g2 = orderAnnotations (IT.expr_env simp_state) ann_fs_g2
     liftIO $ foldM_ (\ea (f, symex) -> do
-                            res <- runSymexAnnots cmd_lne ea simp_state f symex
+                            (res, time) <- timeInSeconds (runSymexAnnots cmd_lne ea simp_state f symex)
+                            logEquivTime mod_name (TX.unpack $ nameOcc f) (if res then show time else "-")
                             if res
                                 then return ea
                                 else return $ HM.delete f ea) equiv_annots ord_ann_fs_g2
@@ -211,6 +214,15 @@ g2PluginPass' cmd_lne config env modguts = do
 addName :: TX.Text -> Maybe TX.Text -> NameMap -> (L.Name, NameMap)
 addName occ md nm | Just n <- HM.lookup (occ, md) nm = (n, nm)
                   | otherwise = (Name occ md 0 Nothing, HM.insert (occ, md) (Name occ md 0 Nothing) nm)
+
+timeInSeconds :: IO b -> IO (b, Double)
+timeInSeconds io_action = do
+    init_time <- getTime Realtime
+    res <- io_action
+    end_time <- getTime Realtime
+    let diff = diffTimeSpec end_time init_time
+        diff_secs = (fromInteger (toNanoSecs diff)) / (10 ^ (9 :: Int) :: Double)
+    return (res, diff_secs)
 
 ------------------------------------------------------------------------------
 -- Run Symbolic Execution
@@ -318,6 +330,15 @@ orderAnnotations eenv symexes =
         lookup_ind = flip HM.lookup ord_map . fst
     in
     sortBy (comparing lookup_ind) symexes
+
+logEquivTime :: String -> String -> String -> IO ()
+logEquivTime mod_name entry time = do
+    dir_exists <- doesDirectoryExist "logs"
+    when dir_exists $ do
+        let file_name = "logs/" ++ mod_name ++ "_times.txt"
+        file_exists <- doesFileExist file_name
+        unless file_exists (writeFile file_name "")
+        appendFile file_name $ "\n" ++ entry ++ "," ++ show time
 
 ------------------------------------------------------------------------------
 -- Loading in functions and function annotations
