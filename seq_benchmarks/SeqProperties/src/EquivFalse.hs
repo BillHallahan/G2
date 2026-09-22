@@ -244,6 +244,36 @@ ins1 n (x:xs) =
 ins1SMT :: Nat -> [Nat] -> [Nat]
 ins1SMT n xs = xs $++ [n]
 
+{-# ANN insort (SMTEquivIs "insortSMT") #-}
+insort :: Nat -> [Nat] -> [Nat]
+insort n [] = [n]
+insort n (x:xs) =
+  case n <= x of
+    True -> n : x : xs
+    _ -> x : (insort n xs)
+
+insortSMT :: Nat -> [Nat] -> [Nat]
+insortSMT n xs =
+    let
+        pre_xs = takeWhileSMT (\x -> n <= x) xs
+    in
+    pre_xs $++ [n] $++ dropSMT (smtLen pre_xs) xs
+
+{-# ANN ins (SMTEquivIs "insSMT") #-}
+ins :: Nat -> [Nat] -> [Nat]
+ins n [] = [n]
+ins n (x:xs) =
+  case n < x of
+    True -> n : x : xs
+    _ -> x : (ins n xs)
+
+insSMT :: Nat -> [Nat] -> [Nat]
+insSMT n xs =
+    let
+        pre_xs = takeWhileSMT (\x -> not (n < x)) xs
+    in
+    pre_xs $++ [n] $++ dropSMT (smtLen pre_xs - 1) xs
+
 ------------------------------------------------------------------------------
 -- From Prod
 ------------------------------------------------------------------------------
@@ -291,6 +321,14 @@ elem n (x:xs) = (n == x) || elem n xs
 
 elemSMT :: Nat -> [Nat] -> Bool
 elemSMT n xs = smtContains [n] xs
+
+{-# ANN subset (SMTEquivIs "subsetSMT") #-}
+subset :: [Nat] -> [Nat] -> Bool
+subset []     ys = True
+subset (x:xs) ys = x `elem` ys && subset xs ys
+
+subsetSMT :: [Nat] -> [Nat] -> Bool
+subsetSMT xs ys = smtAny (\x -> smtContains ys [x]) xs
 
 {-# ANN intersect (SMTEquivIs "intersectSMT") #-}
 intersect :: [Nat] -> [Nat] -> [Nat]
