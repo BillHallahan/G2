@@ -76,6 +76,7 @@ import G2.Execution.FuncConstraints
 import G2.Initialization.MkCurrExpr
 import G2.Interface
 import G2.Initialization.Types as IT
+import G2.Language.CallGraph
 import G2.Language as L
 import qualified G2.Language.ExprEnv as E
 import G2.Plugin.Prim
@@ -89,11 +90,13 @@ import qualified Data.Foldable as F
 import GHC.Generics (Generic)
 import Control.DeepSeq
 import Data.IORef
+import Data.List as L
 import System.IO.Unsafe
 import System.Directory
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import Data.Maybe
+import Data.Ord
 import qualified Data.Set as S
 import qualified Data.Sequence as Seq
 import qualified Data.Text.IO as T
@@ -198,7 +201,12 @@ g2PluginPass' cmd_lne config env modguts = do
     (imports_nm, import_tnm, injected_exg2) <- setUpImports cmd_lne comp_nm new_tm env ex_g2 prev_explored (comp_name Seq.:<| rel_names)
     let simp_state = initSimpleState injected_exg2 imports_nm import_tnm
 
-    liftIO $ mapM_ (uncurry (runSymexAnnots cmd_lne equiv_annots simp_state)) ann_fs_g2
+    let ord_ann_fs_g2 = orderAnnotations (IT.expr_env simp_state) ann_fs_g2
+    liftIO $ foldM_ (\ea (f, symex) -> do
+                            res <- runSymexAnnots cmd_lne ea simp_state f symex
+                            if res
+                                then return ea
+                                else return $ HM.delete f ea) equiv_annots ord_ann_fs_g2
 
 addName :: TX.Text -> Maybe TX.Text -> NameMap -> (L.Name, NameMap)
 addName occ md nm | Just n <- HM.lookup (occ, md) nm = (n, nm)
@@ -213,20 +221,25 @@ runSymexAnnots :: [CommandLineOption]
                -> SimpleState
                -> L.Name
                -> [SymEx]
-               -> IO ()
-runSymexAnnots cmd_lne equiv_annots simp_state entry =
-    mapM_ (\symex -> do
-        r <- Ex.try (runSymexAnnot cmd_lne equiv_annots simp_state entry symex) :: IO (Either Ex.SomeException ())
-        case r of
-            Left e -> putStrLn $ displayException e
-            Right _ -> return ()
-        )
+               -> IO Bool
+runSymexAnnots cmd_lne equiv_annots simp_state entry symexes = do
+    res <- mapM (\symex -> do
+                r <- Ex.try (runSymexAnnot cmd_lne equiv_annots simp_state entry symex) :: IO (Either Ex.SomeException Bool)
+                case r of
+                    Left e -> do
+                        putStrLn $ displayException e
+                        return False
+                    Right b -> return b
+            ) symexes
+    return $ and res
 
-runSymexAnnot :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> SymEx -> IO ()
-runSymexAnnot cmd_lne _ simp_state entry SymEx =
+runSymexAnnot :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> SymEx -> IO Bool
+runSymexAnnot cmd_lne _ simp_state entry SymEx = do
     runFunc cmd_lne simp_state entry
-runSymexAnnot cmd_lne _ simp_state entry (SymExWithConfig extra_cmd_lne) =
+    return True
+runSymexAnnot cmd_lne _ simp_state entry (SymExWithConfig extra_cmd_lne) = do
     runFunc (cmd_lne ++ words extra_cmd_lne) simp_state entry
+    return True
 
 runSymexAnnot cmd_lne equiv_annots simp_state entry Prop =
     checkProp cmd_lne equiv_annots simp_state entry
@@ -275,7 +288,7 @@ logAcceptedStateTime entryName  = do
     file_exists <- doesFileExist file_name
     when file_exists $ appendFile file_name $ "\n" ++ entryName ++ " : "
 
-checkProp :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> IO ()
+checkProp :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> IO Bool
 checkProp cmd_lne equiv_annots simp_state entry_real = do
         T.putStrLn $ "Checking property " <> nameOcc entry_real
         -- Get a Config to run this specific function
@@ -283,7 +296,7 @@ checkProp cmd_lne equiv_annots simp_state entry_real = do
         func_config <- liftIO . handleParseResult $ execParserPure defaultPrefs (pluginConfig homedir) cmd_lne
         V.checkProp (check_term func_config) (g2_config func_config) equiv_annots simp_state entry_real
 
-checkEquiv :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> String -> IO ()
+checkEquiv :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> String -> IO Bool
 checkEquiv cmd_lne equiv_annots simp_state entry_real entry_smt 
     | Just (entry_smt_name, _) <- E.lookupNameMod (TX.pack entry_smt) (L.nameModule entry_real) (IT.expr_env simp_state) = do
         T.putStrLn $ "Checking " <> nameOcc entry_real <> " and " <> TX.pack entry_smt 
@@ -293,8 +306,18 @@ checkEquiv cmd_lne equiv_annots simp_state entry_real entry_smt
         V.checkEquiv (check_term func_config) (g2_config func_config) equiv_annots simp_state entry_real entry_smt_name
     | otherwise = do
         putStrLn "checkEquiv: functions not found"
-        return ()
+        return False
 
+orderAnnotations :: ExprEnv -> [(L.Name, [SymEx])] -> [(L.Name, [SymEx])]
+orderAnnotations eenv symexes =
+    let
+        cg = getCallGraph eenv
+        
+        in_ord = concat . reverse $ nameLevels cg
+        ord_map = HM.fromList $ zip in_ord [1 :: Int ..]
+        lookup_ind = flip HM.lookup ord_map . fst
+    in
+    sortBy (comparing lookup_ind) symexes
 
 ------------------------------------------------------------------------------
 -- Loading in functions and function annotations

@@ -24,10 +24,10 @@ import qualified Data.Text as T
 
 data TermCheck = DoTermCheck | NoTermCheck deriving Eq
 
-checkEquiv :: TermCheck -> Config -> HM.HashMap Name Id -> SimpleState -> Name -> Name -> IO ()
+checkEquiv :: TermCheck -> Config -> HM.HashMap Name Id -> SimpleState -> Name -> Name -> IO Bool
 checkEquiv = check equivOutput
 
-checkProp :: TermCheck -> Config -> HM.HashMap Name Id -> SimpleState -> Name -> IO ()
+checkProp :: TermCheck -> Config -> HM.HashMap Name Id -> SimpleState -> Name -> IO Bool
 checkProp term_check func_config equiv_annots simp_state@(IT.SimpleState { IT.expr_env = eenv, IT.known_values = kv }) entry_real
     | Just (entry_real_name, real_e) <- E.lookupNameMod (nameOcc entry_real) (L.nameModule entry_real) (IT.expr_env simp_state)
     , let t = L.typeOf TV.empty real_e
@@ -48,9 +48,9 @@ checkProp term_check func_config equiv_annots simp_state@(IT.SimpleState { IT.ex
         check propOutput term_check func_config (HM.insert entry_real_name smt_id equiv_annots) simp_state' entry_real entry_smt
     | otherwise = do
         putStrLn "checkEquiv: functions not found"
-        return ()
+        return False
 
-check :: CheckOutput -> TermCheck -> Config -> HM.HashMap Name Id -> SimpleState -> Name -> Name -> IO ()
+check :: CheckOutput -> TermCheck -> Config -> HM.HashMap Name Id -> SimpleState -> Name -> Name -> IO Bool
 check check_output term_check func_config equiv_annots simp_state entry_real entry_smt_name
     | Just (entry_real_name, real_e) <- E.lookupNameMod (nameOcc entry_real) (nameModule entry_real) (IT.expr_env simp_state) = do
         -- Get a Config to run this specific function
@@ -72,13 +72,15 @@ check check_output term_check func_config equiv_annots simp_state entry_real ent
         
         case term_check == NoTermCheck || checkTermination entry_real_name real_e of
             True -> checkEquivInputOutput check_output func_config' equiv_annots init_state bindings' entry_id real_e entry_smt_name
-            False -> putStrLn $ if_not_proven check_output entry_real_name entry_smt_name
+            False -> do
+                putStrLn $ if_not_proven check_output entry_real_name entry_smt_name
                                     <> ", termination not proven"
+                return False
     | otherwise = do
         putStrLn "checkEquiv: functions not found"
-        return ()
+        return False
 
-checkEquivInputOutput :: CheckOutput -> Config -> HM.HashMap Name Id -> State () -> Bindings -> Id -> Expr -> Name -> IO ()
+checkEquivInputOutput :: CheckOutput -> Config -> HM.HashMap Name Id -> State () -> Bindings -> Id -> Expr -> Name -> IO Bool
 checkEquivInputOutput check_output func_config equiv_annots init_state bindings entry_id@(Id entry_real_name _) real_e entry_smt_name
     | Just (comp_name, comp_e) <- E.lookupNameMod "comp" (Just "G2.Plugin") (expr_env init_state) = do
         let eenv = expr_env init_state
@@ -143,15 +145,20 @@ checkEquivInputOutput check_output func_config equiv_annots init_state bindings 
             runG2WithConfig [] [] (Id func_n TyUnknown) "" [] [nameModule entry_real_name] new_s func_config new_b) smt_call_xs
 
         case (ers, got_unknown) of
-            ([], NoUnknowns) | NoTimeOut <- time_outs -> putStrLn $ if_proven check_output entry_real_name entry_smt_name
-            _ | TimedOut _ <- time_outs -> putStrLn $ if_timeout check_output entry_real_name entry_smt_name
-            _ -> putStrLn $ if_not_proven check_output entry_real_name entry_smt_name
+            ([], NoUnknowns) | NoTimeOut <- time_outs -> do
+                putStrLn $ if_proven check_output entry_real_name entry_smt_name
+                return True
+            _ | TimedOut _ <- time_outs -> do
+                putStrLn $ if_timeout check_output entry_real_name entry_smt_name
+                return False
+            _ -> do
+                putStrLn $ if_not_proven check_output entry_real_name entry_smt_name
                                     <> (if got_unknown == GotUnknown then ", SMT solver returned unknown" else "")
+                return False
 
-        return ()
     | otherwise = do
         putStrLn "checkEquiv: functions not found"
-        return ()
+        return False
 
 replaceVars :: HM.HashMap Name Id -> Expr -> Expr
 replaceVars m = modify go
