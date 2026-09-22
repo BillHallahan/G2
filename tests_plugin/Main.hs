@@ -21,16 +21,16 @@ tests = testGroup "All Tests"
         [ checkG2Package "tests/G2Plugin/Simple" ["f", "g", "recCall"]
         , checkG2PackageEquiv "tests/G2Plugin/MoreSeq"
                                 [ ("g", "gSMT")
-                                , ("h", "hSMT")
-                                , ("badEquiv", "smtBadEquiv") ]
-                                []
+                                , ("h", "hSMT") ]
+                                [ ("badEquiv", "smtBadEquiv") ]
                                 []
                                 ["badEquivProp"]
         , checkG2PackageEquiv "tests/G2Plugin/Strings"
                                 -- Equivalent functions
                                 [
                                   -- Strings
-                                  ("f", "f2")
+                                  ("corr", "smtCorr")
+                                , ("f", "f2")
                                 , ("myApp", "app")
                                 , ("appMult", "smtAppMult")
 
@@ -107,8 +107,7 @@ tests = testGroup "All Tests"
                                 -- Non-equivalent functions
                                 [
                                   -- Strings
-                                  ("corr", "smtCorr")
-                                , ("incorr", "smtIncorr")
+                                  ("incorr", "smtIncorr")
                                 , ("addTwoAll", "smtAddTwoAll")
                                 , ("sumListBad", "smtSumListBad")
                                 , ("myIntersperseBad", "smtMyIntersperseBad")
