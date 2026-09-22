@@ -206,8 +206,9 @@ g2PluginPass' cmd_lne config env modguts = do
     let ord_ann_fs_g2 = orderAnnotations (IT.expr_env simp_state) ann_fs_g2
     liftIO $ foldM_ (\ea (f, symex) -> do
                             (res, time) <- timeInSeconds (runSymexAnnots cmd_lne ea simp_state f symex)
-                            logEquivTime mod_name (TX.unpack $ nameOcc f) (if res then show time else "-")
-                            if res
+                            let res' = case res of r:_ -> r; [] -> V.EOther
+                            logEquivTime mod_name (TX.unpack $ nameOcc f) res' (show time)
+                            if res' == V.EVerified
                                 then return ea
                                 else return $ HM.delete f ea) equiv_annots ord_ann_fs_g2
 
@@ -233,25 +234,24 @@ runSymexAnnots :: [CommandLineOption]
                -> SimpleState
                -> L.Name
                -> [SymEx]
-               -> IO Bool
+               -> IO [V.VerifyRes]
 runSymexAnnots cmd_lne equiv_annots simp_state entry symexes = do
-    res <- mapM (\symex -> do
-                r <- Ex.try (runSymexAnnot cmd_lne equiv_annots simp_state entry symex) :: IO (Either Ex.SomeException Bool)
+    mapM (\symex -> do
+                r <- Ex.try (runSymexAnnot cmd_lne equiv_annots simp_state entry symex) :: IO (Either Ex.SomeException V.VerifyRes)
                 case r of
                     Left e -> do
                         putStrLn $ displayException e
-                        return False
+                        return V.EOther
                     Right b -> return b
             ) symexes
-    return $ and res
 
-runSymexAnnot :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> SymEx -> IO Bool
+runSymexAnnot :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> SymEx -> IO V.VerifyRes
 runSymexAnnot cmd_lne _ simp_state entry SymEx = do
     runFunc cmd_lne simp_state entry
-    return True
+    return V.EOther
 runSymexAnnot cmd_lne _ simp_state entry (SymExWithConfig extra_cmd_lne) = do
     runFunc (cmd_lne ++ words extra_cmd_lne) simp_state entry
-    return True
+    return V.EOther
 
 runSymexAnnot cmd_lne equiv_annots simp_state entry Prop =
     checkProp cmd_lne equiv_annots simp_state entry
@@ -300,7 +300,7 @@ logAcceptedStateTime entryName  = do
     file_exists <- doesFileExist file_name
     when file_exists $ appendFile file_name $ "\n" ++ entryName ++ " : "
 
-checkProp :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> IO Bool
+checkProp :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> IO V.VerifyRes
 checkProp cmd_lne equiv_annots simp_state entry_real = do
         T.putStrLn $ "Checking property " <> nameOcc entry_real
         -- Get a Config to run this specific function
@@ -308,7 +308,7 @@ checkProp cmd_lne equiv_annots simp_state entry_real = do
         func_config <- liftIO . handleParseResult $ execParserPure defaultPrefs (pluginConfig homedir) cmd_lne
         V.checkProp (check_term func_config) (g2_config func_config) equiv_annots simp_state entry_real
 
-checkEquiv :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> String -> IO Bool
+checkEquiv :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> String -> IO V.VerifyRes
 checkEquiv cmd_lne equiv_annots simp_state entry_real entry_smt 
     | Just (entry_smt_name, _) <- E.lookupNameMod (TX.pack entry_smt) (L.nameModule entry_real) (IT.expr_env simp_state) = do
         T.putStrLn $ "Checking " <> nameOcc entry_real <> " and " <> TX.pack entry_smt 
@@ -318,7 +318,7 @@ checkEquiv cmd_lne equiv_annots simp_state entry_real entry_smt
         V.checkEquiv (check_term func_config) (g2_config func_config) equiv_annots simp_state entry_real entry_smt_name
     | otherwise = do
         putStrLn "checkEquiv: functions not found"
-        return False
+        return V.EOther
 
 orderAnnotations :: ExprEnv -> [(L.Name, [SymEx])] -> [(L.Name, [SymEx])]
 orderAnnotations eenv symexes =
@@ -331,14 +331,15 @@ orderAnnotations eenv symexes =
     in
     sortBy (comparing lookup_ind) symexes
 
-logEquivTime :: String -> String -> String -> IO ()
-logEquivTime mod_name entry time = do
+logEquivTime :: String -> String -> V.VerifyRes -> String -> IO ()
+logEquivTime mod_name entry ver_res time = do
     dir_exists <- doesDirectoryExist "logs"
     when dir_exists $ do
         let file_name = "logs/" ++ mod_name ++ "_times.txt"
         file_exists <- doesFileExist file_name
         unless file_exists (writeFile file_name "")
-        appendFile file_name $ "\n" ++ entry ++ "," ++ show time
+        let show_time = if ver_res == V.EVerified || ver_res == V.ECounterexample then time else "-"
+        appendFile file_name $ "\n" ++ entry ++ "," ++ show ver_res ++ "," ++ show_time
 
 ------------------------------------------------------------------------------
 -- Loading in functions and function annotations
