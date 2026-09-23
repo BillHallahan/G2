@@ -22,19 +22,25 @@ tests = testGroup "All Tests"
         , checkG2PackageEquiv "tests/G2Plugin/MoreSeq"
                                 [ ("g", "gSMT")
                                 , ("h", "hSMT") ]
+                                [ ("badEquiv", "smtBadEquiv")
+                                , ("headFalse", "headFalseSMT") ]
                                 []
-                                []
-                                []
+                                ["badEquivProp"]
         , checkG2PackageEquiv "tests/G2Plugin/Strings"
                                 -- Equivalent functions
                                 [
                                   -- Strings
-                                  ("f", "f2")
+                                  ("corr", "smtCorr")
+                                , ("f", "f2")
                                 , ("myApp", "app")
                                 , ("appMult", "smtAppMult")
 
+                                , ("addOneAll", "smtAddOneAll")
+                                , ("addOneAllCVC5", "smtAddOneAllCVC5")
+
                                 , ("sumList", "smtSumList")
                                 , ("sumList2", "smtSumList2")
+                                , ("sumListCVC5", "smtSumListCVC5")
 
                                 , ("myIntersperse", "smtMyIntersperse")
                                 , ("myIntersperse2", "smtMyIntersperse2")
@@ -102,8 +108,7 @@ tests = testGroup "All Tests"
                                 -- Non-equivalent functions
                                 [
                                   -- Strings
-                                  ("corr", "smtCorr")
-                                , ("incorr", "smtIncorr")
+                                  ("incorr", "smtIncorr")
                                 , ("addTwoAll", "smtAddTwoAll")
                                 , ("sumListBad", "smtSumListBad")
                                 , ("myIntersperseBad", "smtMyIntersperseBad")

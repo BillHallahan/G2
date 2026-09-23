@@ -43,7 +43,7 @@ smtPairA :: [A] -> [(A, A)]
 smtPairA xs = exists (\ys -> xs `smtEq` smtMap fst ys
                           && smtFoldLeft (\acc y -> acc && snd y == A) True ys)
 
-{-# ANN concatA (SMTEquivIsWithConfig "smtConcatA" "--smt cvc5 --print-smt")
+{-# ANN concatA (SMTEquivIsWithConfig "smtConcatA" "--smt cvc5")
     #-}
 concatA :: [(A, A)] -> [(A, A)] -> [(A, A)]
 concatA [] ys = ys

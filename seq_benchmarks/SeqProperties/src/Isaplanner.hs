@@ -36,7 +36,7 @@ import Prelude
 import G2.Plugin
 import G2.Plugin.Unsafe
 
-{-# ANN module ("--smt-tuples --higher-order uninterpreted --smt cvc5,z3 --time 90")
+{-# ANN module ("--smt-tuples --higher-order uninterpreted --time 300")
     #-}
 
 -- code here adapted from HipSpec.hs
@@ -264,12 +264,17 @@ lastSMT xs =
     then 0
     else smtNth xs $ smtLen xs - 1
 
--- {-# ANN sorted (SMTEquivIs "sortedSMT") #-}
+{-# ANN sorted (SMTEquivIsWithConfig "sortedSMT" "--no-term-check")
+  #-}
 sorted :: [Nat] -> Bool
 sorted [] = True
 sorted [x] = True
 sorted (x:y:ys) = (x <= y) && sorted (y:ys)
 
+sortedSMT :: [Nat] -> Bool
+sortedSMT xs = xs == sortSMT xs
+
+{-# ANN insort (SMTEquivIs "insortSMT") #-}
 insort :: Nat -> [Nat] -> [Nat]
 insort n [] = [n]
 insort n (x:xs) =
@@ -277,12 +282,27 @@ insort n (x:xs) =
     True -> n : x : xs
     _ -> x : (insort n xs)
 
+insortSMT :: Nat -> [Nat] -> [Nat]
+insortSMT n xs =
+    let
+        pre_xs = takeWhileSMT (\x -> not (n <= x)) xs
+    in
+    pre_xs $++ [n] $++ dropSMT (smtLen pre_xs) xs
+
+{-# ANN ins (SMTEquivIs "insSMT") #-}
 ins :: Nat -> [Nat] -> [Nat]
 ins n [] = [n]
 ins n (x:xs) =
   case n < x of
     True -> n : x : xs
     _ -> x : (ins n xs)
+
+insSMT :: Nat -> [Nat] -> [Nat]
+insSMT n xs =
+    let
+        pre_xs = takeWhileSMT (\x -> not (n < x)) xs
+    in
+    pre_xs $++ [n] $++ dropSMT (smtLen pre_xs) xs
 
 {-# ANN ins1 (SMTEquivIs "ins1SMT") #-}
 ins1 :: Nat -> [Nat] -> [Nat]
@@ -298,9 +318,13 @@ ins1SMT n xs =
     then xs
     else xs $++ [n]
 
+{-# ANN sort (SMTEquivIs "sortSMT") #-}
 sort :: [Nat] -> [Nat]
 sort [] = []
 sort (x:xs) = insort x (sort xs)
+
+sortSMT :: [Nat] -> [Nat]
+sortSMT = smtFoldLeft (\acc x -> insortSMT x acc) []
 
 butlastConcat :: [Nat] -> [Nat] -> [Nat]
 butlastConcat xs [] = butlast xs
@@ -413,7 +437,7 @@ prop_18 i m
 
 {-# ANN prop_19 Prop #-}
 prop_19 :: Nat -> [Nat] -> Bool
-prop_19 n xs = (len (drop n xs) =:= if n <= len xs then len xs - n else 0)
+prop_19 n xs = (len (drop n xs) =:= if n <= len xs then len xs - (max 0 n) else 0)
 
 {-# ANN prop_19_false Prop #-}
 prop_19_false :: Nat -> [Nat] -> Bool
@@ -529,9 +553,9 @@ prop_42 n x xs
   | n >= 1 = (take n (x:xs) =:= x : (take (n - 1) xs))
   | otherwise = True
 
-{-# ANN prop_42_bad Prop #-}
-prop_42_bad :: Nat -> Nat -> [Nat] -> Bool
-prop_42_bad n x xs
+{-# ANN prop_42_false Prop #-}
+prop_42_false :: Nat -> Nat -> [Nat] -> Bool
+prop_42_false n x xs
   = (take n (x:xs) =:= x : (take (n - 1) xs))
 
 {-# ANN prop_43 Prop #-}

@@ -26,7 +26,7 @@ module G2.Solver.SMT2 ( Z3StringSolver (..)
 
 import G2.Config.Config
 import G2.Language.ArbValueGen
-import G2.Language (Expr (..), Primitive (..), Type (..), Id (..), Name (..), LamUse (..))
+import G2.Language (Expr (..), Primitive (..), Type (..), Id (..), Name (..), LamUse (..), TyVarEnv, typeOf)
 import G2.Language.AST
 import G2.Language.Expr
 import qualified G2.Language.PathConds as PC
@@ -74,8 +74,8 @@ data SomeSMTSolver where
                    . SMTConverter con => con -> SomeSMTSolver
 
 instance Solver Z3 where
-    check solver s pc = checkConstraintsPC (known_values s) (tyvar_env s) (type_env s) solver (elimReverse s pc)
-    solve con@(Z3 _ _ avf _) s b is pcs = checkModelPC avf con s b is (elimReverse s pcs)
+    check solver s pc = checkConstraintsPC (known_values s) (tyvar_env s) (type_env s) solver [] (elimReverse s pc)
+    solve con@(Z3 _ _ avf _) s b is pcs = checkModelPC avf con s b is [] (elimReverse s pcs)
     close = closeIO
 
 -- | Convert StrReverse into a FoldLeft (for Z3)
@@ -112,26 +112,33 @@ elimReverse (State { type_env = tenv, known_values = kv }) = PC.mapHashedPCs adj
 instance Solver CVC5 where
     check solver s pc 
         | containsZ3Only pc = return (Unknown "Z3 Only" ())
-        | otherwise = checkConstraintsPC (known_values s) (tyvar_env s) (type_env s) solver pc
+        | otherwise = checkConstraintsPC (known_values s) (tyvar_env s) (type_env s) solver (requiredSeqFuncs (tyvar_env s) pc) pc
     solve con@(CVC5 _ avf _) s b is pcs
         | containsZ3Only pcs = return (Unknown "Z3 Only" ())
-        | otherwise = checkModelPC avf con s b is pcs
+        | otherwise = checkModelPC avf con s b is (requiredSeqFuncs (tyvar_env s) pcs) pcs
     close = closeIO
 
 containsZ3Only :: PC.PathConds -> Bool
 containsZ3Only = getAny . evalASTs go
     where
-        go (Prim Map _) = Any True
         go (Prim MapConcat _) = Any True
         go (Prim MapConcatI _) = Any True
-        go (Prim FoldLeft _) = Any True
         go (Prim FoldLeftI _) = Any True
-        go (Lam _ _ _) = Any True
         go _ = Any False
 
+requiredSeqFuncs :: TyVarEnv -> PC.PathConds -> [GenSeqFunc]
+requiredSeqFuncs tv_env = HS.toList . evalASTs go
+    where
+        go e
+            | [Prim Map _, e1] <- unApp e
+            , TyFun t1 t2 <- typeOf tv_env e1 = HS.singleton $ GenMap t1 t2
+            | [Prim FoldLeft _, e1] <- unApp e
+            , TyFun t1 (TyFun t2 _) <- typeOf tv_env e1 = HS.singleton $ GenFold t1 t2
+            | otherwise = HS.empty
+
 instance Solver Ostrich where
-    check solver s pc = checkConstraintsPC (known_values s) (tyvar_env s) (type_env s) solver pc
-    solve con@(Ostrich _ avf _) = checkModelPC avf con
+    check solver s pc = checkConstraintsPC (known_values s) (tyvar_env s) (type_env s) solver [] pc
+    solve con@(Ostrich _ avf _) s b is = checkModelPC avf con s b is []
     close = closeIO
 
 instance SMTConverter Z3 where
@@ -192,15 +199,15 @@ instance SMTConverter Z3 where
         let (h_in, _, _) = getIO con
         T.hPutStrLn h_in "(set-option :produce-unsat-cores true)"
 
-    addFormula = stdAddFormula toSolverASTSeq
+    addFormula = stdAddFormula toSolverASTSeqZ3
 
-    checkSatNoReset = stdCheckSatNoReset toSolverASTSeq
+    checkSatNoReset = stdCheckSatNoReset toSolverASTSeqZ3
 
     checkSatGetModel con@(Z3 _ print_smt_ _ _) formula vs = do
         let (h_in, h_out, _) = getIO con
         reset con
-        when print_smt_ $ T.putStrLn (tbToText $ toSolverText toSolverASTSeq formula)
-        T.hPutStr h_in (tbToText $ toSolverText toSolverASTSeq formula)
+        when print_smt_ $ T.putStrLn (tbToText $ toSolverText toSolverASTSeqZ3 formula)
+        T.hPutStr h_in (tbToText $ toSolverText toSolverASTSeqZ3 formula)
 
         r <- checkSat' print_smt_ h_in h_out
         when print_smt_ (putStrLn $ show r)
@@ -216,7 +223,7 @@ instance SMTConverter Z3 where
 
     checkSatGetModelOrUnsatCoreNoReset con@(Z3 _ print_smt_ _ _) formula vs = do
         let (h_in, h_out, _) = getIO con
-        let formula' = tbToText $ toSolverText toSolverASTSeq formula
+        let formula' = tbToText $ toSolverText toSolverASTSeqZ3 formula
         T.putStrLn "\n\n checkSatGetModelOrUnsatCore"
         T.putStrLn formula'
 
@@ -256,6 +263,17 @@ instance SMTConverter CVC5 where
         when print_smt_ $ putStrLn "(reset)"
         T.hPutStr h_in "(reset)"
 
+    setLogic _ (_:_) xs = SetLogic HO_ALL:xs
+    setLogic _ _ xs
+        | containsLam xs = SetLogic HO_ALL:xs
+        | otherwise = addSetLogic xs
+        where
+            containsLam = getAny . evalASTs go
+                where
+                    go (LambdaSMT _ _) = Any True
+                    go _ = Any False
+
+
     checkSatInstr con = do
         let (h_in, _, _) = getIO con
         T.hPutStrLn h_in "(check-sat)"
@@ -284,15 +302,15 @@ instance SMTConverter CVC5 where
 
     setProduceUnsatCores _ = return ()
 
-    addFormula = stdAddFormula toSolverASTSeq
+    addFormula = stdAddFormula toSolverASTSeqCVC5
 
-    checkSatNoReset = stdCheckSatNoReset toSolverASTSeq
+    checkSatNoReset = stdCheckSatNoReset toSolverASTSeqCVC5
 
     checkSatGetModel con@(CVC5 print_smt_ _ _) formula vs = do
         let (h_in, h_out, _) = getIO con
         reset con
-        when print_smt_ $ T.putStrLn (tbToText $ toSolverText toSolverASTSeq formula)
-        T.hPutStr h_in (tbToText $ toSolverText toSolverASTSeq formula)
+        when print_smt_ $ T.putStrLn (tbToText $ toSolverText toSolverASTSeqCVC5 formula)
+        T.hPutStr h_in (tbToText $ toSolverText toSolverASTSeqCVC5 formula)
         r <- checkSat' print_smt_ h_in h_out
         when print_smt_ (putStrLn $ show r)
         case r of
@@ -310,7 +328,7 @@ instance SMTConverter CVC5 where
 
     checkSatGetModelOrUnsatCoreNoReset con@(CVC5 print_smt_ _ _) formula vs = do
         let (h_in, h_out, _) = getIO con
-        let formula' = tbToText $ toSolverText toSolverASTSeq formula
+        let formula' = tbToText $ toSolverText toSolverASTSeqCVC5 formula
         T.putStrLn "\n\n checkSatGetModelOrUnsatCore"
         T.putStrLn formula'
 

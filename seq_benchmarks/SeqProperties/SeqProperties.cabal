@@ -21,6 +21,7 @@ library
                      DefinitionsFalse
                    , EquivFalse
                    , Isaplanner
+                   , ListMonad
                    , Prod
     -- other-modules:
     -- other-extensions:

@@ -13,7 +13,7 @@ import Prelude ((>=), mod)
 import G2.Plugin hiding ((==>))
 import G2.Plugin.Unsafe
 
-{-# ANN module ("--smt-tuples --higher-order uninterpreted --smt cvc5,z3 --time 90")
+{-# ANN module ("--smt-tuples --higher-order uninterpreted --time 300")
     #-}
 
 -- code here adapted from HipSpec.hs
@@ -214,9 +214,13 @@ elem n (x:xs) = (n == x) || elem n xs
 elemSMT :: Nat -> [Nat] -> Bool
 elemSMT n xs = smtContains xs [n]
 
+{-# ANN subset (SMTEquivIs "subsetSMT") #-}
 subset :: [Nat] -> [Nat] -> Bool
 subset []     ys = True
 subset (x:xs) ys = x `elem` ys && subset xs ys
+
+subsetSMT :: [Nat] -> [Nat] -> Bool
+subsetSMT xs ys = smtAll (\x -> smtContains ys [x]) xs
 
 {-# ANN intersect (SMTEquivIs "intersectSMT") #-}
 intersect :: [Nat] -> [Nat] -> [Nat]
@@ -236,16 +240,38 @@ union [] ys = ys
 unionSMT :: [Nat] -> [Nat] -> [Nat]
 unionSMT xs ys = smtFoldLeft (\acc x -> if smtContains ys [x] then acc else acc $++ [x]) [] xs $++ ys
 
+{-# ANN isort (SMTEquivIs "isortSMT") #-}
 isort :: [Nat] -> [Nat]
 isort [] = []
 isort (x:xs) = insert x (isort xs)
 
+isortSMT :: [Nat] -> [Nat]
+isortSMT = smtFoldLeft (\acc x -> insertSMT x acc) []
+
+{-# ANN insert (SMTEquivIs "insertSMT") #-}
 insert :: Nat -> [Nat] -> [Nat]
 insert n [] = [n]
 insert n (x:xs) =
   case n <= x of
     True -> n : x : xs
     False -> x : (insert n xs)
+
+insertSMT :: Nat -> [Nat] -> [Nat]
+insertSMT n xs =
+    let
+        pre_xs = takeWhileSMT (\x -> not (n <= x)) xs
+    in
+    pre_xs $++ [n] $++ dropSMT (smtLen pre_xs) xs
+
+takeWhileSMT :: (Nat -> Bool) -> [Nat] -> [Nat]
+takeWhileSMT p xs =
+    let
+        bs = smtMap p xs
+        n = smtIndexOf bs [False] 0
+    in
+    case n of
+        -1 -> xs
+        _ -> smtExtract xs 0 n
 
 {-# ANN count (SMTEquivIs "countSMT") #-}
 count :: Nat -> [Nat] -> Nat
@@ -256,9 +282,15 @@ count n [] = 0
 countSMT :: Nat -> [Nat] -> Nat
 countSMT e xs = (smtLen xs) - (smtLen (smtReplaceAll xs [e] []))
 
+{-# ANN sorted (SMTEquivIs "sortedSMT") #-}
 sorted :: [Nat] -> Bool
 sorted (x:y:xs) = (x <= y) && sorted (y:xs)
 sorted _        = True
+
+{-# ANN sorted (SMTEquivIsWithConfig "sortedSMT" "--no-term-check")
+  #-}
+sortedSMT :: [Nat] -> Bool
+sortedSMT xs = xs == isortSMT xs
 
 -- end Definitions
 
@@ -284,9 +316,9 @@ prop_L04 w x y zs
   | w >= 0, x >= 0 = drop (w + 1) (drop x (y:zs)) === drop w (drop x zs)
   | otherwise = True
 
-{-# ANN prop_L04_bad Prop #-}
-prop_L04_bad :: Eq a => Nat -> Nat -> a -> [a] -> Bool
-prop_L04_bad w x y zs =
+{-# ANN prop_L04_false Prop #-}
+prop_L04_false :: Eq a => Nat -> Nat -> a -> [a] -> Bool
+prop_L04_false w x y zs =
   drop (w + 1) (drop x (y:zs)) === drop w (drop x zs)
 
 {-# ANN prop_L05 Prop #-}
@@ -295,9 +327,9 @@ prop_L05 v w x y zs
   | v >= 0, w >= 0 = drop (v + 1) (drop (w + 1) (x : (y : zs))) === drop (v + 1) (drop w (x : zs))
   | otherwise = True
 
-{-# ANN prop_L05_bad Prop #-}
-prop_L05_bad :: Eq a => Nat -> Nat -> a -> a -> [a] -> Bool
-prop_L05_bad v w x y zs =
+{-# ANN prop_L05_false Prop #-}
+prop_L05_false :: Eq a => Nat -> Nat -> a -> a -> [a] -> Bool
+prop_L05_false v w x y zs =
   drop (v + 1) (drop (w + 1) (x : (y : zs))) === drop (v + 1) (drop w (x : zs))
 
 {-# ANN prop_L06 Prop #-}
@@ -306,9 +338,9 @@ prop_L06 v w x y z
   | v >= 0, w >= 0, x >= 0 = drop (v + 1) (drop w (drop x (y:z))) === drop v (drop w (drop x z))
   | otherwise = True
 
-{-# ANN prop_L06_bad Prop #-}
-prop_L06_bad :: Eq a => Nat -> Nat -> Nat -> a -> [a] -> Bool
-prop_L06_bad v w x y z =
+{-# ANN prop_L06_false Prop #-}
+prop_L06_false :: Eq a => Nat -> Nat -> Nat -> a -> [a] -> Bool
+prop_L06_false v w x y z =
   drop (v + 1) (drop w (drop x (y:z))) === drop v (drop w (drop x z))
 
 {-# ANN prop_L07 Prop #-}
@@ -319,9 +351,9 @@ prop_L07 u v w x y z
     drop (u + 1) (drop v (drop w (x:z)))
   | otherwise = True
 
-{-# ANN prop_L07_bad Prop #-}
-prop_L07_bad :: Eq a => Nat -> Nat -> Nat -> a -> a -> [a] -> Bool
-prop_L07_bad u v w x y z =
+{-# ANN prop_L07_false Prop #-}
+prop_L07_false :: Eq a => Nat -> Nat -> Nat -> a -> a -> [a] -> Bool
+prop_L07_false u v w x y z =
   drop (u + 1) (drop v (drop (w + 1) (x : (y : z)))) ===
   drop (u + 1) (drop v (drop w (x:z)))
 
