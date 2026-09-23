@@ -161,7 +161,7 @@ install cmd_lne todo = do
 g2PluginPass :: [CommandLineOption] -> ModGuts -> CoreM ModGuts
 g2PluginPass cmd_lne modguts = do
     glob_cmd_lne <- getModuleAnnot modguts
-    let cmd_lne' = cmd_lne ++ concatMap words glob_cmd_lne
+    let cmd_lne' = concatMap words cmd_lne ++ concatMap words glob_cmd_lne
 
     env <- getHscEnv
     homedir <- liftIO $ getHomeDirectory
@@ -207,7 +207,7 @@ g2PluginPass' cmd_lne config env modguts = do
     liftIO $ foldM_ (\ea (f, symex) -> do
                             (res, time) <- timeInSeconds (runSymexAnnots cmd_lne ea simp_state f symex)
                             let res' = case res of r:_ -> r; [] -> V.EOther
-                            logEquivTime mod_name (TX.unpack $ nameOcc f) res' (show time)
+                            logEquivTime (logs_folder config) mod_name (TX.unpack $ nameOcc f) res' (show time)
                             if res' == V.EVerified
                                 then return ea
                                 else return $ HM.delete f ea) equiv_annots ord_ann_fs_g2
@@ -331,15 +331,17 @@ orderAnnotations eenv symexes =
     in
     sortBy (comparing lookup_ind) symexes
 
-logEquivTime :: String -> String -> V.VerifyRes -> String -> IO ()
-logEquivTime mod_name entry ver_res time = do
-    dir_exists <- doesDirectoryExist "logs"
-    when dir_exists $ do
-        let file_name = "logs/" ++ mod_name ++ "_times.txt"
-        file_exists <- doesFileExist file_name
-        unless file_exists (writeFile file_name "")
-        let show_time = if ver_res == V.EVerified || ver_res == V.ECounterexample then time else "-"
-        appendFile file_name $ "\n" ++ entry ++ "," ++ show ver_res ++ "," ++ show_time
+logEquivTime :: Maybe FilePath -> String -> String -> V.VerifyRes -> String -> IO ()
+logEquivTime (Just log_folder) mod_name entry ver_res time = do
+    dir_exists <- doesDirectoryExist log_folder
+    unless dir_exists (createDirectory log_folder)
+
+    let file_name = log_folder ++ "/" ++ mod_name ++ "_times.txt"
+    file_exists <- doesFileExist file_name
+    unless file_exists (writeFile file_name "")
+    let show_time = if ver_res == V.EVerified || ver_res == V.ECounterexample then time else "-"
+    appendFile file_name $ "\n" ++ entry ++ "," ++ show ver_res ++ "," ++ show_time
+logEquivTime _ _ _ _ _ = return ()
 
 ------------------------------------------------------------------------------
 -- Loading in functions and function annotations
@@ -748,12 +750,17 @@ comp real_def smt_def =
 -- Configs
 ------------------------------------------------------------------------------
 
-data PluginConfig = PluginConfig { check_term :: V.TermCheck, g2_config :: Config }
+data PluginConfig = PluginConfig { logs_folder :: Maybe FilePath, check_term :: V.TermCheck, g2_config :: Config }
 
 pluginConfig :: String -> ParserInfo PluginConfig
 pluginConfig homedir =
     info ((PluginConfig
-                <$> flag V.DoTermCheck V.NoTermCheck (long "no-term-check" <> help "Do not check termination")
+                <$> option (maybeReader (Just . Just))
+                    (long "logs-folder"
+                        <> metavar "F"
+                        <> value Nothing
+                        <> help "folder to store logs in")
+                <*> flag V.DoTermCheck V.NoTermCheck (long "no-term-check" <> help "Do not check termination")
                 <*> mkConfig homedir) <**> helper)
           ( fullDesc
           <> progDesc "G2 Symbolic Execution Plugin"
