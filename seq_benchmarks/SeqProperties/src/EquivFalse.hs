@@ -31,7 +31,7 @@ import Prelude
 import G2.Plugin
 import G2.Plugin.Unsafe
 
-{-# ANN module ("--smt-tuples --higher-order uninterpreted --smt cvc5,z3 --time 90")
+{-# ANN module ("--smt-tuples --higher-order uninterpreted --time 300")
     #-}
 
 type Nat = Int
@@ -192,9 +192,11 @@ dropWhileSMT :: (Nat -> Bool) -> [Nat] -> [Nat]
 dropWhileSMT p xs =
     let
         bs = smtMap p xs
-        n = smtIndexOf bs [False] 0
+        n = smtIndexOf bs [True] 0
     in
-    smtExtract xs n (smtLen xs - n)
+    case n of
+        -1 -> []
+        _ -> smtExtract xs n (smtLen xs - n)
 
 {-# ANN filter (SMTEquivIs "filterSMT") #-}
 filter :: (Nat -> Bool) -> [Nat] -> [Nat]
@@ -287,9 +289,8 @@ elem :: Nat -> [Nat] -> Bool
 elem _ []     = False
 elem n (x:xs) = (n == x) || elem n xs
 
--- Still a correct specification
 elemSMT :: Nat -> [Nat] -> Bool
-elemSMT n xs = smtContains xs [n]
+elemSMT n xs = smtContains [n] xs
 
 {-# ANN intersect (SMTEquivIs "intersectSMT") #-}
 intersect :: [Nat] -> [Nat] -> [Nat]

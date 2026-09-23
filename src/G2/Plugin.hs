@@ -76,6 +76,7 @@ import G2.Execution.FuncConstraints
 import G2.Initialization.MkCurrExpr
 import G2.Interface
 import G2.Initialization.Types as IT
+import G2.Language.CallGraph
 import G2.Language as L
 import qualified G2.Language.ExprEnv as E
 import G2.Plugin.Prim
@@ -89,11 +90,13 @@ import qualified Data.Foldable as F
 import GHC.Generics (Generic)
 import Control.DeepSeq
 import Data.IORef
+import Data.List as L
 import System.IO.Unsafe
 import System.Directory
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import Data.Maybe
+import Data.Ord
 import qualified Data.Set as S
 import qualified Data.Sequence as Seq
 import qualified Data.Text.IO as T
@@ -158,7 +161,7 @@ install cmd_lne todo = do
 g2PluginPass :: [CommandLineOption] -> ModGuts -> CoreM ModGuts
 g2PluginPass cmd_lne modguts = do
     glob_cmd_lne <- getModuleAnnot modguts
-    let cmd_lne' = cmd_lne ++ concatMap words glob_cmd_lne
+    let cmd_lne' = concatMap words cmd_lne ++ concatMap words glob_cmd_lne
 
     env <- getHscEnv
     homedir <- liftIO $ getHomeDirectory
@@ -198,11 +201,29 @@ g2PluginPass' cmd_lne config env modguts = do
     (imports_nm, import_tnm, injected_exg2) <- setUpImports cmd_lne comp_nm new_tm env ex_g2 prev_explored (comp_name Seq.:<| rel_names)
     let simp_state = initSimpleState injected_exg2 imports_nm import_tnm
 
-    liftIO $ mapM_ (uncurry (runSymexAnnots cmd_lne equiv_annots simp_state)) ann_fs_g2
+    let mod_name = unpackFS . moduleNameFS . moduleName $ mg_module modguts
+
+    let ord_ann_fs_g2 = orderAnnotations (IT.expr_env simp_state) ann_fs_g2
+    liftIO $ foldM_ (\ea (f, symex) -> do
+                            (res, time) <- timeInSeconds (runSymexAnnots cmd_lne ea simp_state f symex)
+                            let res' = case res of r:_ -> r; [] -> V.EOther
+                            logEquivTime (logs_folder config) mod_name (TX.unpack $ nameOcc f) res' (show time)
+                            if res' == V.EVerified
+                                then return ea
+                                else return $ HM.delete f ea) equiv_annots ord_ann_fs_g2
 
 addName :: TX.Text -> Maybe TX.Text -> NameMap -> (L.Name, NameMap)
 addName occ md nm | Just n <- HM.lookup (occ, md) nm = (n, nm)
                   | otherwise = (Name occ md 0 Nothing, HM.insert (occ, md) (Name occ md 0 Nothing) nm)
+
+timeInSeconds :: IO b -> IO (b, Double)
+timeInSeconds io_action = do
+    init_time <- getTime Realtime
+    res <- io_action
+    end_time <- getTime Realtime
+    let diff = diffTimeSpec end_time init_time
+        diff_secs = (fromInteger (toNanoSecs diff)) / (10 ^ (9 :: Int) :: Double)
+    return (res, diff_secs)
 
 ------------------------------------------------------------------------------
 -- Run Symbolic Execution
@@ -213,20 +234,24 @@ runSymexAnnots :: [CommandLineOption]
                -> SimpleState
                -> L.Name
                -> [SymEx]
-               -> IO ()
-runSymexAnnots cmd_lne equiv_annots simp_state entry =
-    mapM_ (\symex -> do
-        r <- Ex.try (runSymexAnnot cmd_lne equiv_annots simp_state entry symex) :: IO (Either Ex.SomeException ())
-        case r of
-            Left e -> putStrLn $ displayException e
-            Right _ -> return ()
-        )
+               -> IO [V.VerifyRes]
+runSymexAnnots cmd_lne equiv_annots simp_state entry symexes = do
+    mapM (\symex -> do
+                r <- Ex.try (runSymexAnnot cmd_lne equiv_annots simp_state entry symex) :: IO (Either Ex.SomeException V.VerifyRes)
+                case r of
+                    Left e -> do
+                        putStrLn $ displayException e
+                        return V.EOther
+                    Right b -> return b
+            ) symexes
 
-runSymexAnnot :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> SymEx -> IO ()
-runSymexAnnot cmd_lne _ simp_state entry SymEx =
+runSymexAnnot :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> SymEx -> IO V.VerifyRes
+runSymexAnnot cmd_lne _ simp_state entry SymEx = do
     runFunc cmd_lne simp_state entry
-runSymexAnnot cmd_lne _ simp_state entry (SymExWithConfig extra_cmd_lne) =
+    return V.EOther
+runSymexAnnot cmd_lne _ simp_state entry (SymExWithConfig extra_cmd_lne) = do
     runFunc (cmd_lne ++ words extra_cmd_lne) simp_state entry
+    return V.EOther
 
 runSymexAnnot cmd_lne equiv_annots simp_state entry Prop =
     checkProp cmd_lne equiv_annots simp_state entry
@@ -275,7 +300,7 @@ logAcceptedStateTime entryName  = do
     file_exists <- doesFileExist file_name
     when file_exists $ appendFile file_name $ "\n" ++ entryName ++ " : "
 
-checkProp :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> IO ()
+checkProp :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> IO V.VerifyRes
 checkProp cmd_lne equiv_annots simp_state entry_real = do
         T.putStrLn $ "Checking property " <> nameOcc entry_real
         -- Get a Config to run this specific function
@@ -283,7 +308,7 @@ checkProp cmd_lne equiv_annots simp_state entry_real = do
         func_config <- liftIO . handleParseResult $ execParserPure defaultPrefs (pluginConfig homedir) cmd_lne
         V.checkProp (check_term func_config) (g2_config func_config) equiv_annots simp_state entry_real
 
-checkEquiv :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> String -> IO ()
+checkEquiv :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> String -> IO V.VerifyRes
 checkEquiv cmd_lne equiv_annots simp_state entry_real entry_smt 
     | Just (entry_smt_name, _) <- E.lookupNameMod (TX.pack entry_smt) (L.nameModule entry_real) (IT.expr_env simp_state) = do
         T.putStrLn $ "Checking " <> nameOcc entry_real <> " and " <> TX.pack entry_smt 
@@ -293,8 +318,30 @@ checkEquiv cmd_lne equiv_annots simp_state entry_real entry_smt
         V.checkEquiv (check_term func_config) (g2_config func_config) equiv_annots simp_state entry_real entry_smt_name
     | otherwise = do
         putStrLn "checkEquiv: functions not found"
-        return ()
+        return V.EOther
 
+orderAnnotations :: ExprEnv -> [(L.Name, [SymEx])] -> [(L.Name, [SymEx])]
+orderAnnotations eenv symexes =
+    let
+        cg = getCallGraph $ E.filterWithKey (\k _ -> k `elem` map fst symexes)  eenv
+        
+        in_ord = concat $ bottomUpNameLevels cg
+        ord_map = HM.fromList $ zip in_ord [1 :: Int ..]
+        lookup_ind = flip HM.lookup ord_map . fst
+    in
+    sortBy (comparing lookup_ind) symexes
+
+logEquivTime :: Maybe FilePath -> String -> String -> V.VerifyRes -> String -> IO ()
+logEquivTime (Just log_folder) mod_name entry ver_res time = do
+    dir_exists <- doesDirectoryExist log_folder
+    unless dir_exists (createDirectory log_folder)
+
+    let file_name = log_folder ++ "/" ++ mod_name ++ "_times.txt"
+    file_exists <- doesFileExist file_name
+    unless file_exists (writeFile file_name "")
+    let show_time = if ver_res == V.EVerified || ver_res == V.ECounterexample then time else "-"
+    appendFile file_name $ "\n" ++ entry ++ "," ++ show ver_res ++ "," ++ show_time
+logEquivTime _ _ _ _ _ = return ()
 
 ------------------------------------------------------------------------------
 -- Loading in functions and function annotations
@@ -703,12 +750,17 @@ comp real_def smt_def =
 -- Configs
 ------------------------------------------------------------------------------
 
-data PluginConfig = PluginConfig { check_term :: V.TermCheck, g2_config :: Config }
+data PluginConfig = PluginConfig { logs_folder :: Maybe FilePath, check_term :: V.TermCheck, g2_config :: Config }
 
 pluginConfig :: String -> ParserInfo PluginConfig
 pluginConfig homedir =
     info ((PluginConfig
-                <$> flag V.DoTermCheck V.NoTermCheck (long "no-term-check" <> help "Do not check termination")
+                <$> option (maybeReader (Just . Just))
+                    (long "logs-folder"
+                        <> metavar "F"
+                        <> value Nothing
+                        <> help "folder to store logs in")
+                <*> flag V.DoTermCheck V.NoTermCheck (long "no-term-check" <> help "Do not check termination")
                 <*> mkConfig homedir) <**> helper)
           ( fullDesc
           <> progDesc "G2 Symbolic Execution Plugin"

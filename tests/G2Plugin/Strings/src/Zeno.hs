@@ -218,7 +218,7 @@ takeWhileSMT p xs =
 --                                     smtFoldLeft (\acc e -> acc && not (p e)) True (smtAt bs 0))
 --   in as'
 
-{-# ANN dropWhile (SMTEquivIsWithConfig "dropWhileSMT" "--smt-timeout 40")
+{-# ANN dropWhile (SMTEquivIsWithConfig "dropWhileSMT" "--smt-timeout 50 --time 480")
   #-}
 dropWhile :: (Nat -> Bool) -> [Nat] -> [Nat]
 dropWhile _ [] = []
@@ -299,12 +299,22 @@ insort n (x:xs) =
     True -> n : x : xs
     _ -> x : (insort n xs)
 
+-- Flaky on CI- intentionally commented out
+-- {-# ANN ins (SMTEquivIsWithConfig "insSMT" "--smt cvc5 --smt-timeout 30 --time 600")
+--   #-}
 ins :: Nat -> [Nat] -> [Nat]
 ins n [] = [n]
 ins n (x:xs) =
   case n < x of
     True -> n : x : xs
     _ -> x : (ins n xs)
+
+insSMT :: Nat -> [Nat] -> [Nat]
+insSMT n xs =
+    let
+        pre_xs = takeWhileSMT (\x -> not (n < x)) xs
+    in
+    pre_xs $++ [n] $++ dropSMT (smtLen pre_xs) xs
 
 {-# ANN ins1 (SMTEquivIs "ins1SMT") #-}
 ins1 :: Nat -> [Nat] -> [Nat]

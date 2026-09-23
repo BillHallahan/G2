@@ -17,7 +17,8 @@ common warnings
 
 library
     import:           warnings
-    exposed-modules:  MoreSeq
+    exposed-modules:  BadEquiv
+                    , MoreSeq
     -- other-modules:
     -- other-extensions:
     build-depends:    base >=4.14

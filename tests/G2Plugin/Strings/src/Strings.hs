@@ -55,6 +55,15 @@ addOneAll (x:xs) = x + 1:addOneAll xs
 smtAddOneAll :: [Int] -> [Int]
 smtAddOneAll = smtMap (\x -> x + 1)
 
+{-# ANN addOneAllCVC5 (SMTEquivIsWithConfig "smtAddOneAllCVC5" "--smt cvc5")
+    #-}
+addOneAllCVC5 :: [Int] -> [Int]
+addOneAllCVC5 [] = []
+addOneAllCVC5 (x:xs) = x + 1:addOneAllCVC5 xs
+
+smtAddOneAllCVC5 :: [Int] -> [Int]
+smtAddOneAllCVC5 = smtMap (\x -> x + 1)
+
 {-# ANN addTwoAll (SMTEquivIs "smtAddTwoAll") #-}
 addTwoAll :: [Int] -> [Int]
 addTwoAll [] = []
@@ -78,6 +87,15 @@ sumList2 (x:xs) = x + sumList xs
 
 smtSumList2 :: [Int] -> Int
 smtSumList2 xs = smtFoldLeft (\x y -> y + x) 0 xs
+
+{-# ANN sumListCVC5 (SMTEquivIsWithConfig "smtSumListCVC5" "--smt cvc5")
+    #-}
+sumListCVC5 :: [Int] -> Int
+sumListCVC5 [] = 0
+sumListCVC5 (x:xs) = x + sumList xs
+
+smtSumListCVC5 :: [Int] -> Int
+smtSumListCVC5 xs = smtFoldLeft (\x y -> x + y) 0 xs
 
 {-
 {-# ANN sumListInit9 (SMTEquivIsWithConfig "smtSumListInit9" "") #-}

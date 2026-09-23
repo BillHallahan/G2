@@ -1,6 +1,7 @@
 {-# LANGUAGE OverloadedStrings, TupleSections #-}
 
-module G2.SMTSynth.Verify ( TermCheck (..)
+module G2.SMTSynth.Verify ( VerifyRes (..)
+                          , TermCheck (..)
                           , checkEquiv
                           , checkProp
                           , insertFCTick ) where
@@ -24,10 +25,18 @@ import qualified Data.Text as T
 
 data TermCheck = DoTermCheck | NoTermCheck deriving Eq
 
-checkEquiv :: TermCheck -> Config -> HM.HashMap Name Id -> SimpleState -> Name -> Name -> IO ()
+data VerifyRes = EVerified
+               | ECounterexample
+               | ENonTerminating
+               | ETimeout
+               | EUnknown
+               | EOther
+               deriving (Eq, Show)
+
+checkEquiv :: TermCheck -> Config -> HM.HashMap Name Id -> SimpleState -> Name -> Name -> IO VerifyRes
 checkEquiv = check equivOutput
 
-checkProp :: TermCheck -> Config -> HM.HashMap Name Id -> SimpleState -> Name -> IO ()
+checkProp :: TermCheck -> Config -> HM.HashMap Name Id -> SimpleState -> Name -> IO VerifyRes
 checkProp term_check func_config equiv_annots simp_state@(IT.SimpleState { IT.expr_env = eenv, IT.known_values = kv }) entry_real
     | Just (entry_real_name, real_e) <- E.lookupNameMod (nameOcc entry_real) (L.nameModule entry_real) (IT.expr_env simp_state)
     , let t = L.typeOf TV.empty real_e
@@ -48,9 +57,9 @@ checkProp term_check func_config equiv_annots simp_state@(IT.SimpleState { IT.ex
         check propOutput term_check func_config (HM.insert entry_real_name smt_id equiv_annots) simp_state' entry_real entry_smt
     | otherwise = do
         putStrLn "checkEquiv: functions not found"
-        return ()
+        return EOther
 
-check :: CheckOutput -> TermCheck -> Config -> HM.HashMap Name Id -> SimpleState -> Name -> Name -> IO ()
+check :: CheckOutput -> TermCheck -> Config -> HM.HashMap Name Id -> SimpleState -> Name -> Name -> IO VerifyRes
 check check_output term_check func_config equiv_annots simp_state entry_real entry_smt_name
     | Just (entry_real_name, real_e) <- E.lookupNameMod (nameOcc entry_real) (nameModule entry_real) (IT.expr_env simp_state) = do
         -- Get a Config to run this specific function
@@ -72,13 +81,15 @@ check check_output term_check func_config equiv_annots simp_state entry_real ent
         
         case term_check == NoTermCheck || checkTermination entry_real_name real_e of
             True -> checkEquivInputOutput check_output func_config' equiv_annots init_state bindings' entry_id real_e entry_smt_name
-            False -> putStrLn $ if_not_proven check_output entry_real_name entry_smt_name
+            False -> do
+                putStrLn $ if_not_proven check_output entry_real_name entry_smt_name
                                     <> ", termination not proven"
+                return ENonTerminating
     | otherwise = do
         putStrLn "checkEquiv: functions not found"
-        return ()
+        return EOther
 
-checkEquivInputOutput :: CheckOutput -> Config -> HM.HashMap Name Id -> State () -> Bindings -> Id -> Expr -> Name -> IO ()
+checkEquivInputOutput :: CheckOutput -> Config -> HM.HashMap Name Id -> State () -> Bindings -> Id -> Expr -> Name -> IO VerifyRes
 checkEquivInputOutput check_output func_config equiv_annots init_state bindings entry_id@(Id entry_real_name _) real_e entry_smt_name
     | Just (comp_name, comp_e) <- E.lookupNameMod "comp" (Just "G2.Plugin") (expr_env init_state) = do
         let eenv = expr_env init_state
@@ -143,15 +154,24 @@ checkEquivInputOutput check_output func_config equiv_annots init_state bindings 
             runG2WithConfig [] [] (Id func_n TyUnknown) "" [] [nameModule entry_real_name] new_s func_config new_b) smt_call_xs
 
         case (ers, got_unknown) of
-            ([], NoUnknowns) | NoTimeOut <- time_outs -> putStrLn $ if_proven check_output entry_real_name entry_smt_name
-            _ | TimedOut _ <- time_outs -> putStrLn $ if_timeout check_output entry_real_name entry_smt_name
-            _ -> putStrLn $ if_not_proven check_output entry_real_name entry_smt_name
+            ([], NoUnknowns) | NoTimeOut <- time_outs -> do
+                putStrLn $ if_proven check_output entry_real_name entry_smt_name
+                return EVerified
+            _ | TimedOut _ <- time_outs -> do
+                putStrLn $ if_timeout check_output entry_real_name entry_smt_name
+                return ETimeout
+            (_:_, _) -> do
+                putStrLn $ if_not_proven check_output entry_real_name entry_smt_name
                                     <> (if got_unknown == GotUnknown then ", SMT solver returned unknown" else "")
+                return ECounterexample
+            _ -> do
+                putStrLn $ if_not_proven check_output entry_real_name entry_smt_name
+                                    <> (if got_unknown == GotUnknown then ", SMT solver returned unknown" else "")
+                return EUnknown
 
-        return ()
     | otherwise = do
         putStrLn "checkEquiv: functions not found"
-        return ()
+        return EOther
 
 replaceVars :: HM.HashMap Name Id -> Expr -> Expr
 replaceVars m = modify go
@@ -182,56 +202,54 @@ insertFCTick expr func tv_env =
                     $ Let [(ret_id, e')] $ Tick (FCTick $ FuncCall { funcName = func, arguments = map Var all_is, returns = Var ret_id }) (Var ret_id)) expr
 
 checkFCStateBindings :: ExprEnv -> [ExecRes ()] -> Bindings -> [(Name, State (), Bindings)]
-checkFCStateBindings orig_eenv er bindings =     
-    let new_state_bindings =
-            concatMap (\ExecRes { final_state = s@State { expr_env = eenv, tyvar_env = tv_env, known_values = kv, type_classes = tc } } ->
-                zipWith (\fc i ->
-                        let
-                            func_t = typeOf tv_env $ fromMaybe (error "runFunc: func not found") $ E.lookup (funcName fc) eenv
-                            num_ty = length $ leadingTyForAllBindings func_t
+checkFCStateBindings orig_eenv er bindings = concatMap checkExecRes er
+    where
+        checkExecRes (ExecRes { final_state = s@State { expr_env = eenv, tyvar_env = tv_env, known_values = kv, type_classes = tc } }) =
+            zipWith (\fc i ->
+                    let
+                        func_t = typeOf tv_env $ fromMaybe (error "runFunc: func not found") $ E.lookup (funcName fc) eenv
+                        num_ty = length $ leadingTyForAllBindings func_t
 
-                            (arg_ns, ng') = freshIds (map (typeOf tv_env) $ arguments fc) (name_gen bindings)
-                            ty_args_ns = take num_ty arg_ns
-                            var_args_ns = drop num_ty arg_ns
+                        (arg_ns, ng') = freshIds (map (typeOf tv_env) $ arguments fc) (name_gen bindings)
+                        ty_args_ns = take num_ty arg_ns
+                        var_args_ns = drop num_ty arg_ns
 
-                            tv_env' = foldr (\(Id n _, e) -> TV.insert n (fromMaybe TyBottom $ TV.deepLookup tv_env e)) tv_env (zip ty_args_ns $ arguments fc)
-                            
-                            -- Set up the expression environment. We want function definitions from the ORIGINAL expression environment,
-                            -- but also all bindings from the new expression environment.
-                            -- We also introduce bindings for the arguments that we are running the function on.
-                            eenv' = orig_eenv `E.union` eenv
-                            eenv'' = foldr (\(Id n _, e) -> E.insert n e) eenv' (zip var_args_ns . drop num_ty $ arguments fc)
+                        tv_env' = foldr (\(Id n _, e) -> TV.insert n (fromMaybe TyBottom $ TV.deepLookup tv_env e)) tv_env (zip ty_args_ns $ arguments fc)
+                        
+                        -- Set up the expression environment. We want function definitions from the ORIGINAL expression environment,
+                        -- but also all bindings from the new expression environment.
+                        -- We also introduce bindings for the arguments that we are running the function on.
+                        eenv' = orig_eenv `E.union` eenv
+                        eenv'' = foldr (\(Id n _, e) -> E.insert n e) eenv' (zip var_args_ns . drop num_ty $ arguments fc)
 
-                            -- Set up the current expression
-                            apply_to_args = mkApp $ Var (Id (funcName fc) TyUnknown):map Var arg_ns
-                            ret_val = returns fc
-                            t = typeOf tv_env ret_val
+                        -- Set up the current expression
+                        apply_to_args = mkApp $ Var (Id (funcName fc) func_t):map (Type . TyVar) ty_args_ns ++ map Var var_args_ns
+                        ret_val = returns fc
+                        t = tyVarSubst tv_env' . returnType $ typeOf tv_env' apply_to_args
 
-                            eq_func = Var (Id (eqFunc kv) TyUnknown)
-                            eq_dict = fromMaybe (error $ "checkEquiv: could not generate Eq typeclass" ++ "\n" ++ show (typeOf tv_env t) ++ "\n" ++ show t ++ "\n" ++ show ret_val)
-                                    $ typeClassInst  tc HM.empty (KV.eqTC kv) t
-                            
-                            call_res_i = Id (Name "CALL_!!_RES_G2__" Nothing 0 Nothing) t
-                            call_res_v = Var call_res_i
-                            eq_call = mkApp [ eq_func
-                                            , Type t
-                                            , eq_dict
-                                            , call_res_v
-                                            , ret_val
-                                            ]
-                            assert_eq = Assert Nothing eq_call call_res_v
-                            let_e = Let [(call_res_i, apply_to_args)] assert_eq
-                        in
-                        ( funcName fc
-                        , s { expr_env = eenv''
-                            , tyvar_env = tv_env'
-                            , true_assert = False
-                            , curr_expr = CurrExpr Evaluate let_e
-                            , log_path = log_path s ++ [i] }
-                        , bindings { input_names = map idName arg_ns, name_gen = ng' })
-                    ) (reached_fc_ticks s) [1..]
-            ) er
-    in new_state_bindings
+                        eq_func = Var (Id (eqFunc kv) TyUnknown)
+                        eq_dict = fromMaybe (error $ "checkEquiv: could not generate Eq typeclass" ++ "\n" ++ show t ++ "\n" ++ show ret_val)
+                                $ typeClassInst  tc HM.empty (KV.eqTC kv) t
+                        
+                        call_res_i = Id (Name "CALL_!!_RES_G2__" Nothing 0 Nothing) t
+                        call_res_v = Var call_res_i
+                        eq_call = mkApp [ eq_func
+                                        , Type t
+                                        , eq_dict
+                                        , call_res_v
+                                        , ret_val
+                                        ]
+                        assert_eq = Assert Nothing eq_call call_res_v
+                        let_e = Let [(call_res_i, apply_to_args)] assert_eq
+                    in
+                    ( funcName fc
+                    , s { expr_env = eenv''
+                        , tyvar_env = tv_env'
+                        , true_assert = False
+                        , curr_expr = CurrExpr Evaluate let_e
+                        , log_path = log_path s ++ [i] }
+                    , bindings { input_names = map idName arg_ns, name_gen = ng' })
+                ) (reached_fc_ticks s) [1..]
 
 ------------------------------------------------------------------------------
 -- Checking Termination
