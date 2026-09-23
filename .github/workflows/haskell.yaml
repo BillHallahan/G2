@@ -13,14 +13,16 @@ jobs:
 
     strategy:
       matrix:
-        compiler: [ { ghc: '8.10.7', cabal: '3.10' },
-                    { ghc: '9.0.2', cabal: '3.10' },
-                    { ghc: '9.2.8', cabal: '3.10' },
-                    { ghc: '9.4.4', cabal: '3.10' },
-                    { ghc: '9.6.1', cabal: '3.10' },
-                    { ghc: '9.8.4', cabal: '3.10' },
-                    { ghc: '9.10.3', cabal: '3.10' },
-                    { ghc: '9.12.2', cabal: '3.12' } ]
+        # semaphore requires ghc 9.8+ and cabal 3.12+
+        # hardcoded for now since comparing version strings is ugly
+        compiler: [ { ghc: '8.10.7', cabal: '3.10', semaphore: '' },
+                    { ghc: '9.0.2', cabal: '3.10', semaphore: '' },
+                    { ghc: '9.2.8', cabal: '3.10', semaphore: '' },
+                    { ghc: '9.4.4', cabal: '3.10', semaphore: '' },
+                    { ghc: '9.6.1', cabal: '3.10', semaphore: '' },
+                    { ghc: '9.8.4', cabal: '3.12', semaphore: '--semaphore' },
+                    { ghc: '9.10.3', cabal: '3.12', semaphore: '--semaphore' },
+                    { ghc: '9.12.2', cabal: '3.12', semaphore: '--semaphore' } ]
         test: [ { test: test, lh: '-support-lh' },
                 { test: test-g2q, lh: '-support-lh' } ]
     steps:
@@ -32,7 +34,7 @@ jobs:
         cabal-version: ${{ matrix.compiler.cabal }}
 
     - run: cabal update
-    - run: cabal configure --enable-tests -f ${{ matrix.test.lh }}
+    - run: cabal configure -j ${{ matrix.compiler.semaphore }} --enable-tests -f ${{ matrix.test.lh }}
     - run: cabal freeze
     # - uses: actions/cache@v3
     #   with:
