@@ -70,7 +70,8 @@ check check_output term_check func_config equiv_annots simp_state entry_real ent
                                        , using_smt_lams = UseSMTLams
                                        , literal_tables = UseLiteralTables
                                        , search_strat = Subpath
-                                       , smt_discard_on_unknown = KeepUnknown }
+                                       , smt_discard_on_unknown = KeepUnknown
+                                       , maxOutputs = Just 1 }
 
         let entry_id = Id entry_real_name $ typeOf TV.empty real_e
             (init_state, bindings) = initStateFromSimpleState simp_state [nameModule entry_real] False

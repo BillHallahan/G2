@@ -1,7 +1,7 @@
 {-# LANGUAGE MagicHash #-}
 module MoreSeq where
 
-import G2.Plugin
+import G2.Plugin hiding ((==>))
 
 {-# ANN module ("--smt-tuples --smt-adts MyI,A")
     #-}
@@ -46,3 +46,18 @@ h ((MyI x, y):xs) | x == A = MyI x:h xs
 
 hSMT :: [(MyI, MyI)] -> [MyI]
 hSMT = smtMap (\(MyI x, y) -> if x == A then MyI x else y)
+
+rotate :: Int -> [a] -> [a]
+rotate 0     xs     = xs
+rotate _     []     = []
+rotate n     (x:xs) = rotate (n - 1) (xs ++ [x])
+
+given :: Bool -> Bool -> Bool
+given pb pa = (not pb) || pa
+
+(==>) :: Bool -> Bool -> Bool
+(==>) = given
+infixr 0 ==>
+
+{-# ANN prop_rot Prop  #-}
+prop_rot   n m ys xs = rotate n (xs :: [Int]) == rotate m ys ==> n == m
