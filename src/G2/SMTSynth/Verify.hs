@@ -15,6 +15,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues as KV
 import G2.Language.TyVarEnv as TV
 
+import Control.Monad
 import Control.Monad.IO.Class
 import qualified Data.Foldable as F
 import qualified Data.HashMap.Lazy as HM
@@ -150,10 +151,16 @@ checkEquivInputOutput check_output func_config equiv_annots init_state bindings 
         -- If we run corr, we may get a "counterexample" that corr 0 = 2. However, the glitch here is actually that
         -- the specification of incorr is wrong. We figure this out by logging all values passed into and returned from
         -- SMT definitions, and then checking if those values actually conform to the behavior of the real function.
+        -- We fold over the possible erroring functions until we find one that exposes the error (then, we stop executing.) 
         let smt_call_xs = checkFCStateBindings eenv ers bindings
-        call_stats <- mapM (\(func_n, new_s, new_b) -> do
-                                (_, _, _, _, _, call_stat) <- runG2WithConfig [] [] (Id func_n TyUnknown) "" [] [nameModule entry_real_name] new_s func_config new_b
-                                return call_stat) smt_call_xs
+        (call_stats, _) <- foldM (\(all_stats, found) (func_n, new_s, new_b) -> 
+                                case found of
+                                    True -> return (all_stats, found)
+                                    False -> do
+                                        (call_ers, _, _, _, _, call_stat) <- runG2WithConfig [] [] (Id func_n TyUnknown) "" [] [nameModule entry_real_name] new_s func_config new_b
+                                        return (call_stat:all_stats, not $ null call_ers))
+                                  ([], False)
+                                  smt_call_xs
 
         res <- case (ers, got_unknown) of
             ([], NoUnknowns) | NoTimeOut <- time_outs -> do
