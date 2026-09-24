@@ -23,7 +23,13 @@ module G2.Solver.Solver ( Solver (..)
                         
                         , TimeSolver
                         , timeSolver
+                        , getTimeTracker
                         , timeSomeSolver
+                        , SolverTime
+                        , solverTime
+                        , mergeSolverTime
+
+                        
                         , CallsSolver
                         , callsSolver
                         , callsSomeSolver
@@ -35,7 +41,8 @@ module G2.Solver.Solver ( Solver (..)
                         , smtResultsTracker
                         , satCount
                         , unsatCount
-                        , unknownCount) where
+                        , unknownCount
+                        , mergeResultCount) where
 
 import G2.Language
 import G2.Language.Monad
@@ -387,39 +394,57 @@ unroll k = PC.concatMapHashedPCs unroll'
 -- | A solver to time the runtime of other solvers
 data TimeSolver s = TimeSolver
                         String -- ^ Prefix for output string
-                        (IORef TimeSpec) -- ^ Timer
+                        (IORef SolverTime) -- ^ Timer
                         s -- ^ Underlying solver to count invocations of
+
+newtype SolverTime = SolverTime TimeSpec
+
+getTimeTracker :: TimeSolver s -> IORef SolverTime
+getTimeTracker (TimeSolver _ st _) = st
+
+solverTime :: SolverTime -> Double
+solverTime (SolverTime ts) = fromInteger (toNanoSecs ts) / (10 ^ (9 :: Int) :: Double)
+
+mergeSolverTime :: SolverTime -> SolverTime -> SolverTime
+mergeSolverTime (SolverTime ts1) (SolverTime ts2) = SolverTime (ts1 + ts2)
+
+addSolverTime :: TimeSpec ->  SolverTime -> SolverTime
+addSolverTime ts1 (SolverTime ts2) = SolverTime (ts1 + ts2) 
+
+-- getTimer :: TimeSolver -> 
 
 -- | A solver to time the runtime of other solvers
 timeSolver :: String -- ^ Prefix for output string
            -> s
            -> IO (TimeSolver s)
 timeSolver pre_s s = do
-    zero <- newIORef 0
+    zero <- newIORef $ SolverTime 0
     return (TimeSolver pre_s zero s)
 
 -- | Lift timeSolver into a SomeSolver.
 timeSomeSolver :: String  -- ^ Prefix for output string
                -> SomeSolver
-               -> IO SomeSolver
-timeSomeSolver pre_s (SomeSolver s) = return . SomeSolver =<< timeSolver pre_s s
+               -> IO (SomeSolver, IORef SolverTime)
+timeSomeSolver pre_s (SomeSolver s) = do
+    ts <- timeSolver pre_s s
+    return (SomeSolver ts, getTimeTracker ts)
 
 instance Solver s => Solver (TimeSolver s) where
     check (TimeSolver _ ts solver) s pc = do
         st <- getTime Realtime
         r <- check solver s pc
         en <- getTime Realtime
-        modifyIORef ts (+ (en - st))
+        modifyIORef ts (addSolverTime (en - st))
         return r
     solve (TimeSolver _ ts solver) s b is pc = do
         st <- getTime Realtime
         r <- solve solver s b is pc
         en <- getTime Realtime
-        modifyIORef ts (+ (en - st))
+        modifyIORef ts (addSolverTime (en - st))
         return r
     close (TimeSolver pre_s io_ts solver) = do
         close solver
-        ts <- readIORef io_ts
+        SolverTime ts <- readIORef io_ts
         let t = (fromInteger (toNanoSecs ts)) / (10 ^ (9 :: Int) :: Double)
         putStrLn $ pre_s ++ " Solving Time: " ++ show t
 
@@ -570,3 +595,8 @@ adjustCountSolver r cr = do
                 Unknown _ _ -> tc { unknown_count = unknown_count tc + 1 }
     writeIORef (track_count cr) tc'
 
+mergeResultCount :: SMTResultsCount -> SMTResultsCount -> SMTResultsCount
+mergeResultCount src1 src2 =
+    SRC { sat_count = sat_count src1 + sat_count src2
+        , unsat_count = unsat_count src1 + unsat_count src2
+        , unknown_count = unknown_count src1 + unknown_count src2 }

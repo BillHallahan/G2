@@ -207,7 +207,7 @@ g2PluginPass' cmd_lne config env modguts = do
     let ord_ann_fs_g2 = orderAnnotations (IT.expr_env simp_state) ann_fs_g2
     liftIO $ foldM_ (\ea (f, symex) -> do
                             (res, time) <- timeInSeconds (runSymexAnnots cmd_lne ea simp_state f symex)
-                            let (res', stats) = case res of r:_ -> r; [] -> (V.EOther, Nothing)
+                            let (res', stats) = case res of r:_ -> r; [] -> (V.EOther, emptySolverStats)
                             logEquivTime (logs_folder config) mod_name (TX.unpack $ nameOcc f) res' (show time) stats
                             if res' == V.EVerified
                                 then return ea
@@ -235,18 +235,18 @@ runSymexAnnots :: [CommandLineOption]
                -> SimpleState
                -> L.Name
                -> [SymEx]
-               -> IO [(V.VerifyRes, Maybe SMTResultsCount)]
+               -> IO [(V.VerifyRes, SolverStats)]
 runSymexAnnots cmd_lne equiv_annots simp_state entry symexes = do
     mapM (\symex -> do
-                r <- Ex.try (runSymexAnnot cmd_lne equiv_annots simp_state entry symex) :: IO (Either Ex.SomeException (V.VerifyRes, Maybe SMTResultsCount))
+                r <- Ex.try (runSymexAnnot cmd_lne equiv_annots simp_state entry symex) :: IO (Either Ex.SomeException (V.VerifyRes, SolverStats))
                 case r of
                     Left e -> do
                         putStrLn $ displayException e
-                        return (V.EOther, Nothing)
+                        return (V.EOther, emptySolverStats)
                     Right b -> return b
             ) symexes
 
-runSymexAnnot :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> SymEx -> IO (V.VerifyRes, Maybe SMTResultsCount)
+runSymexAnnot :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> SymEx -> IO (V.VerifyRes, SolverStats)
 runSymexAnnot cmd_lne _ simp_state entry SymEx = do
     stats <- runFunc cmd_lne simp_state entry
     return (V.EOther, stats)
@@ -264,7 +264,7 @@ runSymexAnnot cmd_lne equiv_annots simp_state entry (SMTEquivIs smt_equiv_f) =
 runSymexAnnot cmd_lne equiv_annots simp_state entry (SMTEquivIsWithConfig smt_equiv_f extra_cmd_lne) =
     checkEquiv (cmd_lne ++ words extra_cmd_lne) equiv_annots simp_state entry smt_equiv_f
 
-runFunc :: [CommandLineOption] -> SimpleState -> L.Name -> IO (Maybe SMTResultsCount)
+runFunc :: [CommandLineOption] -> SimpleState -> L.Name -> IO SolverStats
 runFunc cmd_lne simp_state entry
     | Just (entry_name, e) <- E.lookupNameMod (L.nameOcc entry) (L.nameModule entry) (IT.expr_env simp_state) = do
         -- Get a Config to run this specific function
@@ -293,7 +293,7 @@ runFunc cmd_lne simp_state entry
         when file_exists $ appendFile fc_file $ "\n" ++ TX.unpack entry_name' ++ " : " ++ show seconds_in_fc
         reportTerminationResults time_outs func_config
         return stats
-    | otherwise = return Nothing
+    | otherwise = return emptySolverStats
 
 logAcceptedStateTime :: [Char] -> IO ()
 logAcceptedStateTime entryName  = do
@@ -301,7 +301,7 @@ logAcceptedStateTime entryName  = do
     file_exists <- doesFileExist file_name
     when file_exists $ appendFile file_name $ "\n" ++ entryName ++ " : "
 
-checkProp :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> IO (V.VerifyRes, Maybe SMTResultsCount)
+checkProp :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> IO (V.VerifyRes, SolverStats)
 checkProp cmd_lne equiv_annots simp_state entry_real = do
         T.putStrLn $ "Checking property " <> nameOcc entry_real
         -- Get a Config to run this specific function
@@ -309,7 +309,7 @@ checkProp cmd_lne equiv_annots simp_state entry_real = do
         func_config <- liftIO . handleParseResult $ execParserPure defaultPrefs (pluginConfig homedir) cmd_lne
         V.checkProp (check_term func_config) (g2_config func_config) equiv_annots simp_state entry_real
 
-checkEquiv :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> String -> IO (V.VerifyRes, Maybe SMTResultsCount)
+checkEquiv :: [CommandLineOption] -> HM.HashMap L.Name L.Id -> SimpleState -> L.Name -> String -> IO (V.VerifyRes, SolverStats)
 checkEquiv cmd_lne equiv_annots simp_state entry_real entry_smt 
     | Just (entry_smt_name, _) <- E.lookupNameMod (TX.pack entry_smt) (L.nameModule entry_real) (IT.expr_env simp_state) = do
         T.putStrLn $ "Checking " <> nameOcc entry_real <> " and " <> TX.pack entry_smt 
@@ -319,7 +319,7 @@ checkEquiv cmd_lne equiv_annots simp_state entry_real entry_smt
         V.checkEquiv (check_term func_config) (g2_config func_config) equiv_annots simp_state entry_real entry_smt_name
     | otherwise = do
         putStrLn "checkEquiv: functions not found"
-        return (V.EOther, Nothing)
+        return (V.EOther, emptySolverStats)
 
 orderAnnotations :: ExprEnv -> [(L.Name, [SymEx])] -> [(L.Name, [SymEx])]
 orderAnnotations eenv symexes =
@@ -332,7 +332,7 @@ orderAnnotations eenv symexes =
     in
     sortBy (comparing lookup_ind) symexes
 
-logEquivTime :: Maybe FilePath -> String -> String -> V.VerifyRes -> String -> Maybe SMTResultsCount -> IO ()
+logEquivTime :: Maybe FilePath -> String -> String -> V.VerifyRes -> String -> SolverStats -> IO ()
 logEquivTime Nothing _ _ _ _ _ = return ()
 logEquivTime (Just log_folder) mod_name entry ver_res time stats = do
     dir_exists <- doesDirectoryExist log_folder
@@ -342,8 +342,9 @@ logEquivTime (Just log_folder) mod_name entry ver_res time stats = do
     file_exists <- doesFileExist file_name
     unless file_exists (writeFile file_name "")
     let show_time = if ver_res == V.EVerified || ver_res == V.ECounterexample then time else "-"
-    let stats_str = maybe "" satUnsatUnknown stats
-    appendFile file_name $ "\n" ++ entry ++ "," ++ show ver_res ++ "," ++ show_time ++ stats_str
+    let solver_time_str = maybe "" (("," ++) . show . solverTime) (solver_time stats)
+        sat_unsat_unknown_str = maybe "" satUnsatUnknown (result_count stats)
+    appendFile file_name $ "\n" ++ entry ++ "," ++ show ver_res ++ "," ++ show_time ++ solver_time_str ++ sat_unsat_unknown_str
     where
         satUnsatUnknown sc = "," <> show (satCount sc) <> "," <> show (unsatCount sc) <> "," <> show (unknownCount sc)
 

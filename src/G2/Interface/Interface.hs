@@ -7,6 +7,7 @@ module G2.Interface.Interface ( MkCurrExpr
                               , IT.SimpleState
                               , TimedOut (..)
                               , GotUnknown (..)
+                              , SolverStats (..)
                               , SMTResultsCount
                               , doTimeout
                               , maybeDoTimeout
@@ -24,6 +25,8 @@ module G2.Interface.Interface ( MkCurrExpr
                               , initRedHaltOrd
                               , initSolver
                               , initSolverInfinite
+                              , emptySolverStats
+                              , mergeSolverStats
                               
                               , initialStateFromFileSimple
                               , initialStateFromFile
@@ -41,7 +44,8 @@ module G2.Interface.Interface ( MkCurrExpr
                               , runG2
                               , Config
                               
-                              , reportTerminationResults) where
+                              , reportTerminationResults
+                              ) where
 
 import GHC hiding (Name, entry, nameModule, Id, Type)
 import GHC.Paths
@@ -504,25 +508,33 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                 , io_timed_out
                 , func_const_time)
 
+data SolverStats = SolverStats { solver_time :: Maybe SolverTime
+                               , result_count :: Maybe SMTResultsCount }
+
+data IOSolverStats = IOSolverStats { io_solver_time :: Maybe (IORef SolverTime)
+                                   , io_result_count :: Maybe (IORef SMTResultsCount) }
+
 initSolver :: Config -> IO SomeSolver
 initSolver config = initSolver' arbValue config >>= return . fst
 
-initSolverGettingStats :: Config -> IO (SomeSolver, Maybe (IORef SMTResultsCount))
+initSolverGettingStats :: Config -> IO (SomeSolver, IOSolverStats)
 initSolverGettingStats = initSolver' arbValue
 
 initSolverInfinite :: Config -> IO SomeSolver
 initSolverInfinite config = initSolver' arbValueInfinite config >>= return . fst
 
-initSolver' :: ArbValueFunc -> Config -> IO (SomeSolver, Maybe (IORef SMTResultsCount))
+initSolver' :: ArbValueFunc -> Config -> IO (SomeSolver, IOSolverStats)
 initSolver' avf config = do
     SomeSolver con <- getSMT avf config
     let adt_num = ADTNumericalSolver avf con
     some_adt_solver <- case print_num_solver_calls config of
             True -> return . SomeSolver =<< callsSolver "SMT" adt_num
             False -> return $ SomeSolver adt_num
-    some_adt_solver' <- case time_solving config of
-            True -> timeSomeSolver "SMT" some_adt_solver
-            False -> return some_adt_solver
+    (some_adt_solver', m_smt_time_tr) <- case time_solving config of
+                                            True -> do
+                                                        (ts, smt_time_tr) <- timeSomeSolver "SMT" some_adt_solver
+                                                        return (ts, Just smt_time_tr)
+                                            False -> return (some_adt_solver, Nothing)
     (some_adt_solver'', m_smt_res_count) <- case print_solver_sol_counts config of
                                                 True -> do
                                                     (cr, smt_res_c) <- countResultsSomeSolver some_adt_solver'
@@ -546,14 +558,24 @@ initSolver' avf config = do
                                  :?> EqualitySolver
                                  :?> adt_solver)
 
-    con'' <- case time_solving config of
+    (con'', _) <- case time_solving config of
                 True -> timeSomeSolver "General" con'
-                False -> return con'
+                False -> return (con', error "initSolver': accessing unused IORef")
 
     con''' <- case print_num_solver_calls config of
                         True -> callsSomeSolver "General" con''
                         False -> return con''
-    return (con''', m_smt_res_count)
+    let solver_stats = IOSolverStats { io_solver_time = m_smt_time_tr
+                                     , io_result_count = m_smt_res_count }
+
+    return (con''', solver_stats)
+
+emptySolverStats :: SolverStats
+emptySolverStats = SolverStats { solver_time = Nothing, result_count = Nothing }
+
+mergeSolverStats :: SolverStats -> SolverStats -> SolverStats
+mergeSolverStats stats1 stats2 = SolverStats { solver_time = liftA2 mergeSolverTime (solver_time stats1) (solver_time stats2)
+                                             , result_count = liftA2 mergeResultCount (result_count stats1) (result_count stats2) }
 
 initSimplifier :: Config -> SomeSimplifier
 initSimplifier config =
@@ -650,7 +672,7 @@ runG2FromFile :: [FilePath]
               -> StartFunc
               -> TranslationConfig
               -> Config
-              -> IO ([ExecRes ()], State (), Bindings, TimedOut, TimeInFC, Id, S.HashSet (Maybe T.Text), Maybe SMTResultsCount)
+              -> IO ([ExecRes ()], State (), Bindings, TimedOut, TimeInFC, Id, S.HashSet (Maybe T.Text), SolverStats)
 runG2FromFile proj src gflags m_assume m_assert m_reach def_assert f transConfig config = do
     (init_state, entry_f, bindings, mb_modname) <- initialStateFromFile  proj src
                                     m_reach def_assert f (mkCurrExpr TV.empty m_assume m_assert) (mkArgTys config TV.empty)
@@ -666,10 +688,10 @@ runG2WithConfig :: [FilePath]-> [FilePath] -> Id -> StartFunc -> [GeneralFlag] -
                       , Bindings
                       , TimedOut -- ^ Did any states timeout?
                       , TimeInFC -- ^ Time spent in FunctionConstraintSolver
-                      , Maybe SMTResultsCount -- ^ Number of sat/unsat/unknown results, if tracked
+                      , SolverStats
                       )
 runG2WithConfig proj src entry_f f gflags mb_modname state config bindings = do
-    (SomeSolver solver, stats) <- initSolverGettingStats config
+    (SomeSolver solver, io_stats) <- initSolverGettingStats config
     SomeSimplifier simplifier <- return $ initSimplifier config
     let (state', bindings') = runG2Pre emptyMemConfig state bindings
         all_mod_set = S.fromList mb_modname
@@ -754,9 +776,12 @@ runG2WithConfig proj src entry_f f gflags mb_modname state config bindings = do
 
     close solver
 
-    stats' <- maybe (return Nothing) (return . Just <=< readIORef) stats
+    solve_time <- maybe (return Nothing) (return . Just <=< readIORef) $ io_solver_time io_stats
+    res_count <- maybe (return Nothing) (return . Just <=< readIORef) $ io_result_count io_stats
+    let stats = SolverStats { solver_time = solve_time
+                            , result_count = res_count }
 
-    return (in_out, got_unknown, bindings'', timed_out, fc_time, stats')
+    return (in_out, got_unknown, bindings'', timed_out, fc_time, stats)
 
 addTimedOutAndFCTime :: MonadIO m => IORef TimedOut -> IORef TimeInFC -> m (a, b, c) -> m (a, b, c, TimedOut, TimeInFC)
 addTimedOutAndFCTime to fc_time m = do
