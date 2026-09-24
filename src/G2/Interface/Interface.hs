@@ -7,6 +7,7 @@ module G2.Interface.Interface ( MkCurrExpr
                               , IT.SimpleState
                               , TimedOut (..)
                               , GotUnknown (..)
+                              , SMTResultsCount
                               , doTimeout
                               , maybeDoTimeout
 
@@ -504,12 +505,15 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                 , func_const_time)
 
 initSolver :: Config -> IO SomeSolver
-initSolver = initSolver' arbValue
+initSolver config = initSolver' arbValue config >>= return . fst
+
+initSolverGettingStats :: Config -> IO (SomeSolver, Maybe (IORef SMTResultsCount))
+initSolverGettingStats = initSolver' arbValue
 
 initSolverInfinite :: Config -> IO SomeSolver
-initSolverInfinite = initSolver' arbValueInfinite
+initSolverInfinite config = initSolver' arbValueInfinite config >>= return . fst
 
-initSolver' :: ArbValueFunc -> Config -> IO SomeSolver
+initSolver' :: ArbValueFunc -> Config -> IO (SomeSolver, Maybe (IORef SMTResultsCount))
 initSolver' avf config = do
     SomeSolver con <- getSMT avf config
     let adt_num = ADTNumericalSolver avf con
@@ -519,9 +523,11 @@ initSolver' avf config = do
     some_adt_solver' <- case time_solving config of
             True -> timeSomeSolver "SMT" some_adt_solver
             False -> return some_adt_solver
-    some_adt_solver'' <- case print_solver_sol_counts config of
-                                True -> countResultsSomeSolver some_adt_solver'
-                                False -> return some_adt_solver'
+    (some_adt_solver'', m_smt_res_count) <- case print_solver_sol_counts config of
+                                                True -> do
+                                                    (cr, smt_res_c) <- countResultsSomeSolver some_adt_solver'
+                                                    return (cr, Just smt_res_c)
+                                                False -> return (some_adt_solver', Nothing)
 
     let quant_solver = case quantified_smt_strings config of
                             UseQuantifiers -> some_adt_solver''
@@ -544,9 +550,10 @@ initSolver' avf config = do
                 True -> timeSomeSolver "General" con'
                 False -> return con'
 
-    case print_num_solver_calls config of
-                True -> callsSomeSolver "General" con''
-                False -> return con''
+    con''' <- case print_num_solver_calls config of
+                        True -> callsSomeSolver "General" con''
+                        False -> return con''
+    return (con''', m_smt_res_count)
 
 initSimplifier :: Config -> SomeSimplifier
 initSimplifier config =
@@ -643,15 +650,15 @@ runG2FromFile :: [FilePath]
               -> StartFunc
               -> TranslationConfig
               -> Config
-              -> IO ([ExecRes ()], State (), Bindings, TimedOut, TimeInFC, Id, S.HashSet (Maybe T.Text))
+              -> IO ([ExecRes ()], State (), Bindings, TimedOut, TimeInFC, Id, S.HashSet (Maybe T.Text), Maybe SMTResultsCount)
 runG2FromFile proj src gflags m_assume m_assert m_reach def_assert f transConfig config = do
     (init_state, entry_f, bindings, mb_modname) <- initialStateFromFile  proj src
                                     m_reach def_assert f (mkCurrExpr TV.empty m_assume m_assert) (mkArgTys config TV.empty)
                                     transConfig config
 
-    (er, _, b, to, time_fc) <- runG2WithConfig proj src entry_f f gflags mb_modname init_state config bindings
+    (er, _, b, to, time_fc, stats) <- runG2WithConfig proj src entry_f f gflags mb_modname init_state config bindings
 
-    return (er, init_state, b, to, time_fc, entry_f, S.fromList mb_modname)
+    return (er, init_state, b, to, time_fc, entry_f, S.fromList mb_modname, stats)
 
 runG2WithConfig :: [FilePath]-> [FilePath] -> Id -> StartFunc -> [GeneralFlag] -> [Maybe T.Text] -> State () -> Config -> Bindings
                 -> IO ( [ExecRes ()]
@@ -659,9 +666,10 @@ runG2WithConfig :: [FilePath]-> [FilePath] -> Id -> StartFunc -> [GeneralFlag] -
                       , Bindings
                       , TimedOut -- ^ Did any states timeout?
                       , TimeInFC -- ^ Time spent in FunctionConstraintSolver
+                      , Maybe SMTResultsCount -- ^ Number of sat/unsat/unknown results, if tracked
                       )
 runG2WithConfig proj src entry_f f gflags mb_modname state config bindings = do
-    SomeSolver solver <- initSolver config
+    (SomeSolver solver, stats) <- initSolverGettingStats config
     SomeSimplifier simplifier <- return $ initSimplifier config
     let (state', bindings') = runG2Pre emptyMemConfig state bindings
         all_mod_set = S.fromList mb_modname
@@ -746,7 +754,9 @@ runG2WithConfig proj src entry_f f gflags mb_modname state config bindings = do
 
     close solver
 
-    return (in_out, got_unknown, bindings'', timed_out, fc_time)
+    stats' <- maybe (return Nothing) (return . Just <=< readIORef) stats
+
+    return (in_out, got_unknown, bindings'', timed_out, fc_time, stats')
 
 addTimedOutAndFCTime :: MonadIO m => IORef TimedOut -> IORef TimeInFC -> m (a, b, c) -> m (a, b, c, TimedOut, TimeInFC)
 addTimedOutAndFCTime to fc_time m = do

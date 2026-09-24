@@ -59,5 +59,6 @@ given pb pa = (not pb) || pa
 (==>) = given
 infixr 0 ==>
 
-{-# ANN prop_rot Prop  #-}
+{-# ANN prop_rot Prop #-}
+prop_rot :: Int -> Int -> [Int] -> [Int] -> Bool
 prop_rot   n m ys xs = rotate n (xs :: [Int]) == rotate m ys ==> n == m
