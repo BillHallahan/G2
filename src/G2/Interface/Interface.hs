@@ -574,8 +574,8 @@ emptySolverStats :: SolverStats
 emptySolverStats = SolverStats { solver_time = Nothing, result_count = Nothing }
 
 mergeSolverStats :: SolverStats -> SolverStats -> SolverStats
-mergeSolverStats stats1 stats2 = SolverStats { solver_time = liftA2 mergeSolverTime (solver_time stats1) (solver_time stats2)
-                                             , result_count = liftA2 mergeResultCount (result_count stats1) (result_count stats2) }
+mergeSolverStats stats1 stats2 = SolverStats { solver_time = liftM2 mergeSolverTime (solver_time stats1) (solver_time stats2)
+                                             , result_count = liftM2 mergeResultCount (result_count stats1) (result_count stats2) }
 
 initSimplifier :: Config -> SomeSimplifier
 initSimplifier config =
