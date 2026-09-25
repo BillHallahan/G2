@@ -23,14 +23,26 @@ module G2.Solver.Solver ( Solver (..)
                         
                         , TimeSolver
                         , timeSolver
+                        , getTimeTracker
                         , timeSomeSolver
+                        , SolverTime
+                        , solverTime
+                        , mergeSolverTime
+
+                        
                         , CallsSolver
                         , callsSolver
                         , callsSomeSolver
                         
                         , CountResults
+                        , SMTResultsCount
                         , countResults
-                        , countResultsSomeSolver) where
+                        , countResultsSomeSolver
+                        , smtResultsTracker
+                        , satCount
+                        , unsatCount
+                        , unknownCount
+                        , mergeResultCount) where
 
 import G2.Language
 import G2.Language.Monad
@@ -382,39 +394,57 @@ unroll k = PC.concatMapHashedPCs unroll'
 -- | A solver to time the runtime of other solvers
 data TimeSolver s = TimeSolver
                         String -- ^ Prefix for output string
-                        (IORef TimeSpec) -- ^ Timer
+                        (IORef SolverTime) -- ^ Timer
                         s -- ^ Underlying solver to count invocations of
+
+newtype SolverTime = SolverTime TimeSpec
+
+getTimeTracker :: TimeSolver s -> IORef SolverTime
+getTimeTracker (TimeSolver _ st _) = st
+
+solverTime :: SolverTime -> Double
+solverTime (SolverTime ts) = fromInteger (toNanoSecs ts) / (10 ^ (9 :: Int) :: Double)
+
+mergeSolverTime :: SolverTime -> SolverTime -> SolverTime
+mergeSolverTime (SolverTime ts1) (SolverTime ts2) = SolverTime (ts1 + ts2)
+
+addSolverTime :: TimeSpec ->  SolverTime -> SolverTime
+addSolverTime ts1 (SolverTime ts2) = SolverTime (ts1 + ts2) 
+
+-- getTimer :: TimeSolver -> 
 
 -- | A solver to time the runtime of other solvers
 timeSolver :: String -- ^ Prefix for output string
            -> s
            -> IO (TimeSolver s)
 timeSolver pre_s s = do
-    zero <- newIORef 0
+    zero <- newIORef $ SolverTime 0
     return (TimeSolver pre_s zero s)
 
 -- | Lift timeSolver into a SomeSolver.
 timeSomeSolver :: String  -- ^ Prefix for output string
                -> SomeSolver
-               -> IO SomeSolver
-timeSomeSolver pre_s (SomeSolver s) = return . SomeSolver =<< timeSolver pre_s s
+               -> IO (SomeSolver, IORef SolverTime)
+timeSomeSolver pre_s (SomeSolver s) = do
+    ts <- timeSolver pre_s s
+    return (SomeSolver ts, getTimeTracker ts)
 
 instance Solver s => Solver (TimeSolver s) where
     check (TimeSolver _ ts solver) s pc = do
         st <- getTime Realtime
         r <- check solver s pc
         en <- getTime Realtime
-        modifyIORef ts (+ (en - st))
+        modifyIORef ts (addSolverTime (en - st))
         return r
     solve (TimeSolver _ ts solver) s b is pc = do
         st <- getTime Realtime
         r <- solve solver s b is pc
         en <- getTime Realtime
-        modifyIORef ts (+ (en - st))
+        modifyIORef ts (addSolverTime (en - st))
         return r
     close (TimeSolver pre_s io_ts solver) = do
         close solver
-        ts <- readIORef io_ts
+        SolverTime ts <- readIORef io_ts
         let t = (fromInteger (toNanoSecs ts)) / (10 ^ (9 :: Int) :: Double)
         putStrLn $ pre_s ++ " Solving Time: " ++ show t
 
@@ -508,20 +538,34 @@ instance Solver s => Solver (CallsSolver s) where
         c <- readIORef io_c
         putStrLn $ pre_s ++ " Solver Calls: " ++ show c
 
-data CountResults solver = CountResults {  cr_solver :: solver, track_count :: IORef TrackResultsCR }
+data CountResults solver = CountResults {  cr_solver :: solver, track_count :: IORef SMTResultsCount }
 
-data TrackResultsCR = TRCR { sat_count :: Int
+data SMTResultsCount = SRC { sat_count :: Int
                            , unsat_count :: Int
                            , unknown_count :: Int
                            }
 
+smtResultsTracker :: CountResults solver -> IORef SMTResultsCount
+smtResultsTracker = track_count
+
+satCount :: SMTResultsCount -> Int
+satCount = sat_count
+
+unsatCount :: SMTResultsCount -> Int
+unsatCount = unsat_count
+
+unknownCount :: SMTResultsCount -> Int
+unknownCount = unknown_count
+
 countResults :: solver -> IO (CountResults solver)
 countResults solver = do
-    tr <- newIORef (TRCR { sat_count = 0, unsat_count = 0, unknown_count = 0 })
+    tr <- newIORef (SRC { sat_count = 0, unsat_count = 0, unknown_count = 0 })
     return $ CountResults { cr_solver = solver, track_count = tr }
 
-countResultsSomeSolver :: SomeSolver -> IO SomeSolver
-countResultsSomeSolver (SomeSolver solver) = SomeSolver <$> countResults solver
+countResultsSomeSolver :: SomeSolver -> IO (SomeSolver, IORef SMTResultsCount)
+countResultsSomeSolver (SomeSolver solver) = do
+    cr <- countResults solver
+    return (SomeSolver cr, smtResultsTracker cr)
 
 instance Solver solver => Solver (CountResults solver) where
     check cr@(CountResults { cr_solver = solver }) s pc = do
@@ -551,16 +595,8 @@ adjustCountSolver r cr = do
                 Unknown _ _ -> tc { unknown_count = unknown_count tc + 1 }
     writeIORef (track_count cr) tc'
 
-    -- check (CountResults solver) = 
-
-    --         checkTr :: forall t . solver -> State t -> PathConds -> IO (Result () () (), solver)
-    
-    -- -- | Checks if the given `PathConds` are satisfiable, and, if yes, gives a `Model`
-    -- -- The model must contain, at a minimum, a value for each passed `Id`
-    -- -- Allows modifying the solver, to track some state.
-    -- solveTr :: forall t . solver -> State t -> Bindings -> [Id] -> PathConds -> IO (Result Model () (), solver)
-
-    -- -- | Cleans up when the solver is no longer needed.  Default implementation
-    -- -- does nothing
-    -- closeTr :: solver -> IO ()
-    -- closeTr _ = return ()
+mergeResultCount :: SMTResultsCount -> SMTResultsCount -> SMTResultsCount
+mergeResultCount src1 src2 =
+    SRC { sat_count = sat_count src1 + sat_count src2
+        , unsat_count = unsat_count src1 + unsat_count src2
+        , unknown_count = unknown_count src1 + unknown_count src2 }
