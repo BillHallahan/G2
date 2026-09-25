@@ -15,6 +15,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Language.KnownValues as KV
 import G2.Language.TyVarEnv as TV
 
+import Control.Monad
 import Control.Monad.IO.Class
 import qualified Data.Foldable as F
 import qualified Data.HashMap.Lazy as HM
@@ -33,10 +34,10 @@ data VerifyRes = EVerified
                | EOther
                deriving (Eq, Show)
 
-checkEquiv :: TermCheck -> Config -> HM.HashMap Name Id -> SimpleState -> Name -> Name -> IO VerifyRes
+checkEquiv :: TermCheck -> Config -> HM.HashMap Name Id -> SimpleState -> Name -> Name -> IO (VerifyRes, SolverStats)
 checkEquiv = check equivOutput
 
-checkProp :: TermCheck -> Config -> HM.HashMap Name Id -> SimpleState -> Name -> IO VerifyRes
+checkProp :: TermCheck -> Config -> HM.HashMap Name Id -> SimpleState -> Name -> IO (VerifyRes, SolverStats)
 checkProp term_check func_config equiv_annots simp_state@(IT.SimpleState { IT.expr_env = eenv, IT.known_values = kv }) entry_real
     | Just (entry_real_name, real_e) <- E.lookupNameMod (nameOcc entry_real) (L.nameModule entry_real) (IT.expr_env simp_state)
     , let t = L.typeOf TV.empty real_e
@@ -57,9 +58,9 @@ checkProp term_check func_config equiv_annots simp_state@(IT.SimpleState { IT.ex
         check propOutput term_check func_config (HM.insert entry_real_name smt_id equiv_annots) simp_state' entry_real entry_smt
     | otherwise = do
         putStrLn "checkEquiv: functions not found"
-        return EOther
+        return (EOther, emptySolverStats)
 
-check :: CheckOutput -> TermCheck -> Config -> HM.HashMap Name Id -> SimpleState -> Name -> Name -> IO VerifyRes
+check :: CheckOutput -> TermCheck -> Config -> HM.HashMap Name Id -> SimpleState -> Name -> Name -> IO (VerifyRes, SolverStats)
 check check_output term_check func_config equiv_annots simp_state entry_real entry_smt_name
     | Just (entry_real_name, real_e) <- E.lookupNameMod (nameOcc entry_real) (nameModule entry_real) (IT.expr_env simp_state) = do
         -- Get a Config to run this specific function
@@ -70,7 +71,8 @@ check check_output term_check func_config equiv_annots simp_state entry_real ent
                                        , using_smt_lams = UseSMTLams
                                        , literal_tables = UseLiteralTables
                                        , search_strat = Subpath
-                                       , smt_discard_on_unknown = KeepUnknown }
+                                       , smt_discard_on_unknown = KeepUnknown
+                                       , maxOutputs = Just 1 }
 
         let entry_id = Id entry_real_name $ typeOf TV.empty real_e
             (init_state, bindings) = initStateFromSimpleState simp_state [nameModule entry_real] False
@@ -84,12 +86,12 @@ check check_output term_check func_config equiv_annots simp_state entry_real ent
             False -> do
                 putStrLn $ if_not_proven check_output entry_real_name entry_smt_name
                                     <> ", termination not proven"
-                return ENonTerminating
+                return (ENonTerminating, emptySolverStats)
     | otherwise = do
         putStrLn "checkEquiv: functions not found"
-        return EOther
+        return (EOther, emptySolverStats)
 
-checkEquivInputOutput :: CheckOutput -> Config -> HM.HashMap Name Id -> State () -> Bindings -> Id -> Expr -> Name -> IO VerifyRes
+checkEquivInputOutput :: CheckOutput -> Config -> HM.HashMap Name Id -> State () -> Bindings -> Id -> Expr -> Name -> IO (VerifyRes, SolverStats)
 checkEquivInputOutput check_output func_config equiv_annots init_state bindings entry_id@(Id entry_real_name _) real_e entry_smt_name
     | Just (comp_name, comp_e) <- E.lookupNameMod "comp" (Just "G2.Plugin") (expr_env init_state) = do
         let eenv = expr_env init_state
@@ -124,12 +126,12 @@ checkEquivInputOutput check_output func_config equiv_annots init_state bindings 
                                     , curr_expr = CurrExpr Evaluate comp_expr
                                     , true_assert = False }
             config_no_output = func_config { print_output = False }
-        (ers, got_unknown, _, time_outs, _) <- liftIO $ runG2WithConfig
-                                                            [] [] entry_id "" []
-                                                            [nameModule entry_real_name]
-                                                            comp_state
-                                                            config_no_output
-                                                            bindings
+        (ers, got_unknown, _, time_outs, _, stats) <- liftIO $ runG2WithConfig
+                                                                    [] [] entry_id "" []
+                                                                    [nameModule entry_real_name]
+                                                                    comp_state
+                                                                    config_no_output
+                                                                    bindings
  
         -- Get States corresponding to SMT calls from the states that violated the spec.
         -- Consider some functions:
@@ -149,11 +151,18 @@ checkEquivInputOutput check_output func_config equiv_annots init_state bindings 
         -- If we run corr, we may get a "counterexample" that corr 0 = 2. However, the glitch here is actually that
         -- the specification of incorr is wrong. We figure this out by logging all values passed into and returned from
         -- SMT definitions, and then checking if those values actually conform to the behavior of the real function.
+        -- We fold over the possible erroring functions until we find one that exposes the error (then, we stop executing.) 
         let smt_call_xs = checkFCStateBindings eenv ers bindings
-        mapM_ (\(func_n, new_s, new_b) -> do
-            runG2WithConfig [] [] (Id func_n TyUnknown) "" [] [nameModule entry_real_name] new_s func_config new_b) smt_call_xs
+        (call_stats, _) <- foldM (\(all_stats, found) (func_n, new_s, new_b) -> 
+                                case found of
+                                    True -> return (all_stats, found)
+                                    False -> do
+                                        (call_ers, _, _, _, _, call_stat) <- runG2WithConfig [] [] (Id func_n TyUnknown) "" [] [nameModule entry_real_name] new_s func_config new_b
+                                        return (call_stat:all_stats, not $ null call_ers))
+                                  ([], False)
+                                  smt_call_xs
 
-        case (ers, got_unknown) of
+        res <- case (ers, got_unknown) of
             ([], NoUnknowns) | NoTimeOut <- time_outs -> do
                 putStrLn $ if_proven check_output entry_real_name entry_smt_name
                 return EVerified
@@ -168,10 +177,11 @@ checkEquivInputOutput check_output func_config equiv_annots init_state bindings 
                 putStrLn $ if_not_proven check_output entry_real_name entry_smt_name
                                     <> (if got_unknown == GotUnknown then ", SMT solver returned unknown" else "")
                 return EUnknown
+        return (res, foldl' mergeSolverStats stats call_stats)
 
     | otherwise = do
         putStrLn "checkEquiv: functions not found"
-        return EOther
+        return (EOther, emptySolverStats)
 
 replaceVars :: HM.HashMap Name Id -> Expr -> Expr
 replaceVars m = modify go
