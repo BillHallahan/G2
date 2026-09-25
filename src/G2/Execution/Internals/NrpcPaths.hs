@@ -6,7 +6,8 @@ module G2.Execution.Internals.NrpcPaths
     (
         ReachabilityTable,
         paths,
-        reachabilityCheck
+        reachabilityCheck,
+        getUpdatedStateIfPathsChanged
     ) where
 
 import qualified Control.Monad.State as SM
@@ -15,7 +16,9 @@ import qualified Data.HashMap.Lazy as HM
 import G2.Language
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
+import qualified G2.Language.Stack as S
 import G2.Solver
+
 
 type ReachabilityTable = HM.HashMap Name Bool
 
@@ -209,3 +212,23 @@ reachabilityCheck' seen ng eenv e
         in reachabilityCheck' seen ng' eenv' e''
     | otherwise = return False
 
+threshold :: Int
+threshold = 1
+
+getUpdatedStateIfPathsChanged :: Solver solver => HS.HashSet Name -> Expr -> Expr -> State t -> Bindings -> solver -> State t
+getUpdatedStateIfPathsChanged _ _ _ s _ _ = 
+    let
+        -- Call paths here
+        path = 0
+    in 
+        if path > threshold then updateState s else s
+
+updateState :: State t -> State t
+updateState s@(State {curr_expr = c_e
+                    , exec_stack = stck}) = 
+    let
+        -- frame = 
+        -- stck' = S.push 
+
+
+    in s

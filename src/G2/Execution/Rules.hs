@@ -76,12 +76,12 @@ stdReduce' config no_inline _ solver simplifier s@(State { curr_expr = CurrExpr 
     , sharing config == NoSharing = return $ evalVarNoSharing s ng i
     | App e1 e2 <- ce = do
         let (r, new_pc, ng') = evalApp s dcpm ng e1 e2
-        (ng'', states) <- reduceNewPC (smt_discard_on_unknown config) solver simplifier ng' new_pc
+        (ng'', states) <- reduceNewPC (smt_discard_on_unknown config) config b solver simplifier ng' new_pc
         return (r, states, ng'')
     | Let b_ e <- ce = return $ evalLet s ng b_ e
     | Case e i t a <- ce = do
         let (r, new_pc, ng') = evalCase s b e i t a
-        (ng'', states) <- getValidStates config no_inline solver simplifier ng' new_pc
+        (ng'', states) <- getValidStates config b no_inline solver simplifier ng' new_pc
         return (r, states, ng'')
     | Cast e c <- ce = return $ evalCast s ng e c
     | Tick t e <- ce = return $ evalTick s ng t e
@@ -92,7 +92,7 @@ stdReduce' config no_inline _ solver simplifier s@(State { curr_expr = CurrExpr 
     | errorRaised s = return (RuleReturn, [s { curr_expr = CurrExpr Return ce }], ng)
     | otherwise = return (RuleReturn, [s { curr_expr = CurrExpr Return ce }], ng)
 stdReduce' config _ symb_func_eval solver simplifier s@(State { curr_expr = CurrExpr Return ce
-                                 , exec_stack = stck })  (Bindings { name_gen = ng })
+                                 , exec_stack = stck })  b@(Bindings { name_gen = ng })
     | errorRaised s
     , Just (AssertFrame is _, stck') <- frstck =
         return (RuleError, [s { exec_stack = stck'
@@ -112,15 +112,15 @@ stdReduce' config _ symb_func_eval solver simplifier s@(State { curr_expr = Curr
     | Just (ApplyFrame e, stck') <- frstck = return $ retApplyFrame s ng ce e stck'
     | Just (AssumeFrame e, stck') <- frstck = do
         let (r, new_pc, ng') = retAssumeFrame s ng ce e stck'
-        (ng'', states) <- reduceNewPC (smt_discard_on_unknown config) solver simplifier ng' new_pc
+        (ng'', states) <- reduceNewPC (smt_discard_on_unknown config) config b solver simplifier ng' new_pc
         return (r, states, ng'')
     | Just (AssertFrame ais e, stck') <- frstck = do
         let (r, new_pc, ng') = retAssertFrame s ng ce ais e stck'
-        (ng'', states) <- reduceNewPC (smt_discard_on_unknown config) solver simplifier ng' new_pc
+        (ng'', states) <- reduceNewPC (smt_discard_on_unknown config) config b solver simplifier ng' new_pc
         return (r, states, ng'')
     | Just (CurrExprFrame act e, stck') <- frstck = do
         let (r, new_pc, ng') = retCurrExpr s ce act e stck' ng
-        (ng'', states) <- reduceNewPC (smt_discard_on_unknown config) solver simplifier ng' new_pc
+        (ng'', states) <- reduceNewPC (smt_discard_on_unknown config) config b solver simplifier ng' new_pc
         return (r, states, ng'')
     | Just (LitTableFrame ltc up, stck') <- frstck =
         retLitTableFrame (smt_discard_on_unknown config) solver simplifier s ng ltc up stck'
@@ -130,14 +130,15 @@ stdReduce' config _ symb_func_eval solver simplifier s@(State { curr_expr = Curr
 
 getValidStates :: (Solver solver, Simplifier simplifier, ASTContainer t Expr)
                => Config
+               -> Bindings
                -> HS.HashSet Name -- ^ No inline
                -> solver
                -> simplifier
                -> NameGen
                -> NewPC t
                -> IO (NameGen, [State t])
-getValidStates config no_inline solver simplifier ng new_pc = do
-    (ng', xs) <- reduceNewPC (smt_discard_on_unknown config) solver simplifier ng new_pc
+getValidStates config b no_inline solver simplifier ng new_pc = do
+    (ng', xs) <- reduceNewPC (smt_discard_on_unknown config) config b solver simplifier ng new_pc
     (ng'', fc_check_res) <- mapAccumM checkFC ng' xs
     return (ng'', catMaybes fc_check_res)
     where
