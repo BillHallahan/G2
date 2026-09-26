@@ -26,7 +26,8 @@ tests = testGroup "All Tests"
                                 , ("headFalse", "headFalseSMT") ]
                                 []
                                 [ "badEquivProp"
-                                , "prop_rot" ]
+                                , "prop_rot"
+                                , "prop_rot2" ]
         , checkG2PackageEquiv "tests/G2Plugin/Strings"
                                 -- Equivalent functions
                                 [
