@@ -47,10 +47,18 @@ h ((MyI x, y):xs) | x == A = MyI x:h xs
 hSMT :: [(MyI, MyI)] -> [MyI]
 hSMT = smtMap (\(MyI x, y) -> if x == A then MyI x else y)
 
+{-# ANN (+++) (SMTEquivIs "appendSMT") #-}
+(+++) :: [a] -> [a] -> [a]
+[]     +++ ys = ys
+(x:xs) +++ ys = x : (xs +++ ys)
+
+appendSMT :: [a] -> [a] -> [a]
+appendSMT = ($++)
+
 rotate :: Int -> [a] -> [a]
 rotate 0     xs     = xs
 rotate _     []     = []
-rotate n     (x:xs) = rotate (n - 1) (xs ++ [x])
+rotate n     (x:xs) = rotate (n - 1) (xs +++ [x])
 
 given :: Bool -> Bool -> Bool
 given pb pa = (not pb) || pa
@@ -62,3 +70,19 @@ infixr 0 ==>
 {-# ANN prop_rot Prop #-}
 prop_rot :: Int -> Int -> [Int] -> [Int] -> Bool
 prop_rot   n m ys xs = rotate n (xs :: [Int]) == rotate m ys ==> n == m
+
+(=/=) :: Eq a => a -> a -> Bool
+x =/= y = not (x == y)
+
+{-# ANN len (SMTEquivIs "lenSMT") #-}
+len :: [a] -> Int
+len []     = 0
+len (_:xs) = 1 + (len xs)
+
+lenSMT :: [a] -> Int
+lenSMT = smtLen
+
+{-# ANN prop_rot2 (PropWithConfig "--smt cvc5")
+    #-}
+prop_rot2 :: Int -> Int -> [Int] -> [Int] -> Bool
+prop_rot2  n m ys xs = (n < len xs) == True ==> (m < len ys) == True ==> xs == ys ==> rotate 1 xs =/= xs ==> rotate n (xs :: [Int]) == rotate m ys ==> n == m

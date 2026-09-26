@@ -107,7 +107,7 @@ checkEquivInputOutput check_output func_config equiv_annots init_state bindings 
                                     Nothing -> error "checkEquiv: definition not found"
             real_e' = replaceVars equiv_annots real_e_mod_def
             eenv' = E.insert entry_real_name real_e' eenv
-            eenv'' = insertFCTickForAll (HM.toList $ HM.map idName equiv_annots) eenv' tv_env
+            eenv'' = insertFCTickForAll [(entry_real_name, entry_smt_name)] eenv' tv_env
             eenv''' = foldl' (\eenv_ (n, i) -> E.insert n (Var i) eenv_) eenv'' (HM.toList $ HM.delete entry_real_name equiv_annots)
         
             -- Set up a call to compare the real and SMT definitions
