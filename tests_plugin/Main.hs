@@ -27,7 +27,10 @@ tests = testGroup "All Tests"
                                 []
                                 [ "badEquivProp"
                                 , "prop_rot"
-                                , "prop_rot2" ]
+#if __GLASGOW_HASKELL__ >= 908
+                                , "prop_rot2"
+#endif
+                                ]
         , checkG2PackageEquiv "tests/G2Plugin/Strings"
                                 -- Equivalent functions
                                 [
