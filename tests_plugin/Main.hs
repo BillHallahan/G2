@@ -25,7 +25,7 @@ tests = testGroup "All Tests"
                                 , ("update", "updateSMT") ]
                                 [ ("badEquiv", "smtBadEquiv")
                                 , ("headFalse", "headFalseSMT") ]
-                                [ ("count", "smtCount")]
+                                [ ("count", "countSMT")]
                                 [ "prop_update"
                                 , "prop_update_simple"
                                 , "prop_update_neg_index"
