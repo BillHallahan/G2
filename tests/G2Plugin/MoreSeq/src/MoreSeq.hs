@@ -62,3 +62,65 @@ infixr 0 ==>
 {-# ANN prop_rot Prop #-}
 prop_rot :: Int -> Int -> [Int] -> [Int] -> Bool
 prop_rot   n m ys xs = rotate n (xs :: [Int]) == rotate m ys ==> n == m
+
+{-# ANN len (SMTEquivIs "lenSMT") #-}
+len :: [Int] -> Int
+len (_:xs) = 1 + len xs
+len _ = 0
+
+lenSMT :: [Int] -> Int
+lenSMT = smtLen
+
+{-# ANN update (SMTEquivIsWithConfig "updateSMT" "--smt cvc5")
+    #-}
+update :: [Int] -> Int -> [Int] -> [Int]
+update xs i _ | i < 0 = xs
+update (_:xs) 0 (y:ys) = y:update xs 0 ys
+update xs 0 [] = xs
+update (x:xs) i ys = x:update xs (i - 1) ys
+update [] _ _ = []
+
+updateSMT :: [Int] -> Int -> [Int] -> [Int]
+updateSMT = smtUpdate
+
+{-# ANN prop_update_bad (PropWithConfig "--smt z3")
+    #-}
+prop_update_bad :: [Int] -> [Int] -> Int -> [Int] -> Bool
+prop_update_bad xs ys n rep = (update xs n rep) == (update ys n rep) ==> xs == ys
+
+{-# ANN prop_update (PropWithConfig "--smt z3")
+    #-}
+prop_update :: [Int] -> [Int] -> Int -> [Int] -> Bool
+prop_update xs ys n rep = xs == ys ==> (update xs n rep) == (update ys n rep)
+
+-- Simpler props to test that z3 doesn't error on a lack of seq.update,
+-- since it times out on the above properties :(
+{-# ANN prop_update_simple (PropWithConfig "--smt z3")
+    #-}
+prop_update_simple :: [Int] -> Bool
+prop_update_simple xs = update xs 0 [] == xs
+
+{-# ANN prop_update_neg_index (PropWithConfig "--smt z3")
+    #-}
+prop_update_neg_index :: [Int] -> [Int] -> Bool
+prop_update_neg_index xs rep = update xs (-1) rep == xs
+
+{-# ANN prop_update_empty_rep (PropWithConfig "--smt z3")
+    #-}
+prop_update_empty_rep :: [Int] -> Int -> Bool
+prop_update_empty_rep xs n = update xs n [] == xs
+
+{-# ANN prop_update_empty_list (PropWithConfig "--smt z3")
+    #-}
+prop_update_empty_list :: Int -> [Int] -> Bool
+prop_update_empty_list n rep = update [] n rep == []
+
+{-# ANN prop_update_single (PropWithConfig "--smt z3")
+    #-}
+prop_update_single :: Int -> Int -> Bool
+prop_update_single x y = update [x] 0 [y] == [y]
+
+{-# ANN prop_update_len (PropWithConfig "--smt z3")
+    #-}
+prop_update_len :: [Int] -> Int -> [Int] -> Bool
+prop_update_len xs n rep = len (update xs n rep) == len xs
