@@ -74,7 +74,7 @@ import GHC.Exts
 import GHC.Types.TyThing
 
 import G2.Config
-import G2.Data.Utils (firstJust)
+import G2.Data.Utils (firstJust, splitOn)
 import G2.Execution.FuncConstraints
 import G2.Initialization.MkCurrExpr
 import G2.Interface
@@ -178,9 +178,10 @@ g2PluginPass' :: [CommandLineOption] -> PluginConfig -> HscEnv -> ModGuts -> Cor
 g2PluginPass' cmd_lne config env modguts = do
     (new_nm, new_tm, ex_g2, prev_explored) <- loadExtractedG2 cmd_lne (g2_config config) env modguts
     let very_simp_state = initSimpleState ex_g2 new_nm new_tm
+        ld_mod_name = moduleNameString . moduleName . mg_module $ modguts
 
     -- Get the names of functions we are going to be symbolically executing
-    ann_fs_g2 <- getBinderAnnotations new_nm new_tm modguts
+    ann_fs_g2 <- if maybe True (ld_mod_name `elem`) (only_run_in config) then getBinderAnnotations new_nm new_tm modguts else return []
     prev_annots <- liftIO $ readIORef prevEquivAnnots
     let equivTo (Name _ eq_m _ _) (SMTEquivIs eq_n) | Just (smt_n, smt_e) <- (E.lookupNameMod (TX.pack eq_n) eq_m $ IT.expr_env very_simp_state) =
             Just (Id smt_n $ L.typeOf TV.empty smt_e)
@@ -787,14 +788,20 @@ comp real_def smt_def =
 -- Configs
 ------------------------------------------------------------------------------
 
-data PluginConfig = PluginConfig { logs_folder :: Maybe FilePath
+data PluginConfig = PluginConfig { only_run_in :: Maybe [String]
+                                 , logs_folder :: Maybe FilePath
                                  , check_term :: V.TermCheck
                                  , g2_config :: Config }
 
 pluginConfig :: String -> ParserInfo PluginConfig
 pluginConfig homedir =
     info ((PluginConfig
-                <$> option (maybeReader (Just . Just))
+                <$> option (maybeReader (Just . Just . splitOn ','))
+                    (long "only-run-in"
+                        <> metavar "F"
+                        <> value Nothing
+                        <> help "folder to store logs in")
+                <*> option (maybeReader (Just . Just))
                     (long "logs-folder"
                         <> metavar "F"
                         <> value Nothing
