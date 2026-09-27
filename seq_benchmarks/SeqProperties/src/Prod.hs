@@ -12,6 +12,7 @@ import Prelude(Bool(..), Int, (+), (*), (-), (>), (/=), (==), (<=), even, div, E
 import Prelude ((>=), mod)
 import G2.Plugin hiding ((==>))
 import G2.Plugin.Unsafe
+import G2.Plugin.Prim
 
 {-# ANN module ("--smt-tuples --higher-order uninterpreted")
     #-}

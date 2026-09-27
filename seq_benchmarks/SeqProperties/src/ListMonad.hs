@@ -4,6 +4,7 @@ module ListMonad where
 
 import Prelude hiding ((>>=), return, map, concat)
 import G2.Plugin
+import G2.Plugin.Prim
 
 {-# ANN module ("--smt-tuples --higher-order uninterpreted")
     #-}

@@ -56,6 +56,9 @@ module G2.Plugin (SymEx (..)
                 , smtZip
 
                 -- Checking
+                , pMap
+                , pFoldLeft
+                , pZip
                 , comp
                 ) where
 
@@ -198,8 +201,12 @@ g2PluginPass' cmd_lne config env modguts = do
         -- comp is a function defined in this module used for checking equivalence,
         -- we add it to rel_names here to make sure it is loaded
         (comp_name, comp_nm) = addName "comp" (Just "G2.Plugin") new_nm
+        (map_name, map_nm) = addName "pMap" (Just "G2.Plugin") comp_nm
+        (fold_name, fold_nm) = addName "pFoldLeft" (Just "G2.Plugin") map_nm
+        (zip_name, zip_nm) = addName "pZip" (Just "G2.Plugin") fold_nm
 
-    (imports_nm, import_tnm, injected_exg2) <- setUpImports (g2_config config) cmd_lne comp_nm new_tm env ex_g2 prev_explored (comp_name Seq.:<| rel_names)
+    (imports_nm, import_tnm, injected_exg2) <- setUpImports (g2_config config) cmd_lne zip_nm new_tm env ex_g2 prev_explored
+                                                            (comp_name Seq.:<| map_name Seq.:<| fold_name Seq.:<| zip_name Seq.:<| rel_names)
     let simp_state = initSimpleState injected_exg2 imports_nm import_tnm
 
     let mod_name = unpackFS . moduleNameFS . moduleName $ mg_module modguts
@@ -535,7 +542,8 @@ adjustFunctions config nm ex_g2 =
                      $ adjustAssume (Just "G2.Plugin.Unsafe") nm ex_g2
     in
     if using_seq then
-            adjustFunction ("pSmtEq#", Just "G2.Plugin.Prim") nm (callPrimIgnoringEq nm "strEq#")
+        -- Replace functions in G2.Plugin.Prim
+          adjustFunction ("pSmtEq#", Just "G2.Plugin.Prim") nm (callPrimIgnoringEq nm "strEq#")
         . adjustFunction ("pSmtLen#", Just "G2.Plugin.Prim") nm (callPrim nm "strLen#")
         . adjustFunction ("pSmtNth#", Just "G2.Plugin.Prim") nm (callPrim nm "seqNthInt#")
         . adjustFunction ("pSmtUpdate#", Just "G2.Plugin.Prim") nm (callPrim nm "strUpdate#")
@@ -568,15 +576,22 @@ adjustFunctions config nm ex_g2 =
         . adjustFunction ("pSmtReInter#", Just "G2.Plugin.Prim") nm (callPrim nm "reInter#")
         . adjustFunction ("pSmtReComp#", Just "G2.Plugin.Prim") nm (callPrim nm "reComp#")
         . adjustFunction ("pSmtReStar#", Just "G2.Plugin.Prim") nm (callPrim nm "reStar#")
+        -- Replace functions in this module
+        . adjustFunction ("smtMap'", Just "G2.Plugin") nm (callPrimMod nm "pMap" (Just "G2.Plugin"))
+        . adjustFunction ("smtFoldLeft'", Just "G2.Plugin") nm (callPrimMod nm "pFoldLeft" (Just "G2.Plugin"))
+        . adjustFunction ("smtZip", Just "G2.Plugin") nm (callPrimMod nm "pZip" (Just "G2.Plugin"))
         $ basic_adjust
     else
         basic_adjust
 
 callPrim :: NameMap -> TX.Text -> L.Expr 
-callPrim nm n =
-    case HM.lookup (n, Just "GHC.Prim") nm of
+callPrim nm n = callPrimMod nm n (Just "GHC.Prim")
+
+callPrimMod :: NameMap -> TX.Text -> Maybe TX.Text -> L.Expr 
+callPrimMod nm n m_mod =
+    case HM.lookup (n, m_mod) nm of
         Just prim_n -> L.Var (Id prim_n TyUnknown)
-        Nothing -> error "callPrim: primitive not found"
+        Nothing -> error $ "callPrim: primitive not found" ++ show n ++ "\n" ++ show m_mod
 
 callPrimIgnoringEq :: NameMap -> TX.Text -> L.Expr 
 callPrimIgnoringEq nm n =
@@ -640,9 +655,13 @@ smtMap :: (a -> b) -> [a] -> [b]
 smtMap f xs = xs `evalSeq` smtMap' f xs 
 
 smtMap' :: (a -> b) -> [a] -> [b]
-smtMap' f xs = 
+smtMap' = map
+{-# NOINLINE smtMap' #-}
+
+pMap :: (a -> b) -> [a] -> [b]
+pMap f xs = 
     let !(LTI lt success inLT partial) = pBuildLitTable# f
-        !mapped = xs `evalSeq` pSmtMap# lt xs
+        !mapped = pSmtMap# lt xs
         !pt_a = if not partial then True else pSmtFoldLeft# (\acc e -> acc $&& inLT e) True xs
     in assume pt_a $ if success then mapped else map f xs
 
@@ -659,9 +678,13 @@ smtFoldLeft :: (a -> b -> a) -> a -> [b] -> a
 smtFoldLeft f !x xs = xs `evalSeq` smtFoldLeft' f x xs 
 
 smtFoldLeft' :: (a -> b -> a) -> a -> [b] -> a
-smtFoldLeft' f x xs =
+smtFoldLeft' =  F.foldl'
+{-# NOINLINE smtFoldLeft' #-}
+
+pFoldLeft :: (a -> b -> a) -> a -> [b] -> a
+pFoldLeft f x xs =
     let !(LTI lt success _ {- inLT -} partial) = pBuildLitTable# f
-        !folded = xs `evalSeq` pSmtFoldLeft# lt x xs
+        !folded = pSmtFoldLeft# lt x xs
         -- !pt_a = if not partial then True else pSmtFoldLeft# (\acc e -> acc $&& inLT e) True xs
     in if success && not partial then folded else F.foldl' f x xs
 
@@ -727,10 +750,13 @@ smtDrop n xs =
     else xs
 
 smtZip :: (Eq a, Eq b) => [a] -> [b] -> [(a, b)]
-smtZip xs ys | smtLen xs < smtLen ys = exists (\zs -> xs `smtEq` smtMap fst zs
-                                                      && smtMap snd zs `smtPrefixOf` ys)
-             | otherwise = exists (\zs -> smtMap fst zs `smtPrefixOf` xs
-                                       && ys `smtEq` smtMap snd zs)
+smtZip = zip
+
+pZip :: (Eq a, Eq b) => [a] -> [b] -> [(a, b)]
+pZip xs ys | smtLen xs < smtLen ys = exists (\zs -> xs `smtEq` smtMap fst zs
+                                                 && smtMap snd zs `smtPrefixOf` ys)
+           | otherwise = exists (\zs -> smtMap fst zs `smtPrefixOf` xs
+                                     && ys `smtEq` smtMap snd zs)
 
 -- Forcing Evaluation
 

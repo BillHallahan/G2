@@ -9,6 +9,8 @@ module DefinitionsFalse where
 import Prelude (Eq(..),Ord(..),Show(..),(.),iterate,(!!),return,Bool(..))
 import Prod
 import G2.Plugin hiding ((==>))
+import G2.Plugin.Prim
+
 
 {-# ANN module ("--smt-tuples --higher-order uninterpreted")
     #-}
