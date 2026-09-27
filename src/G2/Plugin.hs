@@ -199,19 +199,21 @@ g2PluginPass' cmd_lne config env modguts = do
         -- we add it to rel_names here to make sure it is loaded
         (comp_name, comp_nm) = addName "comp" (Just "G2.Plugin") new_nm
 
-    (imports_nm, import_tnm, injected_exg2) <- setUpImports cmd_lne comp_nm new_tm env ex_g2 prev_explored (comp_name Seq.:<| rel_names)
+    (imports_nm, import_tnm, injected_exg2) <- setUpImports (g2_config config) cmd_lne comp_nm new_tm env ex_g2 prev_explored (comp_name Seq.:<| rel_names)
     let simp_state = initSimpleState injected_exg2 imports_nm import_tnm
 
     let mod_name = unpackFS . moduleNameFS . moduleName $ mg_module modguts
 
     let ord_ann_fs_g2 = orderAnnotations (IT.expr_env simp_state) ann_fs_g2
-    liftIO $ foldM_ (\ea (f, symex) -> do
-                            (res, time) <- timeInSeconds (runSymexAnnots cmd_lne ea simp_state f symex)
-                            let (res', stats) = case res of r:_ -> r; [] -> (V.EOther, emptySolverStats)
-                            logEquivTime (logs_folder config) mod_name (TX.unpack $ nameOcc f) res' (show time) stats
-                            if res' == V.EVerified
-                                then return ea
-                                else return $ HM.delete f ea) equiv_annots ord_ann_fs_g2
+    end_equiv_annots <-liftIO $ foldM (\ea (f, symex) -> do
+                                                (res, time) <- timeInSeconds (runSymexAnnots cmd_lne ea simp_state f symex)
+                                                let (res', stats) = case res of r:_ -> r; [] -> (V.EOther, emptySolverStats)
+                                                logEquivTime (logs_folder config) mod_name (TX.unpack $ nameOcc f) res' (show time) stats
+                                                if res' == V.EVerified
+                                                    then return ea
+                                                    else return $ HM.delete f ea) equiv_annots ord_ann_fs_g2
+    liftIO $ writeIORef prevEquivAnnots end_equiv_annots
+
 
 addName :: TX.Text -> Maybe TX.Text -> NameMap -> (L.Name, NameMap)
 addName occ md nm | Just n <- HM.lookup (occ, md) nm = (n, nm)
@@ -388,10 +390,10 @@ getBinderAnnotations nm tm modguts = do
     return $ deepseq anns anns
 
 -- | Add relevant functions from the imports into the ExtractedG2.
-setUpImports :: SM.MonadIO m => [CommandLineOption] -> NameMap -> TypeNameMap -> HscEnv -> ExtractedG2 -> S.Set L.Name -> Seq.Seq L.Name -> m (NameMap, TypeNameMap, ExtractedG2)
-setUpImports cmd_lne nm tm env ex_g2 prev_explored rel_names = do
+setUpImports :: SM.MonadIO m => Config -> [CommandLineOption] -> NameMap -> TypeNameMap -> HscEnv -> ExtractedG2 -> S.Set L.Name -> Seq.Seq L.Name -> m (NameMap, TypeNameMap, ExtractedG2)
+setUpImports config cmd_lne nm tm env ex_g2 prev_explored rel_names = do
     (imports_exg2, (imports_nm, import_tnm)) <- SM.runStateT (loadImports env (exg2_binds ex_g2) prev_explored rel_names) (nm, tm)
-    let adj_funcs_exg2 = adjustFunctions imports_nm imports_exg2
+    let adj_funcs_exg2 = adjustFunctions config imports_nm imports_exg2
 
     let merged_exg2 = mergeExtractedG2s [ex_g2, adj_funcs_exg2]
         injected_exg2 = specialInject merged_exg2
@@ -522,49 +524,53 @@ getModuleAnnot modguts = do
             Just anns -> return anns
             Nothing   -> return []
 
-adjustFunctions :: NameMap -> ExtractedG2 -> ExtractedG2
-adjustFunctions nm ex_g2 = do
-      adjustFunction ("pSmtEq#", Just "G2.Plugin.Prim") nm (callPrimIgnoringEq nm "strEq#")
-    . adjustFunction ("pSmtLen#", Just "G2.Plugin.Prim") nm (callPrim nm "strLen#")
-    . adjustFunction ("pSmtNth#", Just "G2.Plugin.Prim") nm (callPrim nm "seqNthInt#")
-    . adjustFunction ("pSmtUpdate#", Just "G2.Plugin.Prim") nm (callPrim nm "strUpdate#")
-    . adjustFunction ("pSmtExtract#", Just "G2.Plugin.Prim") nm (callPrim nm "strSubstr#")
-    . adjustFunction ("pSmtAppend#", Just "G2.Plugin.Prim") nm (callPrim nm "strAppend#")
-    . adjustFunction ("pSmtAt#", Just "G2.Plugin.Prim") nm (callPrim nm "strAt#")
-    . adjustFunction ("pSmtContains#", Just "G2.Plugin.Prim") nm (callPrimIgnoringEq nm "strContains#")
-    . adjustFunction ("pSmtIndexOf#", Just "G2.Plugin.Prim") nm (callPrimIgnoringEq nm "strIndexOf#")
-    . adjustFunction ("pSmtReplace#", Just "G2.Plugin.Prim") nm (callPrim nm "strReplace#")
-    . adjustFunction ("pSmtReplaceAll#", Just "G2.Plugin.Prim") nm (callPrim nm "strReplaceAll#")
-    . adjustFunction ("pSmtReverse#", Just "G2.Plugin.Prim") nm (callPrim nm "strReverse#")
-    . adjustFunction ("pSmtPrefixOf#", Just "G2.Plugin.Prim") nm (callPrimIgnoringEq nm "strPrefixOf#")
-    . adjustFunction ("pSmtSuffixOf#", Just "G2.Plugin.Prim") nm (callPrimIgnoringEq nm "strSuffixOf#")
+adjustFunctions :: Config -> NameMap -> ExtractedG2 -> ExtractedG2
+adjustFunctions config nm ex_g2 =
+    let
+        using_seq = smt_strings config == UseSMTStrings || useSMTSeqs (smt_prim_lists config)
+        basic_adjust = adjustMkSymbolicPrim SNoLog "pSymGen#" (Just "G2.Plugin.Prim") nm
+                     . adjustFunction ("$&&", Just "G2.Plugin.Prim") nm (callPrim nm "&&#")
+                     . adjustFunction ("$||", Just "G2.Plugin.Prim") nm (callPrim nm "||#")
+                     . adjustAssert "assert" "G2.Plugin" nm
+                     $ adjustAssume (Just "G2.Plugin.Unsafe") nm ex_g2
+    in
+    if using_seq then
+            adjustFunction ("pSmtEq#", Just "G2.Plugin.Prim") nm (callPrimIgnoringEq nm "strEq#")
+        . adjustFunction ("pSmtLen#", Just "G2.Plugin.Prim") nm (callPrim nm "strLen#")
+        . adjustFunction ("pSmtNth#", Just "G2.Plugin.Prim") nm (callPrim nm "seqNthInt#")
+        . adjustFunction ("pSmtUpdate#", Just "G2.Plugin.Prim") nm (callPrim nm "strUpdate#")
+        . adjustFunction ("pSmtExtract#", Just "G2.Plugin.Prim") nm (callPrim nm "strSubstr#")
+        . adjustFunction ("pSmtAppend#", Just "G2.Plugin.Prim") nm (callPrim nm "strAppend#")
+        . adjustFunction ("pSmtAt#", Just "G2.Plugin.Prim") nm (callPrim nm "strAt#")
+        . adjustFunction ("pSmtContains#", Just "G2.Plugin.Prim") nm (callPrimIgnoringEq nm "strContains#")
+        . adjustFunction ("pSmtIndexOf#", Just "G2.Plugin.Prim") nm (callPrimIgnoringEq nm "strIndexOf#")
+        . adjustFunction ("pSmtReplace#", Just "G2.Plugin.Prim") nm (callPrim nm "strReplace#")
+        . adjustFunction ("pSmtReplaceAll#", Just "G2.Plugin.Prim") nm (callPrim nm "strReplaceAll#")
+        . adjustFunction ("pSmtReverse#", Just "G2.Plugin.Prim") nm (callPrim nm "strReverse#")
+        . adjustFunction ("pSmtPrefixOf#", Just "G2.Plugin.Prim") nm (callPrimIgnoringEq nm "strPrefixOf#")
+        . adjustFunction ("pSmtSuffixOf#", Just "G2.Plugin.Prim") nm (callPrimIgnoringEq nm "strSuffixOf#")
 
-    . adjustFunction ("pBuildLitTable#", Just "G2.Plugin.Prim") nm (callPrim nm "buildLitTable#")
-    . adjustFunction ("pSmtMap#", Just "G2.Plugin.Prim") nm (callPrim nm "smtMap#")
-    . adjustFunction ("pSmtFoldLeft#", Just "G2.Plugin.Prim") nm (callPrim nm "smtFoldLeft#")
-    . adjustFunction ("pSmtFoldLeftI#", Just "G2.Plugin.Prim") nm (callPrim nm "smtFoldLeftI#")
+        . adjustFunction ("pBuildLitTable#", Just "G2.Plugin.Prim") nm (callPrim nm "buildLitTable#")
+        . adjustFunction ("pSmtMap#", Just "G2.Plugin.Prim") nm (callPrim nm "smtMap#")
+        . adjustFunction ("pSmtFoldLeft#", Just "G2.Plugin.Prim") nm (callPrim nm "smtFoldLeft#")
+        . adjustFunction ("pSmtFoldLeftI#", Just "G2.Plugin.Prim") nm (callPrim nm "smtFoldLeftI#")
 
-    . adjustFunction ("pIsSMTRep#", Just "G2.Plugin.Prim") nm (callPrim nm "isSMTRep#")
+        . adjustFunction ("pIsSMTRep#", Just "G2.Plugin.Prim") nm (callPrim nm "isSMTRep#")
 
-    . adjustFunction ("pSmtReRange#", Just "G2.Plugin.Prim") nm (callPrim nm "reRange#")
-    . adjustFunction ("pSmtInRe#", Just "G2.Plugin.Prim") nm (callPrim nm "inRe#")
-    . adjustFunction ("pSmtToRe#", Just "G2.Plugin.Prim") nm (callPrim nm "toRe#")
-    . adjustFunction ("pSmtReNone#", Just "G2.Plugin.Prim") nm (callPrim nm "reNone#")
-    . adjustFunction ("pSmtReAll#", Just "G2.Plugin.Prim") nm (callPrim nm "reAll#")
-    . adjustFunction ("pSmtReAllChar#", Just "G2.Plugin.Prim") nm (callPrim nm "reAllChar#")
-    . adjustFunction ("pSmtReConcat#", Just "G2.Plugin.Prim") nm (callPrim nm "reConcat#")
-    . adjustFunction ("pSmtReUnion#", Just "G2.Plugin.Prim") nm (callPrim nm "reUnion#")
-    . adjustFunction ("pSmtReInter#", Just "G2.Plugin.Prim") nm (callPrim nm "reInter#")
-    . adjustFunction ("pSmtReComp#", Just "G2.Plugin.Prim") nm (callPrim nm "reComp#")
-    . adjustFunction ("pSmtReStar#", Just "G2.Plugin.Prim") nm (callPrim nm "reStar#")
-
-    . adjustMkSymbolicPrim SNoLog "pSymGen#" (Just "G2.Plugin.Prim") nm
-
-    . adjustFunction ("$&&", Just "G2.Plugin.Prim") nm (callPrim nm "&&#")
-    . adjustFunction ("$||", Just "G2.Plugin.Prim") nm (callPrim nm "||#")
-
-    . adjustAssert "assert" "G2.Plugin" nm
-    $ adjustAssume (Just "G2.Plugin.Unsafe") nm ex_g2
+        . adjustFunction ("pSmtReRange#", Just "G2.Plugin.Prim") nm (callPrim nm "reRange#")
+        . adjustFunction ("pSmtInRe#", Just "G2.Plugin.Prim") nm (callPrim nm "inRe#")
+        . adjustFunction ("pSmtToRe#", Just "G2.Plugin.Prim") nm (callPrim nm "toRe#")
+        . adjustFunction ("pSmtReNone#", Just "G2.Plugin.Prim") nm (callPrim nm "reNone#")
+        . adjustFunction ("pSmtReAll#", Just "G2.Plugin.Prim") nm (callPrim nm "reAll#")
+        . adjustFunction ("pSmtReAllChar#", Just "G2.Plugin.Prim") nm (callPrim nm "reAllChar#")
+        . adjustFunction ("pSmtReConcat#", Just "G2.Plugin.Prim") nm (callPrim nm "reConcat#")
+        . adjustFunction ("pSmtReUnion#", Just "G2.Plugin.Prim") nm (callPrim nm "reUnion#")
+        . adjustFunction ("pSmtReInter#", Just "G2.Plugin.Prim") nm (callPrim nm "reInter#")
+        . adjustFunction ("pSmtReComp#", Just "G2.Plugin.Prim") nm (callPrim nm "reComp#")
+        . adjustFunction ("pSmtReStar#", Just "G2.Plugin.Prim") nm (callPrim nm "reStar#")
+        $ basic_adjust
+    else
+        basic_adjust
 
 callPrim :: NameMap -> TX.Text -> L.Expr 
 callPrim nm n =

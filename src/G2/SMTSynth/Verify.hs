@@ -65,8 +65,6 @@ check check_output term_check func_config equiv_annots simp_state entry_real ent
     | Just (entry_real_name, real_e) <- E.lookupNameMod (nameOcc entry_real) (nameModule entry_real) (IT.expr_env simp_state) = do
         -- Get a Config to run this specific function
         let func_config' = func_config { step_limit = False
-                                       , smt_strings = UseSMTStrings
-                                       , smt_prim_lists = UseSMTSeq { add_to_dcs = True, add_to_funcs = True }
                                        , smt_strings_strictness = StrictSMTStrings
                                        , using_smt_lams = UseSMTLams
                                        , literal_tables = UseLiteralTables

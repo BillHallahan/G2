@@ -10,7 +10,7 @@ import Prelude (Eq(..),Ord(..),Show(..),(.),iterate,(!!),return,Bool(..))
 import Prod
 import G2.Plugin hiding ((==>))
 
-{-# ANN module ("--smt-tuples --higher-order uninterpreted --time 300")
+{-# ANN module ("--smt-tuples --higher-order uninterpreted")
     #-}
 
 {-
