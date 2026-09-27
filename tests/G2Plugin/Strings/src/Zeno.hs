@@ -218,7 +218,7 @@ takeWhileSMT p xs =
 --                                     smtFoldLeft (\acc e -> acc && not (p e)) True (smtAt bs 0))
 --   in as'
 
-{-# ANN dropWhile (SMTEquivIsWithConfig "dropWhileSMT" "--smt-timeout 50 --time 480")
+{-# ANN dropWhile (SMTEquivIsWithConfig "dropWhileSMT" "--smt-timeout 60 --time 540")
   #-}
 dropWhile :: (Nat -> Bool) -> [Nat] -> [Nat]
 dropWhile _ [] = []
