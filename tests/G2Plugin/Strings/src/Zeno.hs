@@ -35,7 +35,7 @@ import Prelude
 import G2.Plugin
 import G2.Plugin.Unsafe
 
-{-# ANN module ("--smt-tuples --higher-order uninterpreted")
+{-# ANN module ("--smt-lists --smt-strings --smt-tuples --higher-order uninterpreted")
     #-}
 
 -- code here adapted from HipSpec.hs

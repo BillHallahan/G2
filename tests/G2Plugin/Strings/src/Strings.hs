@@ -2,6 +2,9 @@ module Strings where
 
 import G2.Plugin
 
+{-# ANN module ("--smt-lists --smt-strings")
+    #-}
+
 {-# ANN f (SMTEquivIs "f2" )
     #-}
 f :: [Int] -> [Int]

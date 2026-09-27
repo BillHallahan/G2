@@ -2,6 +2,9 @@ module NonTerm where
 
 import G2.Plugin
 
+{-# ANN module ("--smt-lists --smt-strings")
+    #-}
+
 {-# ANN nonTerm1 (SMTEquivIs "smtNonTerm1") #-}
 nonTerm1 :: [Int] -> [Int]
 nonTerm1 = nonTerm1
