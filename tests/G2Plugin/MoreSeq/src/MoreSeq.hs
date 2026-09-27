@@ -140,3 +140,15 @@ prop_update_single x y = update [x] 0 [y] == [y]
     #-}
 prop_update_len :: [Int] -> Int -> [Int] -> Bool
 prop_update_len xs n rep = len (update xs n rep) == len xs
+
+{-# ANN count (SMTEquivIsWithConfig "countSMT" "--no-string-simplifier --smt cvc5,z3 --print-smt")
+    #-}
+count :: Int -> [Int] -> Int
+count _ [] = 0
+count x (y:ys) =
+  case x == y of
+    True -> 1 + (count x ys)
+    _ -> count x ys
+
+countSMT :: Int -> [Int] -> Int
+countSMT e xs = (smtLen xs) - (smtLen (smtReplaceAll xs [e] []))

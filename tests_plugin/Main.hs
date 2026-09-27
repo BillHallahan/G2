@@ -25,6 +25,7 @@ tests = testGroup "All Tests"
                                 , ("update", "updateSMT") ]
                                 [ ("badEquiv", "smtBadEquiv")
                                 , ("headFalse", "headFalseSMT") ]
+                                [ ("count", "smtCount")]
                                 [ "prop_update"
                                 , "prop_update_simple"
                                 , "prop_update_neg_index"
@@ -148,6 +149,8 @@ tests = testGroup "All Tests"
                                 , ("nonTerm2", "smtNonTerm2")
                                 , ("nonTerm3", "smtNonTerm3")
                                 ]
+                                -- Unknown functions
+                                []
                                 [ 
                                 --Zeno
                                   "prop_01"
@@ -189,10 +192,11 @@ ranFunc io_out =
 checkG2PackageEquiv :: FilePath
                     -> [(String, String)] -- ^ Functions that should be equivalent
                     -> [(String, String)] -- ^ Functions that should be inequivalent
+                    -> [(String, String)] -- ^ Functions that should terminate, but maybe with an unknown
                     -> [String] -- ^ Properties that should be proven
                     -> [String] -- ^ Properties that should NOT be proven
                     -> TestTree
-checkG2PackageEquiv loc funcs_equiv funcs_inequiv props false_props =
+checkG2PackageEquiv loc funcs_equiv funcs_inequiv funcs_unknown props false_props =
     withResource
         (buildPackage loc)
         (\_ -> return ()) $
@@ -201,6 +205,7 @@ checkG2PackageEquiv loc funcs_equiv funcs_inequiv props false_props =
             loc
             $  ranFuncEquiv io_out funcs_equiv
             ++ ranFuncInequiv io_out funcs_inequiv
+            ++ ranFuncUnknown io_out funcs_unknown
             ++ ranFuncProp io_out props
             ++ ranFuncNotProp io_out false_props
 
@@ -226,6 +231,16 @@ ranFuncInequiv io_out =
                                      then "Found equivalent " ++ f1 ++ " and " ++ f2
                                      else "Not run " ++ f1 ++ " and " ++ f2) ++ "\nFull output:\n" ++ out)
                                (checkInequiv f1 f2 out))
+        )
+
+ranFuncUnknown :: IO String -> [(String, String)] -> [TestTree]
+ranFuncUnknown io_out =
+    map (\(f1, f2) -> testCase
+                (f1 ++ " and " ++ f2)
+                (do
+                    out <- io_out
+                    assertBool ("Not successfully run " ++ f1 ++ " and " ++ f2 ++ "\nFull output:\n" ++ out)
+                               (checkEquiv f1 f2 out || checkInequiv f1 f2 out))
         )
 
 ranFuncProp :: IO String -> [String] -> [TestTree]

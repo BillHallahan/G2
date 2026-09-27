@@ -29,6 +29,7 @@ import G2.Language.ArbValueGen
 import G2.Language (Expr (..), Lit (..), Primitive (..), Type (..), Id (..), Name (..), LamUse (..), TyVarEnv, typeOf)
 import G2.Language.AST
 import G2.Language.Expr
+import G2.Language.KnownValues
 import qualified G2.Language.PathConds as PC
 import G2.Language.Support(State(..))
 import G2.Solver.Language
@@ -74,16 +75,30 @@ data SomeSMTSolver where
                    . SMTConverter con => con -> SomeSMTSolver
 
 instance Solver Z3 where
-    check solver s pc = checkConstraintsPC
+    check solver s pc
+        | containsCVC5Only (known_values s) pc = return (Unknown "CVC5 Only" ())
+        | otherwise = checkConstraintsPC
                             (known_values s)
                             (tyvar_env s)
                             (type_env s)
                             solver
                             []
                             (elimUpdate $ elimReverse s pc)
-    solve con@(Z3 _ _ avf _) s b is pcs =
-        checkModelPC avf con s b is [] (elimUpdate $ elimReverse s pcs)
+    solve con@(Z3 _ _ avf _) s b is pcs
+        | containsCVC5Only (known_values s) pcs = return (Unknown "CVC5 Only" ())
+        | otherwise = checkModelPC avf con s b is [] (elimUpdate $ elimReverse s pcs)
     close = closeIO
+
+containsCVC5Only :: KnownValues ->  PC.PathConds -> Bool
+containsCVC5Only kv = getAny . evalASTs go
+    where
+        go (Prim StrReplaceAll (TyFun (TyApp _ val_t) _))
+            -- ReplaceAll is ok on strings
+            | TyCon n _<- val_t
+            , n == tyChar kv = Any False
+            -- Not ok on other types
+            | otherwise = Any True
+        go _ = Any False
 
 -- | Convert StrUpdate into extracts (for Z3)
 -- (seq.update s1 i s2) converts to
