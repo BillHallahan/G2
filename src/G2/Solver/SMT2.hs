@@ -26,7 +26,7 @@ module G2.Solver.SMT2 ( Z3StringSolver (..)
 
 import G2.Config.Config
 import G2.Language.ArbValueGen
-import G2.Language (Expr (..), Primitive (..), Type (..), Id (..), Name (..), LamUse (..), TyVarEnv, typeOf)
+import G2.Language (Expr (..), Lit (..), Primitive (..), Type (..), Id (..), Name (..), LamUse (..), TyVarEnv, typeOf)
 import G2.Language.AST
 import G2.Language.Expr
 import qualified G2.Language.PathConds as PC
@@ -74,9 +74,46 @@ data SomeSMTSolver where
                    . SMTConverter con => con -> SomeSMTSolver
 
 instance Solver Z3 where
-    check solver s pc = checkConstraintsPC (known_values s) (tyvar_env s) (type_env s) solver [] (elimReverse s pc)
-    solve con@(Z3 _ _ avf _) s b is pcs = checkModelPC avf con s b is [] (elimReverse s pcs)
+    check solver s pc = checkConstraintsPC
+                            (known_values s)
+                            (tyvar_env s)
+                            (type_env s)
+                            solver
+                            []
+                            (elimUpdate $ elimReverse s pc)
+    solve con@(Z3 _ _ avf _) s b is pcs =
+        checkModelPC avf con s b is [] (elimUpdate $ elimReverse s pcs)
     close = closeIO
+
+-- | Convert StrUpdate into extracts (for Z3)
+-- (seq.update s1 i s2) converts to
+-- (ite (<= 0 i)
+--     (seq.++ (seq.++ (seq.extract s1 0 i) (seq.extract s2 0 (- (seq.len s1) i)))
+--             (seq.extract s1 (+ i (seq.len s2)) (seq.len s1)))
+--     s1)
+elimUpdate :: PC.PathConds -> PC.PathConds
+elimUpdate = PC.mapHashedPCs adjust
+    where
+        adjust hashed_pc =
+            let pc = PC.unhashedPC hashed_pc in
+            if getAny (evalASTs containsUpdate pc) then PC.hashedPC (modifyASTs go pc) else hashed_pc
+
+        containsUpdate (Prim StrUpdate _) = Any True
+        containsUpdate _ = Any False
+
+        go e | [Prim StrUpdate _, s1, i, s2] <- unApp e =
+            let len1 = mkApp [Prim StrLen TyUnknown, s1]
+                len2 = mkApp [Prim StrLen TyUnknown, s2]
+            in mkApp [ Prim Ite TyUnknown
+                     , mkApp [Prim Le TyUnknown, Lit (LitInt 0), i]
+                     , mkApp [ Prim StrAppend TyUnknown
+                             , mkApp [ Prim StrAppend TyUnknown
+                                     , mkApp [Prim StrSubstr TyUnknown, s1, Lit (LitInt 0), i]
+                                     , mkApp [ Prim StrSubstr TyUnknown, s2, Lit (LitInt 0)
+                                             , mkApp [Prim Minus TyUnknown, len1, i] ] ]
+                             , mkApp [Prim StrSubstr TyUnknown, s1, mkApp [Prim Plus TyUnknown, i, len2], len1] ]
+                     , s1 ]
+        go e = e
 
 -- | Convert StrReverse into a FoldLeft (for Z3)
 elimReverse :: State t -> PC.PathConds -> PC.PathConds

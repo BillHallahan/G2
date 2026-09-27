@@ -21,16 +21,23 @@ tests = testGroup "All Tests"
         [ checkG2Package "tests/G2Plugin/Simple" ["f", "g", "recCall"]
         , checkG2PackageEquiv "tests/G2Plugin/MoreSeq"
                                 [ ("g", "gSMT")
-                                , ("h", "hSMT") ]
+                                , ("h", "hSMT")
+                                , ("update", "updateSMT") ]
                                 [ ("badEquiv", "smtBadEquiv")
                                 , ("headFalse", "headFalseSMT") ]
-                                []
+                                [ "prop_update"
+                                , "prop_update_simple"
+                                , "prop_update_neg_index"
+                                , "prop_update_empty_rep"
+                                , "prop_update_empty_list"
+                                , "prop_update_single"
+                                , "prop_update_len" ]
                                 [ "badEquivProp"
                                 , "prop_rot"
 #if __GLASGOW_HASKELL__ >= 908
                                 , "prop_rot2"
 #endif
-                                ]
+                                , "prop_update_bad" ]
         , checkG2PackageEquiv "tests/G2Plugin/Strings"
                                 -- Equivalent functions
                                 [
