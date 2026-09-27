@@ -787,7 +787,9 @@ comp real_def smt_def =
 -- Configs
 ------------------------------------------------------------------------------
 
-data PluginConfig = PluginConfig { logs_folder :: Maybe FilePath, check_term :: V.TermCheck, g2_config :: Config }
+data PluginConfig = PluginConfig { logs_folder :: Maybe FilePath
+                                 , check_term :: V.TermCheck
+                                 , g2_config :: Config }
 
 pluginConfig :: String -> ParserInfo PluginConfig
 pluginConfig homedir =
