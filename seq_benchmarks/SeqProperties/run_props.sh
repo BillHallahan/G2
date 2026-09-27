@@ -9,12 +9,10 @@ build_with_seq() {
 
 mkdir -p solver_logs
 
-build_with_seq "z3" "" &
+build_with_seq "z3" ""
 build_with_seq "cvc5" ""
-wait
 
-build_with_seq "cvc5,z3" "" &
+build_with_seq "cvc5,z3" ""
 build_with_seq "cvc5,z3" "--no-string-simplifier"
-wait
 
 build_with "cvc5,z3" "--only-run-in DefinitionsFalse,EquivFalse,IsaplannerFalse,ProdFalse" "_concrete"
