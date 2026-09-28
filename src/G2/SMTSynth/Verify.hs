@@ -57,7 +57,7 @@ checkProp term_check func_config equiv_annots simp_state@(IT.SimpleState { IT.ex
 
         check propOutput term_check func_config (HM.insert entry_real_name smt_id equiv_annots) simp_state' entry_real entry_smt
     | otherwise = do
-        putStrLn "checkEquiv: functions not found"
+        putStrLn "checkProp: functions not found"
         return (EOther, emptySolverStats)
 
 check :: CheckOutput -> TermCheck -> Config -> HM.HashMap Name Id -> SimpleState -> Name -> Name -> IO (VerifyRes, SolverStats)
@@ -86,7 +86,7 @@ check check_output term_check func_config equiv_annots simp_state entry_real ent
                                     <> ", termination not proven"
                 return (ENonTerminating, emptySolverStats)
     | otherwise = do
-        putStrLn "checkEquiv: functions not found"
+        putStrLn "check: functions not found"
         return (EOther, emptySolverStats)
 
 checkEquivInputOutput :: CheckOutput -> Config -> HM.HashMap Name Id -> State () -> Bindings -> Id -> Expr -> Name -> IO (VerifyRes, SolverStats)
@@ -178,7 +178,7 @@ checkEquivInputOutput check_output func_config equiv_annots init_state bindings 
         return (res, foldl' mergeSolverStats stats call_stats)
 
     | otherwise = do
-        putStrLn "checkEquiv: functions not found"
+        putStrLn "checkEquivInputOutput: functions not found"
         return (EOther, emptySolverStats)
 
 replaceVars :: HM.HashMap Name Id -> Expr -> Expr

@@ -375,7 +375,11 @@ loadExtractedG2 cmd_lne config env modguts = do
 
     prev_comp <- liftIO $ readIORef compiledModules
     (_, base_exg2, base_nm, base_tnm, prev_explored) <- case prev_comp of
-                                        Just prev@(prev_cmd_lne, _, _, _, _) | prev_cmd_lne == cmd_lne -> return prev
+                                        Just prev@(prev_cmd_lne, _, _, _, _)
+                                            | prev_cmd_lne == cmd_lne -> return prev
+                                            | otherwise -> do
+                                                liftIO . putStrLn $ "WARNING:\nCommand line changed"
+                                                return prev
                                         _ -> do
                                             (b_exg2, b_nm, b_tnm) <- liftIO $ translateBase tconfig config [] Nothing
                                             let expl = S.fromList . map fst . HM.toList $ exg2_binds b_exg2
