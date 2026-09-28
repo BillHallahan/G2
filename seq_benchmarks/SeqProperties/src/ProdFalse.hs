@@ -17,6 +17,9 @@ import G2.Plugin hiding ((==>))
 import G2.Plugin.Unsafe
 import G2.Plugin.Prim
 
+{-# ANN module ("--smt-tuples --higher-order uninterpreted")
+    #-}
+
 {-# ANN prop_L04_false Prop #-}
 prop_L04_false :: Eq a => Nat -> Nat -> a -> [a] -> Bool
 prop_L04_false w x y zs =
