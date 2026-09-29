@@ -535,7 +535,7 @@ mkConfigDirect homedir as m = Config {
     , using_smt_lams = NoSMTLams
     , smt_prim_lists = NoSMTSeq
     , smt_list_simplifier = True
-    , smt_list_unsat_solver = True
+    , smt_unsat_list_solver = True
     , smt_tuples = NoSMTDC
     , smt_adt = []
 
