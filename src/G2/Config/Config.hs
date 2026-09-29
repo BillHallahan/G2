@@ -163,6 +163,7 @@ data Config = Config {
     , using_smt_lams :: UseSMTLams -- ^ Sets whether SMT Lambda expressions should be used (Z3 only)
     , smt_prim_lists :: UseSMTSeq -- ^ Sets whether the SMT solver should be used to solve lists containing primitive type wrappers (Int, Float, etc.)
     , smt_list_simplifier :: Bool -- ^ Apply the string SMT formula simplifiers
+    , smt_unsat_list_solver :: Bool -- ^ Apply the string SMT unsat solver
     , smt_tuples :: UseSMTDC -- ^ Sets whether the SMT solver should be used to solve tuples
     , smt_adt :: [T.Text] -- ^ Comma separated list of algebraic datatypes to reason about via SMT solver
 
@@ -299,6 +300,7 @@ mkConfig homedir = Config Regular
     <*> flag NoSMTLams UseSMTLams (long "smt-lams" <> help "Use map and fold with lambdas to model functions in the SMT solver (Z3 only)")
     <*> flag NoSMTSeq (UseSMTSeq True True) (long "smt-lists" <> help "Sets whether the SMT solver should be used to solve list constraints for primitive types")
     <*> flag True False (long "no-string-simplifier" <> help "Disable the string SMT formula simplifiers")
+    <*> flag True False (long "no-unsat-list-solver" <> help "Disable the unsat sequence SMT solver")
     <*> flag NoSMTDC UseSMTDC (long "smt-tuples" <> help "Sets whether the SMT solver should be used to solve tuples")
     <*> mkSMTADT
 
@@ -533,6 +535,7 @@ mkConfigDirect homedir as m = Config {
     , using_smt_lams = NoSMTLams
     , smt_prim_lists = NoSMTSeq
     , smt_list_simplifier = True
+    , smt_list_unsat_solver = True
     , smt_tuples = NoSMTDC
     , smt_adt = []
 

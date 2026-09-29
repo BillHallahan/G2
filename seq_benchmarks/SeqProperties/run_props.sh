@@ -13,6 +13,9 @@ build_with_seq "z3" ""
 build_with_seq "cvc5" ""
 
 build_with_seq "cvc5,z3" ""
+
 build_with_seq "cvc5,z3" "--no-string-simplifier"
+build_with_seq "cvc5,z3" "--no-unsat-list-solver"
+build_with_seq "cvc5,z3" "--no-string-simplifier --no-unsat-list-solver"
 
 build_with "cvc5,z3" "--only-run-in DefinitionsFalse,EquivFalse,IsaplannerFalse,ProdFalse" "_concrete"
