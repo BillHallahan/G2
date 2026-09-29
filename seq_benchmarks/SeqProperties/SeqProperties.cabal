@@ -21,8 +21,10 @@ library
                      DefinitionsFalse
                    , EquivFalse
                    , Isaplanner
+                   , IsaplannerFalse
                    , ListMonad
                    , Prod
+                   , ProdFalse
     -- other-modules:
     -- other-extensions:
     build-depends:    base >=4.14

@@ -1229,7 +1229,8 @@ toSolverASTSeq use_at = go
         go (StrIndexOfSMT x y z) = function3 "seq.indexof" (goBack x) (goBack y) (goBack z)
         go (StrContainsSMT x y) = function2 "seq.contains" (goBack x) (goBack y)
         go (StrReplaceSMT x y z) = function3 "seq.replace" (goBack x) (goBack y) (goBack z)
-        go (StrReplaceAllSMT x y z) = function3 "seq.replace_all" (goBack x) (goBack y) (goBack z)
+        go (StrReplaceAllSMT x y z) |  use_at == UseAt = function3 "seq.replace_all" (goBack x) (goBack y) (goBack z)
+                                    | otherwise = function3 "str.replace_all" (goBack x) (goBack y) (goBack z)
         -- CVC5 does not support Seq Regexes, so must use str.replace_re/str.replace_re_all
         go (StrReplaceReSMT x y z) = function3 "str.replace_re" (goBack x) (goBack y) (goBack z)
         go (StrReplaceReAllSMT x y z) = function3 "str.replace_re_all" (goBack x) (goBack y) (goBack z)

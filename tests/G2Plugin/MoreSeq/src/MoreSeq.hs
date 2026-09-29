@@ -3,7 +3,7 @@ module MoreSeq where
 
 import G2.Plugin hiding ((==>))
 
-{-# ANN module ("--smt-tuples --smt-adts MyI,A")
+{-# ANN module ("--smt-lists --smt-strings --smt-tuples --smt-adts MyI,A")
     #-}
 
 {-
@@ -47,10 +47,18 @@ h ((MyI x, y):xs) | x == A = MyI x:h xs
 hSMT :: [(MyI, MyI)] -> [MyI]
 hSMT = smtMap (\(MyI x, y) -> if x == A then MyI x else y)
 
+{-# ANN (+++) (SMTEquivIs "appendSMT") #-}
+(+++) :: [a] -> [a] -> [a]
+[]     +++ ys = ys
+(x:xs) +++ ys = x : (xs +++ ys)
+
+appendSMT :: [a] -> [a] -> [a]
+appendSMT = ($++)
+
 rotate :: Int -> [a] -> [a]
 rotate 0     xs     = xs
 rotate _     []     = []
-rotate n     (x:xs) = rotate (n - 1) (xs ++ [x])
+rotate n     (x:xs) = rotate (n - 1) (xs +++ [x])
 
 given :: Bool -> Bool -> Bool
 given pb pa = (not pb) || pa
@@ -63,13 +71,21 @@ infixr 0 ==>
 prop_rot :: Int -> Int -> [Int] -> [Int] -> Bool
 prop_rot   n m ys xs = rotate n (xs :: [Int]) == rotate m ys ==> n == m
 
-{-# ANN len (SMTEquivIs "lenSMT") #-}
-len :: [Int] -> Int
-len (_:xs) = 1 + len xs
-len _ = 0
+(=/=) :: Eq a => a -> a -> Bool
+x =/= y = not (x == y)
 
-lenSMT :: [Int] -> Int
+{-# ANN len (SMTEquivIs "lenSMT") #-}
+len :: [a] -> Int
+len []     = 0
+len (_:xs) = 1 + (len xs)
+
+lenSMT :: [a] -> Int
 lenSMT = smtLen
+
+{-# ANN prop_rot2 (PropWithConfig "--smt cvc5")
+    #-}
+prop_rot2 :: Int -> Int -> [Int] -> [Int] -> Bool
+prop_rot2  n m ys xs = (n < len xs) == True ==> (m < len ys) == True ==> xs == ys ==> rotate 1 xs =/= xs ==> rotate n (xs :: [Int]) == rotate m ys ==> n == m
 
 {-# ANN update (SMTEquivIsWithConfig "updateSMT" "--smt cvc5")
     #-}
@@ -124,3 +140,15 @@ prop_update_single x y = update [x] 0 [y] == [y]
     #-}
 prop_update_len :: [Int] -> Int -> [Int] -> Bool
 prop_update_len xs n rep = len (update xs n rep) == len xs
+
+{-# ANN count (SMTEquivIsWithConfig "countSMT" "--no-string-simplifier --smt cvc5,z3 --smt-timeout 2")
+    #-}
+count :: Int -> [Int] -> Int
+count _ [] = 0
+count x (y:ys) =
+  case x == y of
+    True -> 1 + (count x ys)
+    _ -> count x ys
+
+countSMT :: Int -> [Int] -> Int
+countSMT e xs = (smtLen xs) - (smtLen (smtReplaceAll xs [e] []))

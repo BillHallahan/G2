@@ -57,7 +57,7 @@ checkProp term_check func_config equiv_annots simp_state@(IT.SimpleState { IT.ex
 
         check propOutput term_check func_config (HM.insert entry_real_name smt_id equiv_annots) simp_state' entry_real entry_smt
     | otherwise = do
-        putStrLn "checkEquiv: functions not found"
+        putStrLn "checkProp: functions not found"
         return (EOther, emptySolverStats)
 
 check :: CheckOutput -> TermCheck -> Config -> HM.HashMap Name Id -> SimpleState -> Name -> Name -> IO (VerifyRes, SolverStats)
@@ -65,8 +65,6 @@ check check_output term_check func_config equiv_annots simp_state entry_real ent
     | Just (entry_real_name, real_e) <- E.lookupNameMod (nameOcc entry_real) (nameModule entry_real) (IT.expr_env simp_state) = do
         -- Get a Config to run this specific function
         let func_config' = func_config { step_limit = False
-                                       , smt_strings = UseSMTStrings
-                                       , smt_prim_lists = UseSMTSeq { add_to_dcs = True, add_to_funcs = True }
                                        , smt_strings_strictness = StrictSMTStrings
                                        , using_smt_lams = UseSMTLams
                                        , literal_tables = UseLiteralTables
@@ -88,7 +86,7 @@ check check_output term_check func_config equiv_annots simp_state entry_real ent
                                     <> ", termination not proven"
                 return (ENonTerminating, emptySolverStats)
     | otherwise = do
-        putStrLn "checkEquiv: functions not found"
+        putStrLn "check: functions not found"
         return (EOther, emptySolverStats)
 
 checkEquivInputOutput :: CheckOutput -> Config -> HM.HashMap Name Id -> State () -> Bindings -> Id -> Expr -> Name -> IO (VerifyRes, SolverStats)
@@ -107,7 +105,7 @@ checkEquivInputOutput check_output func_config equiv_annots init_state bindings 
                                     Nothing -> error "checkEquiv: definition not found"
             real_e' = replaceVars equiv_annots real_e_mod_def
             eenv' = E.insert entry_real_name real_e' eenv
-            eenv'' = insertFCTickForAll (HM.toList $ HM.map idName equiv_annots) eenv' tv_env
+            eenv'' = insertFCTickForAll [(entry_real_name, entry_smt_name)] eenv' tv_env
             eenv''' = foldl' (\eenv_ (n, i) -> E.insert n (Var i) eenv_) eenv'' (HM.toList $ HM.delete entry_real_name equiv_annots)
         
             -- Set up a call to compare the real and SMT definitions
@@ -180,7 +178,7 @@ checkEquivInputOutput check_output func_config equiv_annots init_state bindings 
         return (res, foldl' mergeSolverStats stats call_stats)
 
     | otherwise = do
-        putStrLn "checkEquiv: functions not found"
+        putStrLn "checkEquivInputOutput: functions not found"
         return (EOther, emptySolverStats)
 
 replaceVars :: HM.HashMap Name Id -> Expr -> Expr

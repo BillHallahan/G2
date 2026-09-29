@@ -1,9 +1,8 @@
 cabal-version:      3.0
-name:               Strings
+name:               MoreImports
 version:            0.1.0.0
-synopsis:           Anon
+-- synopsis:
 -- description:
-homepage:           Anon
 license:            BSD-3-Clause
 license-file:       LICENSE
 author:             Anon
@@ -18,16 +17,12 @@ common warnings
 
 library
     import:           warnings
-    exposed-modules:    NonTerm
-                      , Strings
-                      , MoreTuples
-                      , Tuples
-                      , Regex
-                      , Zeno
+    exposed-modules:  Call
+                    , Lib
     -- other-modules:
     -- other-extensions:
     build-depends:    base >=4.14
                     , g2 >= 0.1.0.2
     hs-source-dirs:   src
-    ghc-options:      -fplugin=G2.Plugin -fplugin-opts=G2.Plugin:--smt-lists -fplugin-opts=G2.Plugin:--smt-strings
+    ghc-options:      -fplugin=G2.Plugin
     default-language: Haskell2010

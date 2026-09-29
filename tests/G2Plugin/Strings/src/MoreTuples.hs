@@ -3,7 +3,7 @@ module MoreTuples where
 import G2.Plugin
 import G2.Plugin.Unsafe
 
-{-# ANN module ("--smt-tuples")
+{-# ANN module ("--smt-lists --smt-strings --smt-tuples")
     #-}
 
 {-# ANN listTuple (SMTEquivIsWithConfig "smtListTuple" "")

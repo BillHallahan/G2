@@ -81,8 +81,7 @@ instance Solver Z3 where
                             solver
                             []
                             (elimUpdate $ elimReverse s pc)
-    solve con@(Z3 _ _ avf _) s b is pcs =
-        checkModelPC avf con s b is [] (elimUpdate $ elimReverse s pcs)
+    solve con@(Z3 _ _ avf _) s b is pcs = checkModelPC avf con s b is [] (elimUpdate $ elimReverse s pcs)
     close = closeIO
 
 -- | Convert StrUpdate into extracts (for Z3)

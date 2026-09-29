@@ -29,9 +29,10 @@ import Prelude
   )
 
 import G2.Plugin
+import G2.Plugin.Prim
 import G2.Plugin.Unsafe
 
-{-# ANN module ("--smt-tuples --higher-order uninterpreted --time 300")
+{-# ANN module ("--smt-tuples --higher-order uninterpreted")
     #-}
 
 type Nat = Int
@@ -81,7 +82,7 @@ rev (x:xs) = rev xs ++ [x]
 revSMT :: [a] -> [a]
 revSMT = smtFoldLeft (\acc x -> [x] $++ acc) []
 
--- {-# ANN zip (SMTEquivIsWithConfig "zipSMT" "--smt-timeout 20")
+-- {-# ANN zip (SMTEquivIs "zipSMT")
 --     #-}
 -- zip :: [Nat] -> [Nat] -> [(Nat, Nat)]
 -- zip [] _ = []
@@ -179,7 +180,7 @@ takeWhileSMT p xs =
     in
     smtExtract xs 0 n
 
-{-# ANN dropWhile (SMTEquivIsWithConfig "dropWhileSMT" "--smt-timeout 20")
+{-# ANN dropWhile (SMTEquivIs "dropWhileSMT")
   #-}
 dropWhile :: (Nat -> Bool) -> [Nat] -> [Nat]
 dropWhile _ [] = []

@@ -2,7 +2,7 @@ module BadEquiv where
 
 import G2.Plugin
 
-{-# ANN module ("--smt-tuples --smt-adts MyI,A")
+{-# ANN module ("--smt-lists --smt-strings --smt-tuples --smt-adts MyI,A")
     #-}
 
 {-# ANN badEquiv (SMTEquivIs "smtBadEquiv")#-}

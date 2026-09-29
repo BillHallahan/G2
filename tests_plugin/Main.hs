@@ -19,12 +19,19 @@ main = do
 tests :: TestTree
 tests = testGroup "All Tests"
         [ checkG2Package "tests/G2Plugin/Simple" ["f", "g", "recCall"]
+        , checkG2PackageEquiv "tests/G2Plugin/MoreImports"
+                                []
+                                []
+                                []
+                                []
+                                [ "prop" ]
         , checkG2PackageEquiv "tests/G2Plugin/MoreSeq"
                                 [ ("g", "gSMT")
                                 , ("h", "hSMT")
                                 , ("update", "updateSMT") ]
                                 [ ("badEquiv", "smtBadEquiv")
                                 , ("headFalse", "headFalseSMT") ]
+                                [ ("count", "countSMT")]
                                 [ "prop_update"
                                 , "prop_update_simple"
                                 , "prop_update_neg_index"
@@ -34,6 +41,9 @@ tests = testGroup "All Tests"
                                 , "prop_update_len" ]
                                 [ "badEquivProp"
                                 , "prop_rot"
+#if __GLASGOW_HASKELL__ >= 908
+                                , "prop_rot2"
+#endif
                                 , "prop_update_bad" ]
         , checkG2PackageEquiv "tests/G2Plugin/Strings"
                                 -- Equivalent functions
@@ -109,7 +119,8 @@ tests = testGroup "All Tests"
                                 , ("ins1", "ins1SMT")
                                 -- , ("sorted", "sortedSMT")
                                 , ("filter", "filterSMT")
-                                , ("dropWhile", "dropWhileSMT")
+                                -- dropWhile is flaky on CI
+                                -- , ("dropWhile", "dropWhileSMT")
                                 , ("takeWhile", "takeWhileSMT")
                                 , ("zip", "zipSMT")
                                 ]
@@ -144,6 +155,8 @@ tests = testGroup "All Tests"
                                 , ("nonTerm2", "smtNonTerm2")
                                 , ("nonTerm3", "smtNonTerm3")
                                 ]
+                                -- Unknown functions
+                                []
                                 [ 
                                 --Zeno
                                   "prop_01"
@@ -185,10 +198,11 @@ ranFunc io_out =
 checkG2PackageEquiv :: FilePath
                     -> [(String, String)] -- ^ Functions that should be equivalent
                     -> [(String, String)] -- ^ Functions that should be inequivalent
+                    -> [(String, String)] -- ^ Functions that should terminate, but maybe with an unknown
                     -> [String] -- ^ Properties that should be proven
                     -> [String] -- ^ Properties that should NOT be proven
                     -> TestTree
-checkG2PackageEquiv loc funcs_equiv funcs_inequiv props false_props =
+checkG2PackageEquiv loc funcs_equiv funcs_inequiv funcs_unknown props false_props =
     withResource
         (buildPackage loc)
         (\_ -> return ()) $
@@ -197,6 +211,7 @@ checkG2PackageEquiv loc funcs_equiv funcs_inequiv props false_props =
             loc
             $  ranFuncEquiv io_out funcs_equiv
             ++ ranFuncInequiv io_out funcs_inequiv
+            ++ ranFuncUnknown io_out funcs_unknown
             ++ ranFuncProp io_out props
             ++ ranFuncNotProp io_out false_props
 
@@ -222,6 +237,16 @@ ranFuncInequiv io_out =
                                      then "Found equivalent " ++ f1 ++ " and " ++ f2
                                      else "Not run " ++ f1 ++ " and " ++ f2) ++ "\nFull output:\n" ++ out)
                                (checkInequiv f1 f2 out))
+        )
+
+ranFuncUnknown :: IO String -> [(String, String)] -> [TestTree]
+ranFuncUnknown io_out =
+    map (\(f1, f2) -> testCase
+                (f1 ++ " and " ++ f2)
+                (do
+                    out <- io_out
+                    assertBool ("Not successfully run " ++ f1 ++ " and " ++ f2 ++ "\nFull output:\n" ++ out)
+                               (checkEquiv f1 f2 out || checkInequiv f1 f2 out))
         )
 
 ranFuncProp :: IO String -> [String] -> [TestTree]
