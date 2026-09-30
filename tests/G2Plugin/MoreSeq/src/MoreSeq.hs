@@ -152,3 +152,17 @@ count x (y:ys) =
 
 countSMT :: Int -> [Int] -> Int
 countSMT e xs = (smtLen xs) - (smtLen (smtReplaceAll xs [e] []))
+
+
+{-# ANN myLast (SMTEquivIsWithConfig "lastSMT" "--smt cvc5,z3 --no-string-simplifier")
+    #-}
+myLast :: [Int] -> Int
+myLast [] = 0
+myLast [x] = x
+myLast (_:xs) = myLast xs
+
+lastSMT :: [Int] -> Int
+lastSMT xs =
+  if smtLen xs == 0
+    then 0
+    else smtNth xs $ smtLen xs - 1

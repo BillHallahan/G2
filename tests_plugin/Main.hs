@@ -28,7 +28,8 @@ tests = testGroup "All Tests"
         , checkG2PackageEquiv "tests/G2Plugin/MoreSeq"
                                 [ ("g", "gSMT")
                                 , ("h", "hSMT")
-                                , ("update", "updateSMT") ]
+                                , ("update", "updateSMT")
+                                , ("myLast", "lastSMT") ]
                                 [ ("badEquiv", "smtBadEquiv")
                                 , ("headFalse", "headFalseSMT") ]
                                 [ ("count", "countSMT")]
