@@ -590,8 +590,9 @@ initSimplifier config =
         base_simp = rest_string_simp .>> SomeSimplifier EqualitySimplifier .>> const_lit_simp
         lam_simp = SomeSimplifier (HigherOrderSimplifier :>> LamVarSimplifier) .>> rest_string_simp .>> const_lit_simp
     in
-    case using_smt_lams config == UseSMTLams && smt_list_simplifier config of
-        True -> lam_simp
+    case using_smt_lams config == UseSMTLams of
+        True | smt_list_simplifier config -> lam_simp
+             | otherwise -> rest_string_simp .>> const_lit_simp
         False -> base_simp
 
 mkTypeEnv :: HM.HashMap Name AlgDataTy -> TypeEnv
