@@ -134,5 +134,6 @@ def read_output(logsDirPath):
 
     print()
 
-current_path = os.getcwd()
-read_output("/Users/abhachaudhary/Downloads/logs4")
+current_path = os.path.join(os.getcwd(), "seq_benchmarks/logs")
+print(current_path)
+read_output(current_path)
