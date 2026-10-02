@@ -273,6 +273,14 @@ primDefs' b c l unit =
                                 (Var $ z seqTyX))
               , ("strReverse#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX)
                               $ App (Prim StrReverse (TyFun seqTyX seqTyX)) (Var $ y seqTyX))
+              , ("strUpdate#", Lam TypeL (x TYPE) . Lam TermL (y seqTyX) . Lam TermL (z TyLitInt) . Lam TermL ((dummyId "q") seqTyX)
+                            $ App
+                                (App
+                                    (App
+                                        (Prim StrUpdate (TyFun seqTyX (TyFun TyLitInt (TyFun seqTyX seqTyX))))
+                                        (Var $ y seqTyX))
+                                    (Var $ z TyLitInt))
+                                (Var $ (dummyId "q") seqTyX))
               , ("intToString#", Prim IntToString (TyFun TyLitInt strTy))
 
               , ("smtMap#", Lam TypeL a . Lam TypeL (x TYPE)
@@ -390,6 +398,7 @@ primDefs' b c l unit =
               , ("isSMTRep#", Prim IsSMTRep (TyForAll a (TyFun (TyVar a) (TyCon b TYPE))))
               , ("evalsToSMTRep#", Prim EvalsToSMTRep (TyForAll a (TyFun (TyVar a) (TyCon b TYPE))))
               , ("typeIndex#", Prim (TypeIndex (TyH { tyh_strings = False, tyh_prim_lists = False })) (TyForAll a (TyFun (TyVar a) TyLitInt)))
+              , ("force#", Prim Force (TyForAll a (TyFun (TyVar a) (TyFun TyLitInt TyLitInt))))
 
               , ("buildLitTable#", Lam TypeL (x TYPE)
                                  . Lam TypeL (y TYPE)

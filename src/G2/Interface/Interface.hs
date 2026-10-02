@@ -7,6 +7,8 @@ module G2.Interface.Interface ( MkCurrExpr
                               , IT.SimpleState
                               , TimedOut (..)
                               , GotUnknown (..)
+                              , SolverStats (..)
+                              , SMTResultsCount
                               , doTimeout
                               , maybeDoTimeout
 
@@ -23,6 +25,8 @@ module G2.Interface.Interface ( MkCurrExpr
                               , initRedHaltOrd
                               , initSolver
                               , initSolverInfinite
+                              , emptySolverStats
+                              , mergeSolverStats
                               
                               , initialStateFromFileSimple
                               , initialStateFromFile
@@ -40,7 +44,8 @@ module G2.Interface.Interface ( MkCurrExpr
                               , runG2
                               , Config
                               
-                              , reportTerminationResults) where
+                              , reportTerminationResults
+                              ) where
 
 import GHC hiding (Name, entry, nameModule, Id, Type)
 import GHC.Paths
@@ -81,6 +86,7 @@ import G2.Lib.Printers
 import G2.Translation
 
 import G2.Solver
+import G2.Solver.SeqSolver
 
 import G2.Postprocessing.Interface
 
@@ -237,8 +243,13 @@ initStateFromSimpleState s m_mod useAssert mkCurr _argTys config =
     , sym_gens = Seq.empty
     , reached_hpc = S.empty
     , tags = S.empty
+    
     , lit_table_stack = Stack.empty
     , lit_tables = HM.empty
+    , global_lit_table_pc = PC.empty
+
+    , forcing_var = False
+
     , reached_fc_ticks = []
     , log_path = []
     }
@@ -489,33 +500,57 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                 , orderer
                 , io_timed_out
                 , func_const_time)
+            Uninterpreted ->
+                ( nrpc_approx_red retReplaceSymbFuncUninterp .== Finished .--> taggerRed state_name :== Finished
+                            .--> (SomeReducer nonRedPCRed .== Finished .--> func_constraint_res')
+                , SomeHalter (discardIfAcceptedTagHalter True state_name) .<~> halter_func_arg
+                , orderer
+                , io_timed_out
+                , func_const_time)
+
+data SolverStats = SolverStats { solver_time :: Maybe SolverTime
+                               , result_count :: Maybe SMTResultsCount }
+
+data IOSolverStats = IOSolverStats { io_solver_time :: Maybe (IORef SolverTime)
+                                   , io_result_count :: Maybe (IORef SMTResultsCount) }
 
 initSolver :: Config -> IO SomeSolver
-initSolver = initSolver' arbValue
+initSolver config = initSolver' arbValue config >>= return . fst
+
+initSolverGettingStats :: Config -> IO (SomeSolver, IOSolverStats)
+initSolverGettingStats = initSolver' arbValue
 
 initSolverInfinite :: Config -> IO SomeSolver
-initSolverInfinite = initSolver' arbValueInfinite
+initSolverInfinite config = initSolver' arbValueInfinite config >>= return . fst
 
-initSolver' :: ArbValueFunc -> Config -> IO SomeSolver
+initSolver' :: ArbValueFunc -> Config -> IO (SomeSolver, IOSolverStats)
 initSolver' avf config = do
-    SomeSMTSolver con <- getSMTAV avf config
+    SomeSolver con <- getSMT avf config
     let adt_num = ADTNumericalSolver avf con
     some_adt_solver <- case print_num_solver_calls config of
             True -> return . SomeSolver =<< callsSolver "SMT" adt_num
             False -> return $ SomeSolver adt_num
-    some_adt_solver' <- case time_solving config of
-            True -> timeSomeSolver "SMT" some_adt_solver
-            False -> return some_adt_solver
-    some_adt_solver'' <- case print_solver_sol_counts config of
-                                True -> countResultsSomeSolver some_adt_solver'
-                                False -> return some_adt_solver'
+    (some_adt_solver', m_smt_time_tr) <- case time_solving config of
+                                            True -> do
+                                                        (ts, smt_time_tr) <- timeSomeSolver "SMT" some_adt_solver
+                                                        return (ts, Just smt_time_tr)
+                                            False -> return (some_adt_solver, Nothing)
+    (some_adt_solver'', m_smt_res_count) <- case print_solver_sol_counts config of
+                                                True -> do
+                                                    (cr, smt_res_c) <- countResultsSomeSolver some_adt_solver'
+                                                    return (cr, Just smt_res_c)
+                                                False -> return (some_adt_solver', Nothing)
 
     let quant_solver = case quantified_smt_strings config of
                             UseQuantifiers -> some_adt_solver''
                             UnrollQuant n -> case some_adt_solver'' of
                                                 SomeSolver adt_solver -> SomeSolver (UnrollBoundedQuant n adt_solver)
+    
+    let unsat_seq_solver = case using_smt_lams config of
+                                UseSMTLams | SomeSolver quant_solver' <- quant_solver -> SomeSolver (CheckUnsatSeq (print_seq_solver config) quant_solver')
+                                NoSMTLams -> quant_solver
 
-    let con' = case quant_solver of
+    let con' = case unsat_seq_solver of
                     SomeSolver adt_solver ->
                         SomeSolver -- . CommonSubExpElim
                                    $ GroupRelated avf
@@ -523,23 +558,42 @@ initSolver' avf config = do
                                  :?> EqualitySolver
                                  :?> adt_solver)
 
-    con'' <- case time_solving config of
+    (con'', _) <- case time_solving config of
                 True -> timeSomeSolver "General" con'
-                False -> return con'
+                False -> return (con', error "initSolver': accessing unused IORef")
 
-    case print_num_solver_calls config of
-                True -> callsSomeSolver "General" con''
-                False -> return con''
+    con''' <- case print_num_solver_calls config of
+                        True -> callsSomeSolver "General" con''
+                        False -> return con''
+    let solver_stats = IOSolverStats { io_solver_time = m_smt_time_tr
+                                     , io_result_count = m_smt_res_count }
+
+    return (con''', solver_stats)
+
+emptySolverStats :: SolverStats
+emptySolverStats = SolverStats { solver_time = Nothing, result_count = Nothing }
+
+mergeSolverStats :: SolverStats -> SolverStats -> SolverStats
+mergeSolverStats stats1 stats2 = SolverStats { solver_time = liftM2 mergeSolverTime (solver_time stats1) (solver_time stats2)
+                                             , result_count = liftM2 mergeResultCount (result_count stats1) (result_count stats2) }
 
 initSimplifier :: Config -> SomeSimplifier
 initSimplifier config =
     let
-        base_simp = SomeSimplifier $ FloatSimplifier :>> ArithSimplifier
-                 :>> BoolSimplifier :>> StringSimplifier :>> EqualitySimplifier :>> ConstSimplifier :>> LitConc
+        const_lit_simp = case smt_strings config == UseSMTStrings || useSMTSeqs (smt_prim_lists config) of
+                            True -> SomeSimplifier (LitConc :>> ConstSimplifier)
+                            False -> SomeSimplifier ConstSimplifier
+        rest_simp = FloatSimplifier :>> ArithSimplifier :>> BoolSimplifier
+        rest_string_simp = case smt_list_simplifier config of 
+                                True -> SomeSimplifier $ rest_simp :>> StringSimplifier
+                                False -> SomeSimplifier rest_simp
+        base_simp = rest_string_simp .>> SomeSimplifier EqualitySimplifier .>> const_lit_simp
+        lam_simp = SomeSimplifier (HigherOrderSimplifier :>> LamVarSimplifier) .>> rest_string_simp .>> const_lit_simp
     in
-    case using_smt_lams config of
-        UseSMTLams -> SomeSimplifier (HigherOrderSimplifier :>> LamVarSimplifier) .>> base_simp
-        NoSMTLams -> base_simp
+    case using_smt_lams config == UseSMTLams of
+        True | smt_list_simplifier config -> lam_simp
+             | otherwise -> rest_string_simp .>> const_lit_simp
+        False -> base_simp
 
 mkTypeEnv :: HM.HashMap Name AlgDataTy -> TypeEnv
 mkTypeEnv = id
@@ -619,15 +673,15 @@ runG2FromFile :: [FilePath]
               -> StartFunc
               -> TranslationConfig
               -> Config
-              -> IO ([ExecRes ()], State (), Bindings, TimedOut, TimeInFC, Id, S.HashSet (Maybe T.Text))
+              -> IO ([ExecRes ()], State (), Bindings, TimedOut, TimeInFC, Id, S.HashSet (Maybe T.Text), SolverStats)
 runG2FromFile proj src gflags m_assume m_assert m_reach def_assert f transConfig config = do
     (init_state, entry_f, bindings, mb_modname) <- initialStateFromFile  proj src
                                     m_reach def_assert f (mkCurrExpr TV.empty m_assume m_assert) (mkArgTys config TV.empty)
                                     transConfig config
 
-    (er, _, b, to, time_fc) <- runG2WithConfig proj src entry_f f gflags mb_modname init_state config bindings
+    (er, _, b, to, time_fc, stats) <- runG2WithConfig proj src entry_f f gflags mb_modname init_state config bindings
 
-    return (er, init_state, b, to, time_fc, entry_f, S.fromList mb_modname)
+    return (er, init_state, b, to, time_fc, entry_f, S.fromList mb_modname, stats)
 
 runG2WithConfig :: [FilePath]-> [FilePath] -> Id -> StartFunc -> [GeneralFlag] -> [Maybe T.Text] -> State () -> Config -> Bindings
                 -> IO ( [ExecRes ()]
@@ -635,9 +689,10 @@ runG2WithConfig :: [FilePath]-> [FilePath] -> Id -> StartFunc -> [GeneralFlag] -
                       , Bindings
                       , TimedOut -- ^ Did any states timeout?
                       , TimeInFC -- ^ Time spent in FunctionConstraintSolver
+                      , SolverStats
                       )
 runG2WithConfig proj src entry_f f gflags mb_modname state config bindings = do
-    SomeSolver solver <- initSolver config
+    (SomeSolver solver, io_stats) <- initSolverGettingStats config
     SomeSimplifier simplifier <- return $ initSimplifier config
     let (state', bindings') = runG2Pre emptyMemConfig state bindings
         all_mod_set = S.fromList mb_modname
@@ -722,7 +777,12 @@ runG2WithConfig proj src entry_f f gflags mb_modname state config bindings = do
 
     close solver
 
-    return (in_out, got_unknown, bindings'', timed_out, fc_time)
+    solve_time <- maybe (return Nothing) (return . Just <=< readIORef) $ io_solver_time io_stats
+    res_count <- maybe (return Nothing) (return . Just <=< readIORef) $ io_result_count io_stats
+    let stats = SolverStats { solver_time = solve_time
+                            , result_count = res_count }
+
+    return (in_out, got_unknown, bindings'', timed_out, fc_time, stats)
 
 addTimedOutAndFCTime :: MonadIO m => IORef TimedOut -> IORef TimeInFC -> m (a, b, c) -> m (a, b, c, TimedOut, TimeInFC)
 addTimedOutAndFCTime to fc_time m = do
@@ -866,12 +926,13 @@ runG2SolvingResult :: ( Named t
                    -> IO (Result (ExecRes t, NameGen) () ())
 runG2SolvingResult solver simplifier bindings s@(State { tyvar_env = tv_env })
     | true_assert s = do
-        r <- solve solver s bindings (E.symbolicIds . expr_env $ s) (path_conds s)
+        let s' = addFCToExprEnv s
+        r <- solve solver s' bindings (E.symbolicIds . expr_env $ s') (path_conds s')
         case r of
             SAT (SatRes m tv_env' ng') -> do
-                let s' = s { tyvar_env = tv_env `TV.union` tv_env' }
-                    m' = reverseSimplification simplifier s' bindings m
-                return . SAT $ (runG2SubstModel m' s' bindings, ng')
+                let s'' = s' { tyvar_env = tv_env `TV.union` tv_env' }
+                    m' = reverseSimplification simplifier s'' bindings m
+                return . SAT $ (runG2SubstModel m' s'' bindings, ng')
             UNSAT _ -> return $ UNSAT ()
             Unknown reason _ -> return $ Unknown reason ()
 

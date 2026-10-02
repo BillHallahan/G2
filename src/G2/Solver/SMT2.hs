@@ -21,25 +21,33 @@ module G2.Solver.SMT2 ( Z3StringSolver (..)
                       , getZ3
                       , getCVC5
                       , getSMT
+                      , getSMTConverter
                       , getSMTAV) where
 
 import G2.Config.Config
 import G2.Language.ArbValueGen
+import G2.Language (Expr (..), Lit (..), Primitive (..), Type (..), Id (..), Name (..), LamUse (..), TyVarEnv, typeOf)
+import G2.Language.AST
+import G2.Language.Expr
+import qualified G2.Language.PathConds as PC
+import G2.Language.Support(State(..))
 import G2.Solver.Language
 import G2.Solver.ParseSMT
+import G2.Solver.Simplifier
 import G2.Solver.Solver
 import G2.Solver.Converters --It would be nice to not import this...
 
 import Control.Exception.Base (evaluate)
 import Control.Monad
+import qualified Data.Foldable as F
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
+import Data.Monoid (Any (..))
 import qualified Data.Text.IO as T
 import qualified Data.Text as DT
 import System.IO
 import System.Process
 import Data.Maybe (fromMaybe)
-import G2.Language.Support(State(..))
 
 #if MIN_VERSION_text_builder(0,6,8)
 import qualified TextBuilder as TB
@@ -66,18 +74,107 @@ data SomeSMTSolver where
                    . SMTConverter con => con -> SomeSMTSolver
 
 instance Solver Z3 where
-    check solver s pc = checkConstraintsPC (tyvar_env s) (type_env s) solver pc
-    solve con@(Z3 _ _ avf _) = checkModelPC avf con
+    check solver s pc = checkConstraintsPC
+                            (known_values s)
+                            (tyvar_env s)
+                            (type_env s)
+                            solver
+                            []
+                            (elimUpdate $ elimReverse s pc)
+    solve con@(Z3 _ _ avf _) s b is pcs = checkModelPC avf con s b is [] (elimUpdate $ elimReverse s pcs)
     close = closeIO
+
+-- | Convert StrUpdate into extracts (for Z3)
+-- (seq.update s1 i s2) converts to
+-- (ite (<= 0 i)
+--     (seq.++ (seq.++ (seq.extract s1 0 i) (seq.extract s2 0 (- (seq.len s1) i)))
+--             (seq.extract s1 (+ i (seq.len s2)) (seq.len s1)))
+--     s1)
+elimUpdate :: PC.PathConds -> PC.PathConds
+elimUpdate = PC.mapHashedPCs adjust
+    where
+        adjust hashed_pc =
+            let pc = PC.unhashedPC hashed_pc in
+            if getAny (evalASTs containsUpdate pc) then PC.hashedPC (modifyASTs go pc) else hashed_pc
+
+        containsUpdate (Prim StrUpdate _) = Any True
+        containsUpdate _ = Any False
+
+        go e | [Prim StrUpdate _, s1, i, s2] <- unApp e =
+            let len1 = mkApp [Prim StrLen TyUnknown, s1]
+                len2 = mkApp [Prim StrLen TyUnknown, s2]
+            in mkApp [ Prim Ite TyUnknown
+                     , mkApp [Prim Le TyUnknown, Lit (LitInt 0), i]
+                     , mkApp [ Prim StrAppend TyUnknown
+                             , mkApp [ Prim StrAppend TyUnknown
+                                     , mkApp [Prim StrSubstr TyUnknown, s1, Lit (LitInt 0), i]
+                                     , mkApp [ Prim StrSubstr TyUnknown, s2, Lit (LitInt 0)
+                                             , mkApp [Prim Minus TyUnknown, len1, i] ] ]
+                             , mkApp [Prim StrSubstr TyUnknown, s1, mkApp [Prim Plus TyUnknown, i, len2], len1] ]
+                     , s1 ]
+        go e = e
+
+-- | Convert StrReverse into a FoldLeft (for Z3)
+elimReverse :: State t -> PC.PathConds -> PC.PathConds
+elimReverse (State { type_env = tenv, known_values = kv }) = PC.mapHashedPCs adjust
+    where
+        adjust hashed_pc =
+            let pc = PC.unhashedPC hashed_pc in
+            if getAny (evalASTs containsRev pc) then PC.hashedPC (modifyASTs go pc) else hashed_pc
+
+        containsRev (Prim StrReverse _) = Any True
+        containsRev _ = Any False
+
+        go (App (Prim StrReverse (TyFun t _)) e)
+            | TyApp _ tv <- t =
+            let
+                acc = Id (Name "G2_!!_acc_" Nothing 0 Nothing) t
+                v = Id (Name "G2_!!_v" Nothing 0 Nothing) tv
+                f = Lam TermL acc
+                    . Lam TermL v
+                    $ mkApp [ mkCons kv tenv
+                            , Type tv
+                            , Var v
+                            , Var acc]
+            in
+            -- This fold is inserted AFTER the simplifier works- we thus benefit from adjust applications of fold to append
+            unfoldAppend tenv kv $
+            mkApp [ Prim FoldLeft TyUnknown
+                    , f
+                    , App (mkEmpty kv tenv) (Type tv)
+                    , e]
+        go e = e
 
 instance Solver CVC5 where
-    check solver s pc = checkConstraintsPC (tyvar_env s) (type_env s) solver pc
-    solve con@(CVC5 _ avf _) = checkModelPC avf con
+    check solver s pc 
+        | containsZ3Only pc = return (Unknown "Z3 Only" ())
+        | otherwise = checkConstraintsPC (known_values s) (tyvar_env s) (type_env s) solver (requiredSeqFuncs (tyvar_env s) pc) pc
+    solve con@(CVC5 _ avf _) s b is pcs
+        | containsZ3Only pcs = return (Unknown "Z3 Only" ())
+        | otherwise = checkModelPC avf con s b is (requiredSeqFuncs (tyvar_env s) pcs) pcs
     close = closeIO
 
+containsZ3Only :: PC.PathConds -> Bool
+containsZ3Only = getAny . evalASTs go
+    where
+        go (Prim MapConcat _) = Any True
+        go (Prim MapConcatI _) = Any True
+        go (Prim FoldLeftI _) = Any True
+        go _ = Any False
+
+requiredSeqFuncs :: TyVarEnv -> PC.PathConds -> [GenSeqFunc]
+requiredSeqFuncs tv_env = HS.toList . evalASTs go
+    where
+        go e
+            | [Prim Map _, e1] <- unApp e
+            , TyFun t1 t2 <- typeOf tv_env e1 = HS.singleton $ GenMap t1 t2
+            | [Prim FoldLeft _, e1] <- unApp e
+            , TyFun t1 (TyFun t2 _) <- typeOf tv_env e1 = HS.singleton $ GenFold t1 t2
+            | otherwise = HS.empty
+
 instance Solver Ostrich where
-    check solver s pc = checkConstraintsPC (tyvar_env s) (type_env s) solver pc
-    solve con@(Ostrich _ avf _) = checkModelPC avf con
+    check solver s pc = checkConstraintsPC (known_values s) (tyvar_env s) (type_env s) solver [] pc
+    solve con@(Ostrich _ avf _) s b is = checkModelPC avf con s b is []
     close = closeIO
 
 instance SMTConverter Z3 where
@@ -138,15 +235,15 @@ instance SMTConverter Z3 where
         let (h_in, _, _) = getIO con
         T.hPutStrLn h_in "(set-option :produce-unsat-cores true)"
 
-    addFormula = stdAddFormula toSolverASTSeq
+    addFormula = stdAddFormula toSolverASTSeqZ3
 
-    checkSatNoReset = stdCheckSatNoReset toSolverASTSeq
+    checkSatNoReset = stdCheckSatNoReset toSolverASTSeqZ3
 
     checkSatGetModel con@(Z3 _ print_smt_ _ _) formula vs = do
         let (h_in, h_out, _) = getIO con
         reset con
-        when print_smt_ $ T.putStrLn (tbToText $ toSolverText toSolverASTSeq formula)
-        T.hPutStr h_in (tbToText $ toSolverText toSolverASTSeq formula)
+        when print_smt_ $ T.putStrLn (tbToText $ toSolverText toSolverASTSeqZ3 formula)
+        T.hPutStr h_in (tbToText $ toSolverText toSolverASTSeqZ3 formula)
 
         r <- checkSat' print_smt_ h_in h_out
         when print_smt_ (putStrLn $ show r)
@@ -162,7 +259,7 @@ instance SMTConverter Z3 where
 
     checkSatGetModelOrUnsatCoreNoReset con@(Z3 _ print_smt_ _ _) formula vs = do
         let (h_in, h_out, _) = getIO con
-        let formula' = tbToText $ toSolverText toSolverASTSeq formula
+        let formula' = tbToText $ toSolverText toSolverASTSeqZ3 formula
         T.putStrLn "\n\n checkSatGetModelOrUnsatCore"
         T.putStrLn formula'
 
@@ -202,6 +299,17 @@ instance SMTConverter CVC5 where
         when print_smt_ $ putStrLn "(reset)"
         T.hPutStr h_in "(reset)"
 
+    setLogic _ (_:_) xs = SetLogic HO_ALL:xs
+    setLogic _ _ xs
+        | containsLam xs = SetLogic HO_ALL:xs
+        | otherwise = addSetLogic xs
+        where
+            containsLam = getAny . evalASTs go
+                where
+                    go (LambdaSMT _ _) = Any True
+                    go _ = Any False
+
+
     checkSatInstr con = do
         let (h_in, _, _) = getIO con
         T.hPutStrLn h_in "(check-sat)"
@@ -230,15 +338,15 @@ instance SMTConverter CVC5 where
 
     setProduceUnsatCores _ = return ()
 
-    addFormula = stdAddFormula toSolverASTSeq
+    addFormula = stdAddFormula toSolverASTSeqCVC5
 
-    checkSatNoReset = stdCheckSatNoReset toSolverASTSeq
+    checkSatNoReset = stdCheckSatNoReset toSolverASTSeqCVC5
 
     checkSatGetModel con@(CVC5 print_smt_ _ _) formula vs = do
         let (h_in, h_out, _) = getIO con
         reset con
-        when print_smt_ $ T.putStrLn (tbToText $ toSolverText toSolverASTSeq formula)
-        T.hPutStr h_in (tbToText $ toSolverText toSolverASTSeq formula)
+        when print_smt_ $ T.putStrLn (tbToText $ toSolverText toSolverASTSeqCVC5 formula)
+        T.hPutStr h_in (tbToText $ toSolverText toSolverASTSeqCVC5 formula)
         r <- checkSat' print_smt_ h_in h_out
         when print_smt_ (putStrLn $ show r)
         case r of
@@ -256,7 +364,7 @@ instance SMTConverter CVC5 where
 
     checkSatGetModelOrUnsatCoreNoReset con@(CVC5 print_smt_ _ _) formula vs = do
         let (h_in, h_out, _) = getIO con
-        let formula' = tbToText $ toSolverText toSolverASTSeq formula
+        let formula' = tbToText $ toSolverText toSolverASTSeqCVC5 formula
         T.putStrLn "\n\n checkSatGetModelOrUnsatCore"
         T.putStrLn formula'
 
@@ -430,20 +538,31 @@ getCVC5 pr_smt time_out = do
     hhp <- getCVC5ProcessHandles Nothing time_out
     return $ CVC5 pr_smt arbValue hhp
 
-getSMT :: Config -> IO SomeSMTSolver
-getSMT = getSMTAV arbValue
+getSMT :: ArbValueFunc -> Config -> IO SomeSolver
+getSMT avf config = do
+    solvers <- mapM (getSMTAV avf config) (smt config)
+    return . F.foldl' comb (SomeSolver UnknownSolver) $ map toSomeSolver solvers
+    where
+        comb (SomeSolver sol1) (SomeSolver sol2) = SomeSolver $ sol1 :?> sol2
+        toSomeSolver (SomeSMTSolver solver) = SomeSolver solver
 
-getSMTAV :: ArbValueFunc -> Config -> IO SomeSMTSolver
-getSMTAV avf (Config { smt = ConZ3, smt_timeout = to, smt_path = path, print_smt = pr }) = do
+getSMTConverter :: ArbValueFunc -> Config -> IO SomeSMTSolver
+getSMTConverter avf config =
+    case smt config of
+        [] -> error "getSMTConverter: no SMT solver specified"
+        smt_:_ -> getSMTAV avf config smt_
+
+getSMTAV :: ArbValueFunc -> Config -> SMTSolver -> IO SomeSMTSolver
+getSMTAV avf (Config { smt_timeout = to, smt_path = path, print_smt = pr }) ConZ3 = do
     hhp <- getZ3ProcessHandles path (to * 1000)
     return $ SomeSMTSolver (Z3 SeqSolver pr avf hhp)
-getSMTAV avf (Config { smt = ConZ3Str3, smt_timeout = to, smt_path = path, print_smt = pr }) = do
+getSMTAV avf (Config { smt_timeout = to, smt_path = path, print_smt = pr }) ConZ3Str3 = do
     hhp <- getZ3ProcessHandles path (to * 1000)
     return $ SomeSMTSolver (Z3 Z3Str3 pr avf hhp)
-getSMTAV avf (Config { smt = ConCVC5, smt_timeout = to, smt_path = path, print_smt = pr }) = do
+getSMTAV avf (Config { smt_timeout = to, smt_path = path, print_smt = pr }) ConCVC5 = do
     hhp <- getCVC5ProcessHandles path (to * 1000)
     return $ SomeSMTSolver (CVC5 pr avf hhp)
-getSMTAV avf (Config { smt = ConOstrich, smt_timeout = to, smt_path = path, print_smt = pr }) = do
+getSMTAV avf (Config { smt_timeout = to, smt_path = path, print_smt = pr }) ConOstrich = do
     hhp <- getOstrichProcessHandles path (to * 1000)
     return $ SomeSMTSolver (Ostrich pr avf hhp)
 

@@ -21,7 +21,7 @@ simplifyExpr :: E.ExprEnv -> E.ExprEnv -> Expr -> Expr
 simplifyExpr eenv c_eenv e =
     let
         e' = inlineFunc eenv
-           . simplifyDefCase eenv
+           . simplifyCases eenv
            . simplifyAppLambdas
            . stripAllTicks $ e
         -- e' = caseOfKnownCons
@@ -42,10 +42,15 @@ simplifyAppLambdas (App (Lam TypeL i e) (Type t)) =
     simplifyAppLambdas $ retype i t e
 simplifyAppLambdas e = modifyChildren simplifyAppLambdas e
 
-simplifyDefCase :: E.ExprEnv -> Expr -> Expr
-simplifyDefCase eenv (Case e i _ [Alt Default e']) | isExprValueForm eenv e =
-    simplifyDefCase eenv $ replaceVar (idName i) e e'
-simplifyDefCase eenv e = modifyChildren (simplifyDefCase eenv) e
+simplifyCases :: E.ExprEnv -> Expr -> Expr
+simplifyCases _ (Case e _ _ [Alt (DataAlt _ is) e']) | Data dc:es <- unApp e =
+    let
+        ns_es = zipWith (\(Id n _) e_ -> (n, e_)) is $ drop (length $ dc_univ_tyvars dc) es
+    in
+    foldr (uncurry replaceVar) e' ns_es
+simplifyCases eenv (Case e i _ [Alt Default e']) | isExprValueForm eenv e =
+    simplifyCases eenv $ replaceVar (idName i) e e'
+simplifyCases eenv e = modifyChildren (simplifyCases eenv) e
 
 -- | Inline the functions in the ExprEnv
 inlineFunc :: E.ExprEnv -> Expr -> Expr

@@ -1,4 +1,4 @@
-{-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE OverloadedStrings, TupleSections #-}
 
 module G2.Execution.LiteralTable
     ( introduceLitTable
@@ -11,7 +11,6 @@ module G2.Execution.LiteralTable
     ) where
 
 import qualified G2.Language.Stack as S
-import qualified G2.Language.PathConds as PC
 import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.CallGraph as CG
@@ -20,19 +19,18 @@ import G2.Language.Syntax
 import G2.Language.Support
 import G2.Language.Naming
 import G2.Language.Expr
-import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.List as L
 import Data.Maybe
 
-introduceLitTable :: State t -> Name -> Id -> Type -> State t
-introduceLitTable s n i t = s { lit_table_stack = lts
-                              , exec_stack = es
-                              }
+introduceLitTable :: State t -> Name -> [Id] -> Type -> State t
+introduceLitTable s n is t = s { lit_table_stack = lts
+                               , exec_stack = es
+                               }
     where lts = S.push lt (lit_table_stack s)
-          lt = LitTable { lt_arg = i
+          lt = LitTable { lt_arg = is
                         , lt_rec_funs = HS.empty
-                        , lt_mapping = HM.empty
+                        , lt_mapping = []
                         , lt_errored = False
                         , lt_init_pcs = path_conds s
                         , lt_partial = False
@@ -45,10 +43,10 @@ inLitTableMode s = let lit_stack = lit_table_stack s
                        non_empty = isJust $ S.pop lit_stack
                    in non_empty
 
-updateLiteralTable :: PathConds -> Expr -> LitTable -> LitTable
-updateLiteralTable pcs e lt@(LitTable { lt_mapping = ltm }) = lt { lt_mapping = HM.insert pcs e ltm }
+updateLiteralTable :: [PathCond] -> Expr -> LitTable -> LitTable
+updateLiteralTable pcs e lt@(LitTable { lt_mapping = ltm }) = lt { lt_mapping = (pcs, e):ltm }
 
-getLTArg :: State t -> Id
+getLTArg :: State t -> [Id]
 getLTArg s = let (table, _) = case S.pop $ lit_table_stack s of
                                   Just x -> x
                                   Nothing -> error "not in literal table mode"
@@ -69,13 +67,12 @@ stopUpdateLastExpl stck = case S.pop stck of
 -- We need to make sure the resulting expressions in the lit table only have
 -- True as possible values. We check for this and add the expression
 -- to the PathConds if it is True, or if it is an expression we can make True
-makeAllTrue :: KnownValues -> [(PathConds, Expr)] -> [[PathCond]]
+makeAllTrue :: KnownValues -> [([PathCond], Expr)] -> [[PathCond]]
 makeAllTrue _ [] = []
-makeAllTrue kv ((pcs, e):xs) | Just True <- getBool kv e = (PC.toList pcs):makeAllTrue kv xs
+makeAllTrue kv ((pcs, e):xs) | Just True <- getBool kv e = pcs:makeAllTrue kv xs
 makeAllTrue kv ((pcs, e):xs) =
-    let lst = PC.toList pcs
-        pc1 = ExtCond e True
-        lst1 = pc1:lst
+    let pc1 = ExtCond e True
+        lst1 = pc1:pcs
         rest = makeAllTrue kv xs
     in lst1:rest
 
@@ -96,61 +93,65 @@ getBoolOptFromDC kv dcon
 
 -- The identity function represented as a `Lam`
 mkIdLam :: State t -> NameGen -> LitTable -> Maybe (Expr, EESymDiff, NameGen)
-mkIdLam s ng lt =
+mkIdLam s ng lt@(LitTable { lt_arg = [arg]}) =
     let tvnv = tyvar_env s
         kv = known_values s
         tenv = type_env s
-        arg_ty = typeOf tvnv $ lt_arg lt
+        arg_ty = typeOf tvnv arg
         ret_ty = lt_ret_ty lt
         (arg_id, ng1) = freshId arg_ty ng
         lam_e = Lam TermL arg_id (Var arg_id)
-        tup_e = mkTup4 kv tenv tvnv
+        tup_e = mkLitTableInfo kv tenv tvnv
                     lam_e
                     (mkTrue kv)
                     (Prim UnspecifiedOutput TyUnknown)
                     (mkFalse kv)
-    in if arg_ty == ret_ty then Just (tup_e, [arg_id], ng1) else Nothing
+    in if arg_ty == ret_ty then Just (tup_e, [], ng1) else Nothing
+mkIdLam _ _ _ = Nothing
 
 -- Return Id for argument, and the Name that we're replacing in path conds
-mkLamArg :: State t -> NameGen -> LitTable -> Maybe (Id, Name, NameGen)
+mkLamArg :: State t -> NameGen -> LitTable -> Maybe ([(Id, Name)], NameGen)
 mkLamArg s ng lt = do
     let eenv = expr_env s
         tvnv = tyvar_env s
 
-        (Id lt_arg_name _) = lt_arg lt
-    lt_arg_e <- E.deepLookup lt_arg_name eenv
-    (unboxed_sym, unboxed_name) <-
-        case lt_arg_e of
-            App _ (v@(Var i)) -> Just (v, idName i)
-            _ -> Nothing
+        lt_arg_name = map idName $ lt_arg lt
+    lt_arg_es <- mapM (flip E.deepLookup eenv) lt_arg_name
+    unboxed_sym_names <- mapM
+        (\e -> case e of
+            App _ (v@(Var i)) | isPrimType (idType i) -> Just (v, idName i)
+            v@(Var i) -> Just (v, idName i)
+            _ -> Nothing) lt_arg_es
+    let (unboxed_sym, unboxed_name) = unzip unboxed_sym_names
 
-    let lit_ty = typeOf tvnv unboxed_sym
-        (elem_var, ng1) = freshId lit_ty ng
-    return (elem_var, unboxed_name, ng1)
+    let lit_ty = map (typeOf tvnv) unboxed_sym
+        (elem_var, ng1) = freshIds lit_ty ng
+    return (zip elem_var unboxed_name, ng1)
 
 -- Make a fully applied primitive tuple with four elements
-mkTup4 :: KnownValues -> TypeEnv -> TyVarEnv -> Expr -> Expr -> Expr -> Expr -> Expr
-mkTup4 kv tenv tv_env x y z q = t3
+mkLitTableInfo :: KnownValues -> TypeEnv -> TyVarEnv -> Expr -> Expr -> Expr -> Expr -> Expr
+mkLitTableInfo kv tenv tv_env x y z q =
+    let
+        (t1, t2) = case typeOf tv_env x of
+                        TyFun t1_ t2_ -> (t1_, t2_)
+                        _ -> (TyUnknown, TyUnknown)
+    in
+    mkApp [ Data lit_info_dc
+        , Type t1
+        , Type t2
+        , x
+        , y
+        , z
+        , q]
     where
-        t3 = mkTup kv tenv tv_env x t2
-        t2 = mkTup kv tenv tv_env y t1
-        t1 = mkTup kv tenv tv_env z q
-
-mkTup :: KnownValues -> TypeEnv -> TyVarEnv -> Expr -> Expr -> Expr
-mkTup kv tenv tv_env x y =
-    mkApp [ mkPrimTuple kv tenv
-          , Type TyUnknown
-          , Type TyUnknown
-          , Type $ typeOf tv_env x
-          , Type $ typeOf tv_env y
-          , x
-          , y
-          ]
+        lit_info_dc = case getDataCon tenv (KV.tyLitTableInfo kv) (KV.dcLitTableInfo kv) of
+                            Just dc -> dc
+                            Nothing -> error "mkLitTableInfo: LitInfoDC"
 
 -- (Model function, Success, Partial table function to use with `assume`, Is partial)
 mkUnsuccessfulRet :: KnownValues -> TypeEnv -> TyVarEnv -> Expr
 mkUnsuccessfulRet kv tenv tv_env =
-    mkTup4 kv tenv tv_env
+    mkLitTableInfo kv tenv tv_env
         (Prim UnspecifiedOutput TyUnknown)
         (mkFalse kv)
         (Prim UnspecifiedOutput TyUnknown)
@@ -175,7 +176,7 @@ litTableToLam' s ng lt =
     if lt_errored lt then
         Just (mkUnsuccessfulRet kv tenv tv_env, [], ng)
     else
-        case HM.toList $ lt_mapping lt of
+        case lt_mapping lt of
             [] ->
                 mkIdLam s ng lt
             ((_, e):_) | typeOf tv_env e == tyBool kv ->
@@ -189,35 +190,38 @@ litTableToLam' s ng lt =
 
 litTableToLamBool :: State t -> NameGen -> LitTable -> Maybe (Expr, EESymDiff, NameGen)
 litTableToLamBool s ng lt = do
-    let kv = known_values s
+    let eenv = expr_env s
+        kv = known_values s
         tenv = type_env s
         tv_env = tyvar_env s
-    (elem_var, unboxed_name, ng1) <- mkLamArg s ng lt
+    (elem_var_to_unboxed_name, ng1) <- mkLamArg s ng lt
+    let (elem_var, _) = unzip elem_var_to_unboxed_name
 
-    let lt_lst = HM.toList $ lt_mapping lt
-        lt_trues = makeAllTrue kv lt_lst
+    let lt_trues = makeAllTrue kv $ lt_mapping lt
 
         -- At this point, we know the literal table is non-empty, since we are creating a lambda for
         -- a boolean-returning function
         or_exp = mkDisjunction kv lt_trues
-        or_exp1 = replaceVar unboxed_name (Var elem_var) or_exp
-        fun_exp = Lam TermL elem_var or_exp1
-        (partial_check, is_partial) =
-            createPartialHandler (replaceVar unboxed_name (Var elem_var) lt) kv elem_var
-        tup_exp = mkTup4 kv tenv tv_env
+        or_exp1 = foldr (\(ev, un) -> replaceVar un (Var ev)) (inlineVars eenv or_exp) elem_var_to_unboxed_name
+        fun_exp = mkLams (map (TermL,) elem_var) or_exp1
+        lt' = foldr (\(ev, un) -> replaceVar un (Var ev)) (inlineVars eenv lt) elem_var_to_unboxed_name
+        (partial_check, is_partial) = createPartialHandler lt' kv elem_var
+        tup_exp = mkLitTableInfo kv tenv tv_env
                       fun_exp
                       (mkTrue kv)
                       partial_check
                       is_partial
-    return (tup_exp, [elem_var], ng1)
+    return (tup_exp, [], ng1)
 
 litTableToLamNonBool :: State t -> NameGen -> LitTable -> Maybe (Expr, EESymDiff, NameGen)
 litTableToLamNonBool s ng lt = do
-    (elem_var, unboxed_name, ng1) <- mkLamArg s ng lt
-    let kv = known_values s
+    (elem_var_to_unboxed_name, ng1) <- mkLamArg s ng lt
+    let (elem_var, _) = unzip elem_var_to_unboxed_name
+
+    let eenv = expr_env s
+        kv = known_values s
         tv_env = tyvar_env s
         tenv = type_env s
-        lt_lst = HM.toList $ lt_mapping lt
     -- `Char`s are represented as one character `String`s here, so we
     -- need to extract the first character.
         wrap e t = if t == tyChar kv
@@ -225,28 +229,28 @@ litTableToLamNonBool s ng lt = do
                        else e
     -- At this point, we assume there are no `Error`s in the literal table. This
     -- means we have a total function, and we can pick one option to be the default.
-    ite_exp <- case lt_lst of
+    ite_exp <- case lt_mapping lt of
                     ((_ {- We ignore the PathConds for the default -}, def_e):rest) ->
                         Just $ L.foldl'
                                 (\prev_exp (pcs, e) ->
                                     mkApp [ Prim Ite TyUnknown
-                                          , (pcsToExprBool kv $ PC.toList pcs)
+                                          , (pcsToExprBool kv pcs)
                                           , (wrap e $ typeOf tv_env e)
                                           , prev_exp ]
                                 )
                                 (wrap def_e $ typeOf tv_env def_e)
                                 (reverse rest)
                     _ -> Nothing
-    let ite_exp1 = replaceVar unboxed_name (Var elem_var) ite_exp
-        fun_exp = Lam TermL elem_var ite_exp1
-        (partial_check, is_partial) =
-            createPartialHandler (replaceVar unboxed_name (Var elem_var) lt) kv elem_var
-        tup_exp = mkTup4 kv tenv tv_env
+    let ite_exp1 = foldr (\(ev, un) -> replaceVar un (Var ev)) (inlineVars eenv ite_exp) elem_var_to_unboxed_name
+        fun_exp = mkLams (map (TermL,) elem_var) ite_exp1
+        lt' = foldr (\(ev, un) -> replaceVar un (Var ev)) (inlineVars eenv lt) elem_var_to_unboxed_name
+        (partial_check, is_partial) = createPartialHandler lt' kv elem_var
+        tup_exp = mkLitTableInfo kv tenv tv_env
                       fun_exp
                       (mkTrue kv)
                       partial_check
                       is_partial
-    return (tup_exp, [elem_var], ng1)
+    return (tup_exp, [], ng1)
 
 mkDisjunction :: KnownValues -> [[PathCond]] -> Expr
 mkDisjunction kv conds =
@@ -254,9 +258,15 @@ mkDisjunction kv conds =
         [] -> mkFalse kv
         (hd:tl) ->
             L.foldl'
-                (\prev_exp pcs -> mkApp [Prim Or (tripleBoolTy kv), prev_exp, pcsToExprBool kv pcs])
+                (\prev_exp pcs -> mkOrSmart kv prev_exp $ pcsToExprBool kv pcs)
                 (pcsToExprBool kv hd)
                 tl
+
+mkOrSmart :: KnownValues -> Expr -> Expr -> Expr
+mkOrSmart kv e1 e2
+    | e1 == mkFalse kv = e2
+    | e2 == mkFalse kv = e1
+    | otherwise = mkApp [Prim Or (tripleBoolTy kv), e1, e2]
 
 -- Turn the conjunction of these path conditions into an expression
 pcsToExprBool :: KnownValues -> [PathCond] -> Expr
@@ -264,15 +274,19 @@ pcsToExprBool kv pcs =
     case pcs of
         [] -> mkTrue kv
         (hd:tl) ->
-            L.foldl' (\prev_exp pc -> mkApp [Prim And (tripleBoolTy kv), prev_exp, pcToExprBool kv pc]) (pcToExprBool kv hd) tl
+            L.foldl' (\prev_exp pc -> mkAndSmart kv prev_exp $ pcToExprBool kv pc) (pcToExprBool kv hd) tl
+
+mkAndSmart :: KnownValues -> Expr -> Expr -> Expr
+mkAndSmart kv e1 e2
+    | e1 == mkFalse kv = mkFalse kv
+    | e2 == mkFalse kv = mkFalse kv
+    | otherwise = mkApp [Prim And (tripleBoolTy kv), e1, e2]
 
 -- Turn one path condition into an expression, with equality
 pcToExprBool :: KnownValues -> PathCond -> Expr
 pcToExprBool kv pc =
     case pc of
         ExtCond expr bool -> if bool then expr else mkApp [Prim Not (doubleBoolTy kv), expr]
-        AltCond lit var bool -> let eq_e = mkApp [Prim Eq (tripleBoolTy kv), Lit lit, var]
-                                in if bool then eq_e else mkApp [Prim Not (doubleBoolTy kv), eq_e]
         _ -> error $ "unhandled pc:\n" ++ show pc
 
 tripleBoolTy :: KnownValues -> Type
@@ -326,18 +340,18 @@ topLTNonEmpty s =
         Nothing -> False
 
 ltNonEmpty :: LitTable -> Bool
-ltNonEmpty lt = not $ null (HM.toList $ lt_mapping lt)
+ltNonEmpty = not . null . lt_mapping
 
 -- If the literal table is partial, we want to create a function that
 -- returns True when an input is covered and False when it is not
-createPartialHandler :: LitTable -> KnownValues -> Id -> (Expr, Expr)
+createPartialHandler :: LitTable -> KnownValues -> [Id] -> (Expr, Expr)
 createPartialHandler lt kv elem_id =
     if not $ lt_partial lt then (Prim UnspecifiedOutput TyUnknown, mkFalse kv)
     else (lam_exp, mkTrue kv)
     where
-        lt_conds = map (PC.toList . fst) $ (HM.toList . lt_mapping) lt
+        lt_conds = map fst $ lt_mapping lt
         or_exp = mkDisjunction kv lt_conds
-        lam_exp = Lam TermL elem_id or_exp
+        lam_exp = mkLams (map (TermL,) elem_id) or_exp
 
 -- Add the current expr into the list of evaluated recursive functions,
 -- if applicable. Then, check if we already know the current expr is a

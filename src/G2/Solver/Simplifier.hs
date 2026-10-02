@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, GADTs, RankNTypes, OverloadedStrings, TypeOperators #-}
+{-# LANGUAGE FlexibleContexts, GADTs, RankNTypes, OverloadedStrings, TypeOperators, ViewPatterns #-}
 {-# LANGUAGE InstanceSigs #-}
 
 module G2.Solver.Simplifier ( Simplifier (..)
@@ -15,14 +15,24 @@ module G2.Solver.Simplifier ( Simplifier (..)
                             , LamVarSimplifier (..)
                             , ConstSimplifier (..)
                             , HigherOrderSimplifier (..)
+
+                            , mkSeqNth
+
+                            , unfoldAppend
                             ) where
 
 import G2.Language
 import qualified G2.Language.ExprEnv as E
-import G2.Language.KnownValues
+import G2.Language.KnownValues as KV
+import G2.Language.Monad
+import qualified G2.Language.Monad.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Typing as T
+
+import qualified Control.Monad.State.Lazy as SM
+
 import qualified Data.HashSet as HS
+import qualified Data.HashMap.Lazy as HM
 import qualified Data.List as L
 
 class Simplifier simplifier where
@@ -116,6 +126,8 @@ isZero _ = False
 data BoolSimplifier = BoolSimplifier
 
 instance Simplifier BoolSimplifier where
+    simplifyPC _ s (ExtCond e False) =
+        [modifyContainedASTs (simplifyBool (known_values s)) (ExtCond (App (Prim Not TyUnknown) e) True)]
     simplifyPC _ s pc = [modifyContainedASTs (simplifyBool (known_values s)) pc]
 
     reverseSimplification _ _ _ m = m
@@ -130,6 +142,7 @@ simplifyBool kv e
     , n == dcFalse kv = mkNotExpr kv e2
     | [Prim Eq _, e1, Data (DataCon { dc_name = n }) ] <- unApp e
     , n == dcFalse kv = mkNotExpr kv e1
+    | (App (Prim Not _) (App (Prim Not _) e')) <- e = e'
 simplifyBool _ e = e
 
 -- | Tries to simplify based on simple String principles, i.e. len x == 0 -> x == ""
@@ -147,8 +160,10 @@ simplifyString :: Expr -> Expr
 simplifyString e
     | [Prim Eq _, App (Prim StrLen t) v, Lit (LitInt 0) ] <- unApp e
     , TyFun (TyApp _ (TyCon (Name "Char" _ _ _) _)) _ <- t = mkApp [Prim Eq TyUnknown, v, Lit (LitString "")]
+
     | [Prim Eq _, Lit (LitInt 0), App (Prim StrLen t) v ] <- unApp e
     , TyFun (TyApp _ (TyCon (Name "Char" _ _ _) _)) _ <- t = mkApp [Prim Eq TyUnknown, v, Lit (LitString "")]
+
 simplifyString e = e
 
 simplifyAllStrings :: KnownValues -> TypeEnv -> Expr -> Expr
@@ -162,16 +177,64 @@ simplifyAllStrings kv tenv e
               , mkApp [Prim StrReplaceAll str_ra_ty, xs, list, zs ]
               , mkApp [Prim StrReplaceAll str_ra_ty, ys, list, zs ]
               ]
+    -- Rewrite
+    --   (seq.contains (seq.replace_all xs (seq.unit x) ys) (seq.unit x))
+    -- to
+    --   (seq.contains ys (seq.unit x))
+    | [Prim StrContains str_cont_ty, e1 {- seq.replace_all ... -}, e2] <- unApp e
+    , [Prim StrReplaceAll _, _, rep {- seq.unit x -}, ys ] <- unApp e1
+    , [Data cons, _ {- type-}, _ {- head -}, App (Data emp) _] <- unApp rep
+    , dcName cons == dcCons kv
+    , dcName emp == dcEmpty kv
+    , rep == e2 = mkApp [Prim StrContains str_cont_ty, ys, rep]
+
+    -- Rewrite
+    --   (seq.replace_all (str.reverse xs) (seq.unit x) ys)
+    -- to
+    --   (seq.reverse (seq.replace_all xs (seq.unit x) ys))
+    -- if ys is a single character, or if ys is empty
+    | [Prim StrReplaceAll ty_rep, rev, rep {- seq.unit x -}, ys ] <- unApp e
+    , [Prim StrReverse ty_rev, xs] <- unApp rev
+    , [Data cons, _ {- type-}, _ {- head -}, App (Data emp) _] <- unApp rep
+    , shortString kv ys
+    , dcName cons == dcCons kv
+    , dcName emp == dcEmpty kv =
+        mkApp [ Prim StrReverse ty_rev
+              , mkApp [ Prim StrReplaceAll ty_rep, xs, rep, ys]
+              ]
+
+    -- Rewrite
+    --    seq.map f (seq.extract xs i j)
+    -- to be
+    --    (seq.extract (seq.map f xs) i j)
+    -- This both normalizes, making constraints easier to solver, and potentially allows the unfold append simplifier to fire on the map
+    | [ Prim Map ty_map, f, ext] <- unApp e
+    , [ Prim StrSubstr ty_substr, lst, i, j] <- unApp ext =
+        mkApp [ Prim StrSubstr ty_substr
+              , mkApp [ Prim Map ty_map, f, lst]
+              , i
+              , j]
+
+    -- | [Prim Eq _, e1, e2] <- unApp e
+    -- , [Prim StrIndexOf _, xs, ys, Lit (LitInt 0)] <- unApp e1
+    -- , Lit (LitInt (- 1)) <- e2 = App (Prim Not TyUnknown) $ mkApp [ Prim StrContains TyUnknown, xs, ys]
+
 simplifyAllStrings _ _ e = e
+
+shortString :: KnownValues -> Expr -> Bool
+shortString kv e
+    | [Data cons, _ {- type-}, _ {- head -}, App (Data emp) _] <- unApp e
+    , dcName cons == dcCons kv
+    , dcName emp == dcEmpty kv = True
+    | App (Data emp) _ <- e
+    , dcName emp == dcEmpty kv  = True
+    | otherwise = False
 
 splitUpStrApp :: KnownValues -> TypeEnv -> Expr -> Maybe (Expr, Expr)
 splitUpStrApp _ _ e | [Prim StrAppend _, xs, ys] <- unApp e = Just (xs, ys)
 splitUpStrApp kv tenv e | [Data cons, ty, x, xs] <- unApp e
-                        , not $ isEmpty xs=
+                        , not $ isEmpty kv xs =
     Just (mkApp [Data cons, ty, x, App (mkEmpty kv tenv) ty], xs)
-    where
-        isEmpty (App (Data _) _) = True
-        isEmpty _ = False
 splitUpStrApp _ _ _ = Nothing
 
 -- | Tries to simplify constraints involving checking if the value of an Int matches a concrete Float.
@@ -191,7 +254,6 @@ instance Simplifier FloatSimplifier where
     simplifyPC _ _ pc = [pc]
 
     reverseSimplification _ _ _ m = m
-
 
 -- When we get a path constraint that is an equality between a variable and a small expression,
 -- inline the small expression in all path constraints and in the ExprEnv.
@@ -246,7 +308,6 @@ smallEqPC kv (ExtCond e True)
 
 smallEqPC kv (ExtCond (Var (Id n _)) True) = Just (n, mkTrue kv)
 smallEqPC kv (ExtCond (Var (Id n _)) False) = Just (n, mkFalse kv)
-smallEqPC _ (AltCond l (Var (Id n _)) True) = Just (n, Lit l)
 smallEqPC _ _ = Nothing
 
 -- Concretize symbolic literal wrappers. For example Char variables are converted to (C# c#) for some fresh c#
@@ -264,9 +325,9 @@ instance Simplifier LitConc where
             
             -- If a variable is NOT bound by a lambda, we want to reflect the concretization in the expression environment.
             lams = HS.map idName $ lamIds pc
-            eenv' = foldr (\(Id nC t, nL) -> E.insert nC (concApprop t nL) . E.insertSymbolic nL) eenv (filter (\(Id n _, _) -> n `notElem` lams) conc_c)
+            eenv' = foldr (\(Id nC t, nL) -> E.alter (concAppropEEnv t (Var nL)) nC . E.insertSymbolic nL) eenv (filter (\(Id n _, _) -> n `notElem` lams) conc_c)
             
-            pc' = foldr (\(Id nC t, nL) -> modifyContainedASTs elimWrapper . replaceVarAndLam nC (concApprop t nL) nL) pc conc_c
+            pc' = foldr (\(Id nC t, nL) -> replaceVarAndLam nC (concApprop t (Var nL)) nL) pc conc_c
         in
         (ng', eenv', [pc'])
         where
@@ -280,13 +341,16 @@ instance Simplifier LitConc where
                 where
                     t' = tyVarSubst tv_env t
 
-            concApprop t i
-                | t' == T.tyInt kv = concInt i
-                | t' == T.tyInteger kv = concInteger i
-                | t' == T.tyWord kv = concWord i
-                | t' == T.tyFloat kv = concFloat i
-                | t' == T.tyDouble kv = concDouble i
-                | t' == T.tyChar kv = concChar i
+            concAppropEEnv _ _ (Just (E.ExprObj e)) = Just . E.ExprObj $ e
+            concAppropEEnv t e _ = Just . E.ExprObj $ concApprop t e
+
+            concApprop t e
+                | t' == T.tyInt kv = concInt e
+                | t' == T.tyInteger kv = concInteger e
+                | t' == T.tyWord kv = concWord e
+                | t' == T.tyFloat kv = concFloat e
+                | t' == T.tyDouble kv = concDouble e
+                | t' == T.tyChar kv = concChar e
                 | otherwise = error $ "concApprop: impossible - unhandled type"
                 where
                     t' = tyVarSubst tv_env t
@@ -302,26 +366,41 @@ instance Simplifier LitConc where
                 where
                     t' = tyVarSubst tv_env t
 
-            concInt n = App (mkDCInt kv tenv) (Var n)
-            concInteger n = App (mkDCInteger kv tenv) (Var n)
-            concWord n = App (mkDCWord kv tenv) (Var n)
-            concFloat n = App (mkDCFloat kv tenv) (Var n)
-            concDouble n = App (mkDCDouble kv tenv) (Var n)
-            concChar n = App (mkDCChar kv tenv) (Var n)
-
-            elimWrapper (App (Data dc) e2)
-                |  dcName dc == dcInt kv
-                || dcName dc == dcInteger kv
-                || dcName dc == dcWord kv
-                || dcName dc == dcFloat kv
-                || dcName dc == dcDouble kv
-                || dcName dc == dcChar kv = e2
-            elimWrapper e
-                | Data dc:_ <- unApp e
-                , dcName dc == dcCons kv = e
-                | otherwise = modifyChildren elimWrapper e
+            concInt e = App (mkDCInt kv tenv) e
+            concInteger e = App (mkDCInteger kv tenv) e
+            concWord e = App (mkDCWord kv tenv) e
+            concFloat e = App (mkDCFloat kv tenv) e
+            concDouble e = App (mkDCDouble kv tenv) e
+            concChar e = App (mkDCChar kv tenv) e
+    
+    simplifyPCs _ (State { known_values = kv, expr_env = eenv }) _ = modifyContainedASTs (elimWrapper kv eenv)
 
     reverseSimplification _ _ _ m = m
+
+elimWrapper :: KnownValues -> ExprEnv -> Expr -> Expr
+elimWrapper kv eenv = go
+    where
+        go (App (Data dc) e2) | elimName $ dc_name dc = modifyChildren go e2
+        go(App (Prim (Selector dc _) _) e2) | elimName $ dc_name dc = modifyChildren go e2
+        go (App (Prim (IsConstructor dc) _) _) | elimName $ dc_name dc = mkTrue kv
+        go v@(Var (Id n _))
+            | Just (E.Conc e_) <- E.deepLookupConcOrSym n eenv =
+                case appCenter e_ of
+                    Data dc | isPrimWrapperDC kv dc -> go e_
+                            | otherwise -> v
+                    _ -> go e_
+        go e
+            -- | Data dc:_ <- unApp e
+            -- , dcName dc == dcCons kv = e
+            | otherwise = modifyChildren go e
+
+        elimName n =
+                n == dcInt kv
+            || n == dcInteger kv
+            || n == dcWord kv
+            || n == dcFloat kv
+            || n == dcDouble kv
+            || n == dcChar kv
 
 replaceVarAndLam :: ASTContainer m Expr => Name -> Expr -> Id -> m -> m
 replaceVarAndLam n e i = modifyASTs go
@@ -351,74 +430,209 @@ data HigherOrderSimplifier = HigherOrderSimplifier
 instance Simplifier HigherOrderSimplifier where
     simplifyPC _ _ pc = [pc]
 
-    simplifyPCs _ _ pc = modifyASTs unfoldAppend . inFoldStringVars pc
+    simplifyPCs _ (State { type_env = tenv, known_values = kv }) pc =
+        modifyASTs (simplifyUnitMap kv) . splitAnds . modifyASTs (unfoldAppend tenv kv) . inFoldStringVars pc . modifyASTs lenOfMap
+
+    simplifyPCWithExprEnv _ s@(State { known_values = kv, tyvar_env = tv_env }) ng eenv pc =
+        let 
+            (pcs', eenv', ng') = indexOfToAppended (s { expr_env = eenv }) ng pc
+            pcs'' = map (seqNthMap kv tv_env . fuseFoldLeftMap . notContainsToFoldMap kv tv_env) pcs'
+            ((s', ng''), pcs''') = L.mapAccumL
+                                        (\(s_, ng_) pc_ -> let (pc_', eenv_, ng_') = mapContainsUnit (s { expr_env = eenv }) ng_ pc_ in
+                                                            ((s_ { expr_env = eenv_ }, ng_'), pc_'))
+                                        (s { expr_env = eenv' }, ng')
+                                        pcs''
+            pcs4 = simplifyLams $ concat pcs'''
+        in
+        (ng'', expr_env s', pcs4)
 
     reverseSimplification _ _ _ m = m
 
-unfoldAppend :: Expr -> Expr
--- Split up folds containg appends
-unfoldAppend e | [Prim FoldLeft t, func, accum, App (App (Prim StrAppend t1) xs) ys] <- unApp e 
-               , isSplittableFoldAppend func =
-    mkApp [ Prim StrAppend t1
-          , mkApp [Prim FoldLeft t, func, accum, xs]
-          , mkApp [Prim FoldLeft t, func, accum, ys]
-          ]
-unfoldAppend e | [Prim FoldLeftI t, func, offset, accum, App (App (Prim StrAppend t1) xs) ys] <- unApp e
-               , isSplittableFoldAppend func =
-    mkApp [ Prim StrAppend t1
-          , mkApp [Prim FoldLeftI t, func, offset, accum, xs]
-          , mkApp [Prim FoldLeftI t, func, offset, accum, ys]
-          ]
+lenOfMap :: Expr -> Expr
+lenOfMap e
+    | [Prim StrLen _, e'] <- unApp e
+    , [Prim Map _, _, e''] <- unApp e' = mkApp [Prim StrLen TyUnknown, e'']
+lenOfMap e = e
 
--- Split up folds containg ands
-unfoldAppend e | [Prim FoldLeft t, func, accum, App (App (Prim StrAppend _) xs) ys] <- unApp e 
-               , isSplittableFoldAnd func =
-    mkApp [ Prim And TyUnknown
+unfoldAppend :: TypeEnv -> KnownValues -> Expr -> Expr
+-- Split up folds containg appends
+unfoldAppend tenv kv e | [Prim FoldLeft t, func, accum, poss_app] <- unApp e
+                       , Just (xs, ys) <- appendedSeqs tenv kv poss_app
+                       , Just (pr, init_e) <- isSplittableFold tenv kv func =
+    mkApp [ pr
           , mkApp [Prim FoldLeft t, func, accum, xs]
-          , mkApp [Prim FoldLeft t, func, accum, ys]
+          , mkApp [Prim FoldLeft t, func, init_e, ys]
           ]
-unfoldAppend e | [Prim FoldLeftI t, func, offset, accum, App (App (Prim StrAppend _) xs) ys] <- unApp e
-               , isSplittableFoldAnd func =
-    mkApp [ Prim And TyUnknown
-          , mkApp [Prim FoldLeftI t, func, offset, accum, xs]
-          , mkApp [Prim FoldLeftI t, func, offset, accum, ys]
+unfoldAppend tenv kv e | [Prim FoldLeft t, func, accum, poss_app] <- unApp e
+                       , Just (xs, ys) <- appendedSeqs tenv kv poss_app
+                       , Just (pr, init_e) <- isSplittableFoldRev tenv kv func =
+    mkApp [ pr
+          , mkApp [Prim FoldLeft t, func, init_e, ys]
+          , mkApp [Prim FoldLeft t, func, accum, xs]
           ]
+-- unfoldAppend tenv kv e | [Prim FoldLeftI t, func, offset, accum, poss_app] <- unApp e
+--                        , isEmpty kv accum
+--                        , Just (xs, ys) <- appendedSeqs tenv kv poss_app
+--                        , isSplittableFoldAppend tenv kv func =
+--     mkApp [ Prim StrAppend TyUnknown
+--           , mkApp [Prim FoldLeftI t, func, offset, accum, xs]
+--           , mkApp [Prim FoldLeftI t, func, offset, accum, ys]
+--           ]
 
 -- Split up maps
-unfoldAppend e | [Prim Map t, func, App (App (Prim StrAppend t1) xs) ys] <- unApp e =
-    mkApp [ Prim StrAppend t1
+unfoldAppend tenv kv e | [Prim Map t, func, poss_app] <- unApp e
+                       , Just (xs, ys) <- appendedSeqs tenv kv poss_app =
+    mkApp [ Prim StrAppend TyUnknown
           , mkApp [Prim Map t, func, xs]
           , mkApp [Prim Map t, func, ys]
           ]
-unfoldAppend e | [Prim MapConcat t, func, App (App (Prim StrAppend t1) xs) ys] <- unApp e =
-    mkApp [ Prim StrAppend t1
+unfoldAppend tenv kv e | [Prim MapConcat t, func, poss_app] <- unApp e
+                       , Just (xs, ys) <- appendedSeqs tenv kv poss_app =
+    mkApp [ Prim StrAppend TyUnknown
           , mkApp [Prim MapConcat t, func, xs]
           , mkApp [Prim MapConcat t, func, ys]
           ]
 
-unfoldAppend e | [Prim MapConcatI t, func, App (App (Prim StrAppend t1) xs) ys] <- unApp e =
-    mkApp [ Prim StrAppend t1
+unfoldAppend tenv kv e | [Prim MapConcatI t, func, poss_app] <- unApp e
+                       , Just (xs, ys) <- appendedSeqs tenv kv poss_app =
+    mkApp [ Prim StrAppend TyUnknown
           , mkApp [Prim MapConcatI t, func, xs]
           , mkApp [Prim MapConcatI t, func, ys]
           ]
-unfoldAppend e = e
+unfoldAppend _ _ e = e
+
+appendedSeqs :: TypeEnv -> KnownValues -> Expr -> Maybe (Expr, Expr)
+appendedSeqs tenv kv (consToAppend tenv kv -> (App (App (Prim StrAppend _) xs) ys)) = Just (xs, ys)
+appendedSeqs _ _ _ = Nothing
+
+-- | Convert (x:xs) into ([x] ++ xs) so that other simplifications fire
+consToAppend :: TypeEnv -> KnownValues -> Expr -> Expr
+consToAppend _ kv e@(App (App (App (Data dc) _) _) (App (Data dc_emp) _)) -- Make sure we don't go into an infinite loop
+    | dc_name dc == dcCons kv
+    , dc_name dc_emp == dcEmpty kv = e
+consToAppend tenv kv (App (App (App (Data dc) (Type t)) x) ys) | dc_name dc == dcCons kv =
+    let xs = mkG2List kv tenv t [x] in
+    mkApp [Prim StrAppend TyUnknown, xs, ys]
+consToAppend _ _ e = e
+
+-- The identity function can be split, as long as we eventually find a Prim
+-- Note that types don't need to match here, since the type checker does that
+-- for us
+data PrimMatch = SpecificPrim Expr Expr | AnyPrim
+    deriving (Eq, Show)
 
 -- foldl' (\zs x -> zs ++ f x) [] (xs ++ ys)
 -- ==
 -- foldl' (\zs x -> zs ++ f x) [] xs ++ foldl' (\zs x -> zs ++ f x) [] ys
-isSplittableFoldAppend :: Expr -> Bool
-isSplittableFoldAppend = isSplittableFold StrAppend
+-- OR
+-- foldl' (\zs x -> if f x then zs ++ [x] else xs) [] (xs ++ ys)
+-- ==
+-- foldl' (\zs x -> if f x then zs ++ [x] else zs) [] xs
+--     ++ foldl' (\zs x -> f x then zs ++ [x] else zs) [] ys
+-- ... and so on. Note that this can generalize to any monoid!
+isSplittableFold :: TypeEnv -> KnownValues -> Expr -> Maybe (Expr, Expr)
+isSplittableFold tenv kv f =
+    case isSplittableFold' tenv kv (modifyASTs (consToAppend tenv kv) f) of
+        Just (SpecificPrim pr e) -> Just (pr, e)
+        _ -> Nothing
 
-isSplittableFoldAnd :: Expr -> Bool
-isSplittableFoldAnd = isSplittableFold And
+isSplittableFold' :: TypeEnv
+                  -> KnownValues
+                  -> Expr -- ^ Function being folded over
+                  -> Maybe PrimMatch
+isSplittableFold' tenv kv (Lam _ (Id col_v1 _) (Lam _ (Id _ _) e)) = checkBody e
+    where
+        checkBody body
+            | [pr@(Prim prim _), Var (Id col_v2 t), e2] <- unApp $ makeRightAssoc body
+            , Just ident_e <- HM.lookup prim (assocPrimToIdent tenv kv t)
+            , col_v1 == col_v2
+            , col_v1 `notElem` varNames e2 = Just $ SpecificPrim pr ident_e
 
-isSplittableFold :: Primitive -> Expr -> Bool
-isSplittableFold prim (Lam _ (Id col_v1 _) (Lam _ (Id _ _) e)) 
-    | [Prim prim' _, Var (Id col_v2 _), e2] <- unApp e
-    , prim == prim'
-    , col_v1 == col_v2
-    , col_v1 `notElem` varNames e2 = True
-isSplittableFold _ _ = False
+            | Var (Id col_v2 _) <- body
+            , col_v1 == col_v2 = Just AnyPrim
+
+            | [Prim Ite _, cond, tb, fb] <- unApp body
+            , col_v1 `notElem` varNames cond
+            , Just tb1 <- checkBody tb
+            , Just fb1 <- checkBody fb = resolveBranches tb1 fb1
+
+            | otherwise = Nothing
+isSplittableFold' _ _ _ = Nothing
+
+resolveBranches :: PrimMatch -> PrimMatch -> Maybe PrimMatch
+resolveBranches t@(SpecificPrim p1 e1) (SpecificPrim p2 e2) | p1 == p2 && e1 == e2 = Just t
+resolveBranches t@(SpecificPrim _ _) AnyPrim = Just t
+resolveBranches AnyPrim f@(SpecificPrim _ _) = Just f
+resolveBranches AnyPrim AnyPrim = Just AnyPrim
+resolveBranches _ _ = Nothing
+
+assocPrimToIdent :: TypeEnv -> KnownValues -> Type -> HM.HashMap Primitive Expr
+assocPrimToIdent tenv kv t =
+    let t' = case t of TyApp _ t_ -> t_; _ -> t in
+    HM.fromList [ (StrAppend, App (mkEmpty kv tenv) (Type t'))
+                , (And, mkTrue kv)
+                , (Or, mkFalse kv)
+    
+                , (Plus, Lit $ LitInt 0)
+                , (Mult, Lit $ LitInt 1) ]
+
+isEmpty :: KnownValues -> Expr -> Bool
+isEmpty kv (App (Data dc) _) = dc_name dc == dcEmpty kv
+isEmpty _ _ = False
+
+-- | Convert applications to be right associative
+makeRightAssoc :: Expr -> Expr
+makeRightAssoc
+    (App 
+        (App
+            (Prim prim1 t1)
+            (App (App (Prim prim2 _) e1) e2)
+        )
+    e3) | isAssoc prim1 , prim1 == prim2 =
+        makeRightAssoc $ App
+            (App (Prim prim1 t1) e1)
+            (App (App (Prim prim1 t1) e2) e3)
+makeRightAssoc e = e
+
+isAssoc :: Primitive -> Bool
+isAssoc StrAppend = True
+isAssoc And = True
+isAssoc Or = True
+isAssoc Plus = True
+isAssoc Mult = True
+isAssoc _ = False -- Conservative assumption
+
+-- foldl' (\zs x -> f x:zs) [] (xs ++ ys)
+-- ==
+-- foldl' (\zs x -> f x:zs) [] ys ++ foldl' (\zs x -> f x:zs) [] xs
+isSplittableFoldRev :: TypeEnv -> KnownValues -> Expr -> Maybe (Expr, Expr)
+isSplittableFoldRev tenv kv f =
+    case isSplittableFoldRev' tenv kv (modifyASTs (consToAppend tenv kv) f) of
+        Just (SpecificPrim pr e) -> Just (pr, e)
+        _ -> Nothing
+
+isSplittableFoldRev' :: TypeEnv
+                  -> KnownValues
+                  -> Expr -- ^ Function being folded over
+                  -> Maybe PrimMatch
+isSplittableFoldRev' tenv kv (Lam _ (Id col_v1 _) (Lam _ (Id _ _) e)) = checkBody e
+    where
+        checkBody body
+            | [pr@(Prim prim _), e1, Var (Id col_v2 t)] <- unApp $ makeRightAssoc body
+            , Just ident_e <- HM.lookup prim (assocPrimToIdent tenv kv t)
+            , col_v1 == col_v2
+            , col_v1 `notElem` varNames e1 = Just $ SpecificPrim pr ident_e
+
+            | Var (Id col_v2 _) <- body
+            , col_v1 == col_v2 = Just AnyPrim
+
+            | [Prim Ite _, cond, tb, fb] <- unApp body
+            , col_v1 `notElem` varNames cond
+            , Just tb1 <- checkBody tb
+            , Just fb1 <- checkBody fb = resolveBranches tb1 fb1
+
+            | otherwise = Nothing
+isSplittableFoldRev' _ _ _ = Nothing
 
 -- Looks for cases where a fold function is applied to a variable:
 --  @ fold_left f i xs @
@@ -482,3 +696,204 @@ replaceVarFold' n _ le@(Let b _) | n `elem` map (idName . fst) b = le
 replaceVarFold' n e e' = modifyChildren (replaceVarFold' n e) e'
 
 
+seqNthMap :: KnownValues -> TyVarEnv -> PathCond -> PathCond
+seqNthMap kv tv_env = modifyASTs go
+    where
+        go e
+            | [Prim SeqNth _, e1, e2] <- unApp e
+            , [Prim Map _, f, lst] <- unApp e1 =
+                App
+                  f
+                $ mkSeqNth kv tv_env lst e2
+            | otherwise = e
+
+mapContainsUnit :: State t -> NameGen -> PathCond -> ([PathCond], ExprEnv, NameGen)
+mapContainsUnit s@(State { known_values = kv, tyvar_env = tv_env }) ng pc = 
+    let ((pc', (s', ng')), extra_pc) = SM.runState (runStateNGT (go pc) s ng) [] in
+    (pc':extra_pc, expr_env s', ng')
+    where
+        -- Rewrite
+        --    (contains (seq.map f lst) [x])
+        -- to
+        --    (f (lst !! i) == [x])
+        go :: SM.MonadState [PathCond] m => PathCond -> StateNGT t m PathCond
+        go (ExtCond e True)
+            | [Prim StrContains _, map_e, unit_e] <- unApp e
+            , [Prim Map _, f, lst] <- unApp map_e
+            , Just unit_v <- getUnit kv unit_e = do
+                elem_ind <- freshIdN TyLitInt
+                E.insertSymbolicE elem_ind
+                let gt_0 = ExtCond (mkApp [Prim Le TyUnknown, Lit (LitInt 0), Var elem_ind]) True
+                    lt_len = ExtCond (mkApp [Prim Lt TyUnknown, Var elem_ind, App (Prim StrLen TyUnknown) lst]) True
+                    
+                    index_lst_and_app = App f $ mkSeqNth kv tv_env lst (Var elem_ind)
+
+                SM.lift $ SM.modify (\xs -> gt_0:lt_len:xs)
+
+                return $ ExtCond (mkApp [Prim Eq TyUnknown, index_lst_and_app, unit_v]) True
+        go pc_ = return pc_
+
+notContainsToFoldMap :: KnownValues
+                     -> TyVarEnv
+                     -> PathCond
+                     -> PathCond
+notContainsToFoldMap kv tv_env (ExtCond (App (Prim Not _) e) True)
+    | [Prim StrContains _, map_e, unit_e] <- unApp e
+    , [Prim Map _, _, _] <- unApp map_e
+    , Just unit_v <- getUnit kv unit_e = ExtCond (notContainsValToFold kv tv_env map_e unit_v) True
+notContainsToFoldMap _ _ e = e
+
+notContainsValToFold :: KnownValues
+                     -> TyVarEnv
+                     -> Expr -- ^ List being checked
+                     -> Expr -- ^ Value being checked for 
+                     -> Expr
+notContainsValToFold kv tv_env lst v =
+    let
+        accum_id = Id (Name "G2_!!_LAM_Acc" Nothing 0 Nothing) (T.tyBool kv)
+        e_id = Id (Name "G2_!!_LAM_Val" Nothing 0 Nothing) (typeOf tv_env v)
+
+        f = Lam TermL accum_id
+          . Lam TermL e_id
+          $ mkApp [ Prim And TyUnknown
+                  , Var accum_id
+                  , mkApp [ Prim Neq TyUnknown, Var e_id, v]
+                  ]
+    in
+    mkApp [ Prim FoldLeft TyUnknown
+          , f
+          , mkTrue kv
+          , lst]
+
+getUnit :: KnownValues -> Expr -> Maybe Expr
+getUnit kv (App 
+                (App 
+                    (App (Data dc_cons) _)
+                    x
+                ) 
+                (App (Data dc_emp) _)
+            )
+    | dc_name dc_cons == dcCons kv
+    , dc_name dc_emp == dcEmpty kv = Just x
+getUnit _ (App (Prim SeqUnit _) e) = Just e
+getUnit _ _ = Nothing
+
+indexOfToAppended :: State t -> NameGen -> PathCond -> ([PathCond], ExprEnv, NameGen)
+indexOfToAppended s@(State { known_values = kv, tyvar_env = tv_env }) ng pc = 
+    let ((pc', (s', ng')), extra_pc) = SM.runState (runStateNGT (go pc) s ng) [] in
+    (pc':extra_pc, expr_env s', ng')
+    where
+        -- Rewrite
+        --    (seq.indexof (seq.map f lst) [e]) == n
+        -- to
+        --    seq.prefixof lst xs
+        --    length xs == n
+        --    not (contains (seq.map f xs) [e])
+        --    f (seq.nth lst n) == e
+        go :: SM.MonadState [PathCond] m => PathCond -> StateNGT t m PathCond
+        go (ExtCond e True)
+            | [Prim Eq _, check_ind, exp_ind] <- unApp e
+            , isNotNeg exp_ind
+            , [Prim StrIndexOf _, map_e, unit_e, Lit (LitInt 0)] <- unApp check_ind
+            , [Prim Map _, f, lst] <- unApp map_e
+            , Just unit_v <- getUnit kv unit_e = do
+                let list_ty = typeOf tv_env lst
+                start_i <- freshIdN list_ty
+                end_i <- freshIdN list_ty
+                insertSymbolicE start_i
+                insertSymbolicE end_i
+                
+
+                let prefix_of = ExtCond
+                                   (mkApp [ Prim Eq TyUnknown
+                                          , lst
+                                          , mkApp [Prim StrAppend TyUnknown, Var start_i, Var end_i]
+                                          ]
+                                   )
+                                   True
+
+                    start_len_cond = ExtCond
+                                     (mkApp [ Prim Eq TyUnknown
+                                            , mkApp [Prim StrLen TyUnknown, Var start_i]
+                                            , exp_ind
+                                            ])
+                                     True
+                    end_len_cond = ExtCond
+                                     (mkApp [ Prim Gt TyUnknown
+                                            , mkApp [Prim StrLen TyUnknown, Var end_i]
+                                            , Lit (LitInt 0)
+                                            ])
+                                     True
+                    not_contains_start = ExtCond
+                                            ( App (Prim Not TyUnknown)
+                                            $ mkApp [ Prim StrContains TyUnknown
+                                                    , mkApp [ Prim Map TyUnknown, f, Var start_i]
+                                                    , unit_e ]
+                                            )
+                                            True
+                    elem_maps_to = ExtCond
+                                        (mkApp
+                                            [ Prim Eq TyUnknown
+                                            , unit_v
+                                            , App f $ mkSeqNth kv tv_env (Var end_i) (Lit $ LitInt 0) ]
+                                        )
+                                        True
+
+                SM.lift $ SM.modify (\xs -> start_len_cond:end_len_cond:not_contains_start:elem_maps_to:xs)
+
+                return prefix_of
+        go pc_ = return pc_
+
+        isNotNeg (Lit (LitInt x)) = x >= 0
+        isNotNeg (App (Prim StrLen _) _) = True
+        isNotNeg _ = False
+
+fuseFoldLeftMap :: PathCond -> PathCond
+fuseFoldLeftMap = modifyASTs go
+    where
+        go e
+            | [Prim FoldLeft _, fold_f, v, fold_lst] <- unApp e
+            , [Prim Map _, map_f, map_lst] <- unApp fold_lst
+            , Lam acc_term acc_i (Lam val_term val_i fold_e) <- fold_f
+            , (Lam _ (Id _ map_t) _) <- map_f =
+                let
+                    new_val_i = Id (idName val_i) map_t
+                    mapped_val_i = App map_f $ Var new_val_i
+                    fold_f' = Lam acc_term acc_i
+                            . Lam val_term new_val_i
+                            $ replaceVar (idName val_i) mapped_val_i fold_e
+                in
+                mkApp [ Prim FoldLeft TyUnknown
+                    , fold_f'
+                    , v
+                    , map_lst]
+        go e = e
+
+splitAnds :: PathConds -> PathConds
+splitAnds = PC.concatMapHashedPCs go
+    where go pc
+            | ExtCond e True <- PC.unhashedPC pc
+            , [Prim And _, e1, e2] <- unApp e = [ PC.hashedPC $ ExtCond e1 True
+                                                , PC.hashedPC $ ExtCond e2 True ]
+            | otherwise = [pc]
+
+mkSeqNth :: KnownValues -> TyVarEnv -> Expr -> Expr -> Expr
+mkSeqNth kv tv_env lst ind =
+    let
+        t_lst = typeOf tv_env lst
+        t = TyFun t_lst (TyFun TyLitInt (G2.Language.tyBool kv))
+
+        -- Seq.nth returns a unicode character when applied to a String, so have to wrap in a SeqUnit to compare
+        -- to strings
+        wrap = case t_lst of
+                    TyApp _ (TyCon n _) | n == KV.tyChar kv -> \e -> mkApp [Prim SeqUnit TyUnknown, e]
+                    TyLitChar -> \e -> mkApp [Prim SeqUnit TyUnknown, e]
+                    _ -> id
+    in
+    wrap $ mkApp [Prim SeqNth t, lst, ind]
+
+simplifyUnitMap :: KnownValues -> Expr -> Expr
+simplifyUnitMap kv e
+    | [Prim Map _, f, e1] <- unApp e
+    , Just unit_v <- getUnit kv e1 = App (Prim SeqUnit TyUnknown) (App f unit_v)
+    | otherwise = e

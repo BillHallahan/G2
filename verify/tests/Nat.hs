@@ -1,3 +1,6 @@
+{-# OPTIONS_GHC -Wno-missing-signatures #-}
+{-# OPTIONS_GHC -Wno-unused-matches #-}
+
 module Nat where
 
 import Prelude hiding ((+),(*),(-),(<),id)

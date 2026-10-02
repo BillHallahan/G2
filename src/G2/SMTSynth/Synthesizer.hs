@@ -31,6 +31,7 @@ import qualified G2.Language.TyVarEnv as TV
 import G2.Lib.Printers
 import G2.Solver.Converters
 import G2.Solver.SMT2
+import G2.SMTSynth.Verify
 import G2.Translation
 
 import qualified Sygus.LexSygus as Sy
@@ -489,7 +490,7 @@ runFuncSMT temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = conf
 
     let comp_state' = if checking sc == Verify then setUpVerification (idName entry_f) comp_state else comp_state
 
-    (er, got_unknown, bindings', _, _) <- runG2WithConfig proj src entry_f f [] mb_modname comp_state' config' bindings
+    (er, got_unknown, bindings', _, _, _) <- runG2WithConfig proj src entry_f f [] mb_modname comp_state' config' bindings
 
     let new_state_bindings = getFCStateBindings er bindings' 
     reached_fc_res <- mapM (\(new_s, new_b) -> do
@@ -498,7 +499,7 @@ runFuncSMT temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = conf
         --                         else config'
         runG2WithConfig proj src entry_f f [] mb_modname new_s config' new_b) new_state_bindings
     
-    let reached_fc_ers = concatMap (\(er_, _, _, _, _) -> er_) reached_fc_res
+    let reached_fc_ers = concatMap (\(er_, _, _, _, _, _) -> er_) reached_fc_res
 
     return (entry_f, er ++ reached_fc_ers, got_unknown, name_gen bindings, Nothing)
 
@@ -540,7 +541,7 @@ runFuncSpec temp src f smt_def sc@(SynthConfig { eq_file = eq_f, g2_config = con
 
     let (comp_state'', ng) = if checking sc == Verify then verifySpec (idName entry_f) (idName comp_func) comp_bindings comp_state' else (comp_state', name_gen comp_bindings)
 
-    (er, got_unknown, _, _, _) <- runG2WithConfig proj src comp_func "comp" [] comp_mb_modname comp_state'' config'' comp_bindings
+    (er, got_unknown, _, _, _, _) <- runG2WithConfig proj src comp_func "comp" [] comp_mb_modname comp_state'' config'' comp_bindings
 
     let isSpecCorrect = case smt_def of
                             Just _ -> checkIfSpecIsCorrect er
@@ -608,13 +609,6 @@ setUpVerification entry_n s@(State { expr_env = eenv, known_values = kv, tyvar_e
                      $ E.insert placeholder_n place_e' eenv
           , known_values = addSmtStringFunc smt_n kv }
     | otherwise = s
-
-insertFCTick :: Expr -> Name -> TyVarEnv -> Expr
-insertFCTick expr func tv_env  =
-    let ret_name = Name "G2_!!_RET_VAR" Nothing 0 Nothing in
-    insertInLams (\is e ->
-                    let ret_id = Id ret_name (typeOf tv_env e) in
-                    Let [(ret_id, e)] $ Tick (FCTick $ FuncCall { funcName = func, arguments = map Var is, returns = Var ret_id }) (Var ret_id)) expr
 
 getFCStateBindings :: [ExecRes ()] -> Bindings -> [(State (), Bindings)]
 getFCStateBindings er bindings =     
@@ -1172,6 +1166,7 @@ relArgs s = filter (not . isCallStack . typeOf (tyvar_env s))
 exprToTerm :: KnownValues -> Expr -> Term
 exprToTerm _ (Lit (LitInt x)) = TermLit (LitNum x)
 exprToTerm _ (Lit (LitChar x)) = toStringTerm [x]
+exprToTerm _ (Lit (LitFloat x)) = TermIdent . ISymb . T.unpack . tbToText $ convertFloating castFloatToWord32 8 x
 exprToTerm _ (App _ (Lit (LitInt x))) = TermLit (LitNum x)
 exprToTerm _ (App _ (Lit (LitFloat x))) = TermIdent . ISymb . T.unpack . tbToText $ convertFloating castFloatToWord32 8 x
 exprToTerm _ (App _ (Lit (LitChar x))) = toStringTerm [x]
@@ -1199,7 +1194,7 @@ toStringTerm s =
                         [TermLit (LitStr pre), non_pr_t] ++ go post'
 
 toSeqTermFromExpr :: KnownValues -> Expr -> Maybe Term
-toSeqTermFromExpr kv e | Just s <- toExprList e = Just $ toSeqTerm kv (exprListType e) s
+toSeqTermFromExpr kv e | Just s <- toExprList kv e = Just $ toSeqTerm kv (exprListType e) s
                        | otherwise = Nothing
 
 exprListType :: Expr -> Type

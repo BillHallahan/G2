@@ -30,6 +30,7 @@ module G2.Language.ExprEnv
     , insert
     , insertSymbolic
     , insertExprs
+    , alter
     , difference
     , union
     , union'
@@ -247,6 +248,9 @@ insertSymbolic i = ExprEnv. M.insert (idName i) (SymbObj i) . unwrapExprEnv
 
 insertExprs :: [(Name, Expr)] -> ExprEnv -> ExprEnv
 insertExprs kvs scope = foldr (uncurry insert) scope kvs
+
+alter :: (Maybe EnvObj -> Maybe EnvObj) -> Name -> ExprEnv -> ExprEnv
+alter f n = ExprEnv . M.alter f n . unwrapExprEnv
 
 difference :: ExprEnv -> ExprEnv -> ExprEnv
 difference (ExprEnv m1) (ExprEnv m2) =

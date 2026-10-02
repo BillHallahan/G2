@@ -1,6 +1,9 @@
 {-# LANGUAGE BangPatterns #-}
+{-# OPTIONS_GHC -Wno-missing-signatures #-}
+{-# OPTIONS_GHC -Wno-unused-matches #-}
+{-# OPTIONS_GHC -Wno-unused-imports #-}
 
-module Zeno where
+module ZenoBadProp where
 
 import Prelude
   ( Eq

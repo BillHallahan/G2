@@ -123,8 +123,8 @@ newtype NameGen = NameGen Unique
 nameToStr :: Name -> String
 nameToStr (Name n (Just m) i _)
     | Just ('(', _) <- T.uncons n =
-        let clean_n = T.filter (\c -> c /= '(' && c /= ')') n in
-        "|TUP!!" ++ T.unpack clean_n ++ "_m_" ++ T.unpack m ++ "_" ++ show i ++ "|"
+        let clean_n = T.map (\c -> if c == ',' then '$' else c) $ T.filter (\c -> c /= '(' && c /= ')') n in
+        "TUP!!" ++ T.unpack clean_n ++ "_m_" ++ T.unpack m ++ "_" ++ show i
     | otherwise = T.unpack n ++ "_m_" ++ T.unpack m ++ "_" ++ show i
 nameToStr (Name n Nothing i _) = T.unpack n ++ "_n__" ++ show i
 
@@ -143,7 +143,8 @@ strToName str =
 
 maybe_StrToName :: String -> Maybe Name
 maybe_StrToName str
-    | Just str' <- stripPrefix "|TUP!!" str = maybe_StrToName ('(':(insertParen $ init str'))
+    | Just str' <- stripPrefix "TUP!!" str =
+        maybe_StrToName ('(':(insertParen . map (\c -> if c == '$' then ',' else c) $ str'))
     | (n, _:q:_:mi) <- breakList (\s -> isPrefixOf "_m_" s || isPrefixOf "_n_" s) str
     , (m, _:i) <- break ((==) '_') mi =
     let
@@ -176,6 +177,7 @@ varIds = evalASTs varIds'
 
 varIds' :: Expr -> [Id]
 varIds' (Var i) = [i]
+varIds' (Prim (UninterpFunc i) t) = [Id i t]
 varIds' _ = []
 
 varNames :: (ASTContainer m Expr) => m -> [Name]
@@ -678,6 +680,8 @@ instance Named KnownValues where
 
             , usingSMTLams = useLams
             , usingLiteralTables = useLitTabs
+            , tyLitTableInfo = ltiT
+            , dcLitTableInfo = ltiDC
 
             , errorFunc = errF
             , errorEmptyListFunc = errEmpListF
@@ -703,7 +707,7 @@ instance Named KnownValues where
                 , impF, iffF
                 , andF, orF, notF
                 , ti, adjN, checkStrLN
-                , useLams, useLitTabs
+                , useLams, useLitTabs, ltiT, ltiDC
                 , errF, errEmpListF, errWOST, patE] ++ HS.toList smt_string
 
     rename old new (KnownValues {
@@ -800,6 +804,8 @@ instance Named KnownValues where
 
                    , usingSMTLams = useLams
                    , usingLiteralTables = useLitTabs
+                   , tyLitTableInfo = ltiT
+                   , dcLitTableInfo = ltiDC
 
                    , errorFunc = errF
                    , errorEmptyListFunc = errEmpListF
@@ -902,6 +908,8 @@ instance Named KnownValues where
 
                         , usingSMTLams = rename old new useLams
                         , usingLiteralTables = rename old new useLitTabs
+                        , tyLitTableInfo = rename old new ltiT
+                        , dcLitTableInfo = rename old new ltiDC
 
                         , errorFunc = rename old new errF
                         , errorEmptyListFunc = rename old new errEmpListF

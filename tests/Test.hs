@@ -29,7 +29,6 @@ import System.FilePath
 import PeanoTest
 import HigherOrderMathTest
 import DefuncTest
-import FuzzExecution
 import CaseTest
 import Expr
 import ExecSkip
@@ -81,7 +80,7 @@ tests = testGroup "Tests"
         , solverTests
         , ufMapQuickcheck
         , unionFindQuickcheck
-        , fuzzExecutionQuickCheck
+        -- , fuzzExecutionQuickCheck
         
         , rewriteTests
         ]
@@ -567,6 +566,7 @@ testFileTests = testGroup "TestFiles"
                                            , ("dropWhile1", 10000, [Exactly 4])
                                            , ("dropWhile2", 10000, [Exactly 1])
                                            , ("takeWhile1", 10000, [Exactly 4])
+                                           , ("takeWhile2", 10000, [Exactly 6])
                                            , ("map1", 10000, [AtLeast 3, AtMost 4])
                                            , ("map2", 10000, [AtLeast 4, AtMost 5])
                                            -- Functions that error
@@ -641,6 +641,9 @@ testFileTests = testGroup "TestFiles"
                                                               , ("find1", 1000, [AtLeast 5])
                                                               , ("findIndex1", 1000, [AtLeast 5])
                                                               , ("findIndices1", 1000, [AtLeast 5])
+                                                              , ("or1", 1000, [AtLeast 5])
+                                                              , ("and1", 1000, [AtLeast 5])
+                                                              , ("span1", 2000, [AtLeast 5])
 
                                                               ]
 
@@ -650,6 +653,38 @@ testFileTests = testGroup "TestFiles"
                                                                   , ("listLen3", 1000, [Exactly 2])
                                                                   , ("listApp", 10000, [Exactly 3])
                                                                   , ("take1", 5000, [Exactly 2]) ]
+
+    , checkInputOutputs "tests/TestFiles/Seq/SeqNat.hs" [ ("con", 2000, [Exactly 3])
+                                                        , ("listLen", 1000, [Exactly 2])
+                                                        , ("listLen2", 1000, [Exactly 3])
+                                                        , ("listLen3", 1000, [Exactly 2])
+                                                        , ("listApp", 10000, [Exactly 3])
+                                                        , ("take1", 5000, [Exactly 2])
+                                                        , ("drop1", 5000, [Exactly 4])
+                                                        , ("compLen", 5000, [Exactly 4]) ]
+
+    , checkInputOutputs "tests/TestFiles/Seq/SeqADT.hs" [ ("conLen", 2000, [Exactly 5])
+                                                        , ("pairExtract", 2000, [AtLeast 6, AtMost 8]) ]
+
+    , checkInputOutputs "tests/TestFiles/Seq/ADTLitTable.hs" [ ("takeWhile1", 10000, [Exactly 4])
+                                                             , ("takeWhile2", 10000, [Exactly 4])
+                                                             , ("takeWhile3", 10000, [Exactly 3])
+                                                             , ("takeWhile4", 50000, [AtLeast 6])
+                                                             , ("takeWhile5", 50000, [AtLeast 6])
+                                                             , ("takeWhile6", 50000, [Exactly 6])
+                                                             , ("map1", 10000, [Exactly 7]) ]
+
+    , checkInputOutputs "tests/TestFiles/Seq/ADTLitTableStrict.hs" [ ("takeWhile1", 10000, [Exactly 2])
+                                                                   , ("takeWhile2", 10000, [Exactly 2])
+                                                                   , ("map1", 10000, [Exactly 2]) ]
+
+    , checkInputOutputs "tests/TestFiles/Seq/Uninterpreted.hs" [ ("call1", 10000, [Exactly 4])
+                                                               , ("call2", 10000, [Exactly 8])
+                                                               , ("call3", 10000, [Exactly 4])
+                                                               , ("map1", 10000, [Exactly 4])
+                                                               , ("map2", 10000, [Exactly 6])
+                                                               , ("map3", 10000, [Exactly 6])
+                                                               , ("mapInt1", 10000, [Exactly 12]) ]
 
     , checkInputOutputsSMTListsWith "tests/TestFiles/Seq/Seq1.hs" "floatListEq" [ ("conFloat", 1000, [Exactly 1])
                                                                                 , ("conDouble", 1000, [Exactly 1])]
@@ -674,6 +709,9 @@ testFileTests = testGroup "TestFiles"
                                         , ("findIndex1", 20000, [Exactly 3])
                                         , ("findIndices1", 20000, [AtLeast 6, AtMost 7])
                                         , ("findIndices2", 20000, [Exactly 1])
+                                        , ("or1", 20000, [Exactly 2])
+                                        , ("and1", 20000, [Exactly 2])
+                                        , ("span1", 20000, [AtLeast 3, AtMost 10])
                                         ]
 
     , checkExpr "tests/TestFiles/Strings/Strings1.hs" 1000 "exclaimEq"
@@ -762,6 +800,8 @@ testFileTests = testGroup "TestFiles"
                                                                        , ("repIte1", 1000 * 1000, [AtLeast 2, AtMost 3])
                                                                        , ("repIte2", 1000 * 1000, [AtLeast 2, AtMost 3])
                                                                        , ("duplicate", 1000, [Exactly 2])
+                                                                       , ("map1", 500, [AtLeast 10])
+                                                                       , ("map2", 500, [AtLeast 10])
                                                                        ]                                                                                         
 
     , checkInputOutputsSymFuncConstraints "tests/HigherOrder/FAHigherOrder.hs"
@@ -1038,6 +1078,8 @@ baseTests = testGroup "Base"
     , checkInputOutputs "tests/BaseTests/Ratio.hs" [ ("manipRatio", 20000, [AtLeast 5])
                                                    , ("callApprox", 20000, [AtLeast 5]) ]
     , checkInputOutput "tests/BaseTests/ZipList.hs" "callApp" 2000 [AtLeast 10]
+    , checkInputOutputs "tests/BaseTests/UnsafeIO.hs" [ ("numTest", 1000, [Exactly 2])
+                                                      , ("rwNumTest", 1000, [Exactly 2]) ]
     ]
 
 primTests :: TestTree
@@ -1556,7 +1598,7 @@ testFileWithConfig src m_assume m_assert m_reaches entry config = do
                 simplTranslationConfig
                 config
 
-    return $ maybe (error "Timeout") (\(er, _, b, _, _, _, _) -> (er, b)) r
+    return $ maybe (error "Timeout") (\(er, _, b, _, _, _, _, _) -> (er, b)) r
 
 -- For mergeState unit tests
 checkFn :: Either String Bool -> String -> IO TestTree

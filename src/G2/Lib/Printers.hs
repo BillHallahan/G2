@@ -37,6 +37,7 @@ module G2.Lib.Printers ( PrettyGuide
                        , EnvOrdering(..)
                        , TyLamPrinting(..)
                        , setTypePrinting
+                       , setPrintUnique
                        , updateQualMods
                        , setStrictCase
                        , setEnvOrdering
@@ -81,6 +82,7 @@ printName = mkNameHaskell
 mkNameHaskell :: PrettyGuide -> Name -> T.Text
 mkNameHaskell pg n
     | Just s <- lookupPG n pg = s
+    | print_unq pg = nameOcc n <> "''" <> T.pack (show $ nameUnique n)
     | otherwise = nameOcc n
 
 mkUnsugaredExprHaskell :: State t -> Expr -> T.Text
@@ -540,6 +542,7 @@ mkPrimHaskell pg = pr
         pr StrPrefixOf = "str.prefixof"
         pr StrSuffixOf = "str.suffixof"
         pr StrReverse = "str.reverse"
+        pr StrUpdate = "str.update"
 
         pr SeqNth = "seq.nth"
 
@@ -582,6 +585,9 @@ mkPrimHaskell pg = pr
         pr ReadMutVar = "readMutVar##"
         pr WriteMutVar = "writeMutVar##"
 
+        pr (IsConstructor dc) = "isConstructor-" <> mkDataConHaskell pg dc
+        pr (Selector dc i) = "Selector-" <> mkDataConHaskell pg dc <> "-" <> T.pack (show i)
+
         pr ToInt = "toInt"
 
         pr Error = "error"
@@ -594,6 +600,9 @@ mkPrimHaskell pg = pr
         pr EvalsToSMTRep = "evalsToSMTRep"
 
         pr (TypeIndex _) = "typeIndex"
+        pr Force = "force"
+
+        pr (UninterpFunc i) = "(uninterpFunc " <> mkNameHaskell pg i <> ")"
 
         pr ForAllBoundPr = "forall_bound"
 
@@ -820,8 +829,9 @@ prettyFrame pg (LitTableFrame ltc up) = header <> update_str <> ":\n" <> printLi
 
 printLiteralTableCond :: PrettyGuide -> LitTableCond -> T.Text
 printLiteralTableCond pg ltc
-    | (Exploring pc) <- ltc = "exploring " <> prettyPathConds pg pc
-    | (Diff sd _) <- ltc = prettyStateDiff pg sd <> " note: truncated (expr_env, tyvar_env, mutvar_env, conds) for now"
+    | (Exploring pc) <- ltc = "exploring " <> prettyPathConds pg (PC.fromList pc)
+    | (Diff sd pc) <- ltc = prettyStateDiff pg sd <> "\nold conds to put back:\n"
+                                <> prettyPathConds pg pc <> "---\n"
     | (StartedBuilding n) <- ltc = "started building " <> mkNameHaskell pg n
 
 prettyStateDiff :: PrettyGuide -> StateDiff -> T.Text
@@ -839,14 +849,14 @@ prettyStateDiff pg (SD { new_conc_entries = nce
         [ "--- state diff: "
         , "  concrete entries -> " <> T.intercalate ", " (map prettyConc nce)
         , "  symbolic entries -> " <> T.intercalate ", " (map (mkIdHaskell pg) nse)
-        , "  path conds -> " <> T.intercalate ", " (map (prettyPathCond pg) pc)
+        , "  new path conds -> " <> T.intercalate ", " (map (prettyPathCond pg) pc)
         , "  concretized -> " <> T.intercalate ", " (map (mkIdHaskell pg) concIds)
-        , "  true_assert -> " <> T.pack (show nta)
-        , "  assert_ids -> " <> maybe "Nothing" (printFuncCallPG pg) nai
-        , "  curr_expr -> " <> prettyCurrExpr pg n_curre
-        , "  new_conc_types -> " <> T.intercalate ", " (map prettyConcType nct)
-        , "  new_sym_types -> " <> T.intercalate ", " (map (mkIdHaskell pg) nst)
-        , "  new_mut_vars -> " <> T.intercalate ", " (map prettyMutVar nmv)
+        , "  true assert -> " <> T.pack (show nta)
+        , "  assert ids -> " <> maybe "Nothing" (printFuncCallPG pg) nai
+        , "  curr expr -> " <> prettyCurrExpr pg n_curre
+        , "  new conc types -> " <> T.intercalate ", " (map prettyConcType nct)
+        , "  new sym types -> " <> T.intercalate ", " (map (mkIdHaskell pg) nst)
+        , "  new mut vars -> " <> T.intercalate ", " (map prettyMutVar nmv)
         , "---"
         ]
     where
@@ -858,17 +868,17 @@ prettyLitTable :: PrettyGuide -> LitTable -> T.Text
 prettyLitTable pg (LitTable { lt_arg = lta, lt_rec_funs = ltf, lt_mapping = ltm
                             , lt_errored = lte, lt_init_pcs = lip, lt_partial = ltp
                             , lt_ret_ty = lrt })
-    | HM.null ltm = header <> "empty literal table"
+    | L.null ltm = header <> "empty literal table"
     | otherwise =
         header <> (T.intercalate "\n----------------\n"
-                       (map (\(conds, e) -> prettyPathConds pg conds <> "\n->\n" <> mkDirtyExprHaskell pg e)
-                       (HM.toList ltm)))
+                       (map (\(conds, e) -> prettyPathConds pg (PC.fromList conds) <> "\n->\n" <> mkDirtyExprHaskell pg e)
+                        ltm))
         <> "\n-- end lit table --"
     where
-        sym_id = mkIdHaskell pg lta
+        sym_id = T.intercalate " " $ map (mkIdHaskell pg) lta
         fun_exps = map (mkDirtyExprHaskell pg) $ HS.toList ltf
         header = "-- start lit table --\n"
-                     <> "symbolic id: " <> sym_id <> "\n"
+                     <> "symbolic ids: " <> sym_id <> "\n"
                      <> "function return type: " <> mkTypeHaskellPG pg lrt <> "\n"
                      <> "evaluated recursive function expr set:\n" <> (T.pack $ show fun_exps) <> "\n"
                      <> "error found: " <> (T.pack $ show lte) <> "\n"
@@ -885,6 +895,7 @@ prettyCEAction :: PrettyGuide -> CEAction -> T.Text
 prettyCEAction pg (EnsureEq e) = "EnsureEq " <> mkDirtyExprHaskell pg e
 prettyCEAction pg (UpdateSolvingFCs fc_stat) = "UpdateSolving " <> prettyFCStatus pg fc_stat
 prettyCEAction _ DiscardIfNoError = "DiscardIfNoError"
+prettyCEAction _ DisableForcingVar = "DisableForcingVar"
 prettyCEAction _ NoAction = "NoAction"
 
 prettyEEnv :: TV.TyVarEnv -> PrettyGuide -> CurrExpr -> Stack Frame -> ExprEnv -> T.Text
@@ -917,11 +928,6 @@ prettyPathConds :: PrettyGuide -> PathConds -> T.Text
 prettyPathConds pg = T.intercalate "\n" . map (prettyPathCond pg) . PC.toList
 
 prettyPathCond :: PrettyGuide -> PathCond -> T.Text
-prettyPathCond pg (AltCond l e b) =
-    let
-        eq = mkLitHaskell NoHash l <> " = " <> mkDirtyExprHaskell pg e
-    in
-    if b then eq else "not (" <> eq <> ")"
 prettyPathCond pg (ExtCond e b) =
     if b then mkDirtyExprHaskell pg e else "not (" <> mkDirtyExprHaskell pg e <> ")"
 prettyPathCond pg (SoftPC pc) =
@@ -1212,6 +1218,8 @@ data PrettyGuide = PG { pg_assigned :: !(HM.HashMap Name T.Text) -- ^ Mapping of
                                                                         -- is the greatest Int I such that  X'I has been used
                                                                         -- as a printable name.
                                                                         -- See also Note [PrettyGuide AssignedLvl].
+                      , print_unq :: Bool -- ^ Toggle whether to print uniques when a name has not been assigned
+
                       , qual_mods :: HS.HashSet T.Text
                       , strict_case :: Bool -- ^ Should we ensure that case expressions are strictly evaluated?
                       , type_printing :: TypePrinting -- ^ How detailed should the type information we print be?
@@ -1245,6 +1253,8 @@ data PrettyGuide = PG { pg_assigned :: !(HM.HashMap Name T.Text) -- ^ Mapping of
 mkPrettyGuide :: Named a => a -> PrettyGuide
 mkPrettyGuide = foldr insertPG (PG { pg_assigned = HM.empty
                                    , pg_nums = HM.empty
+                                   , print_unq = False
+
                                    , qual_mods = HS.empty
                                    , strict_case = False
                                    , type_printing = LaxTypes
@@ -1268,6 +1278,9 @@ updatePGValNames e pg = foldr (insertPGLvl ValLvl) pg $ exprNames e
 -- | Update the `PrettyGuide` with mappings for all Type `Name`s in the `Named` argument.
 updatePGTypeNames :: ASTContainer a Type => a -> PrettyGuide -> PrettyGuide
 updatePGTypeNames e pg = foldr (insertPGLvl TypeLvl) pg $ typeNames e
+
+setPrintUnique :: Bool -> PrettyGuide -> PrettyGuide
+setPrintUnique b pg = pg { print_unq = b }
 
 updateQualMods :: T.Text -> PrettyGuide -> PrettyGuide
 updateQualMods m pg@(PG { qual_mods = qm }) = pg { qual_mods = HS.insert m qm }

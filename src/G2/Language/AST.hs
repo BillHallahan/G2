@@ -207,7 +207,7 @@ instance AST Expr where
         mapAlt :: (Expr -> Expr) -> [Alt] -> [Alt]
         mapAlt g alts = map (\(Alt ac e) -> Alt ac (g e)) alts
     modifyChildren f (Cast e c) = Cast (f e) c
-    modifyChildren f (Tick t e) = Tick t (f e)
+    modifyChildren f (Tick t e) = Tick (modifyContainedASTs f t) (f e)
     modifyChildren f (NonDet es) = NonDet (map f es)
     modifyChildren f (Assume is e e') = Assume (modifyContainedASTs f is) (f e) (f e')
     modifyChildren f (Assert is e e') = Assert (modifyContainedASTs f is) (f e) (f e')
@@ -340,6 +340,24 @@ instance ASTContainer Coercion Expr where
 instance ASTContainer Coercion Type where
     containedASTs (t :~ t') = [t, t']
     modifyContainedASTs f (t :~ t') = f t :~ f t'
+
+instance ASTContainer Tickish Expr where
+    containedASTs (Breakpoint _) = []
+    containedASTs (HpcTick _ _) = []
+    containedASTs (NamedLoc _) = []
+    containedASTs (FCTick fc) = containedASTs fc
+
+    modifyContainedASTs f (FCTick fc) = FCTick (modifyContainedASTs f fc)
+    modifyContainedASTs _ t = t
+
+instance ASTContainer Tickish Type where
+    containedASTs (Breakpoint _) = []
+    containedASTs (HpcTick _ _) = []
+    containedASTs (NamedLoc _) = []
+    containedASTs (FCTick fc) = containedASTs fc
+
+    modifyContainedASTs f (FCTick fc) = FCTick (modifyContainedASTs f fc)
+    modifyContainedASTs _ t = t
 
 instance ASTContainer FuncCall Expr where
     containedASTs (FuncCall { arguments = as, returns = r}) = as ++ [r]

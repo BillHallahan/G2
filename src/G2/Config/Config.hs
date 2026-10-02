@@ -1,3 +1,5 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module G2.Config.Config ( Mode (..)
                         , LogMode (..)
                         , LogMethod (..)
@@ -17,6 +19,7 @@ module G2.Config.Config ( Mode (..)
                         , UseSMTSeq (..)
                         , UseSMTDC (..)
 
+                        , useSMTSeqs
                         , useSMTSeqDCs
                         , useSMTSeqFuncs
 
@@ -40,13 +43,14 @@ module G2.Config.Config ( Mode (..)
                         , baseDef
                         , baseSimple) where
 
-
+import G2.Data.Utils
 import Data.Char
+import Data.Either
 import Data.List as L
 import qualified Data.Map as M
 import Options.Applicative
 import Text.Read
-
+import qualified Data.Text as T
 
 data Mode = Regular | Liquid deriving (Eq, Show, Read)
 
@@ -72,7 +76,8 @@ data SearchStrategy = Iterative | Subpath | ADTHeightOrd deriving (Eq, Show, Rea
 data HigherOrderSolver = AllFuncs
                        | SingleFunc
                        | SymbolicFunc
-                       | SymConstraints deriving (Eq, Show, Read)
+                       | SymConstraints
+                       | Uninterpreted deriving (Eq, Show, Read)
 
 data FpHandling = RealFP | RationalFP deriving (Eq, Show, Read)
 
@@ -96,6 +101,10 @@ data UseSMTDC = UseSMTDC | NoSMTDC deriving (Eq, Show, Read)
 data UseLiteralTables = UseLiteralTables | NoLiteralTables deriving (Eq, Show, Read)
 
 data FCLogging = FCLogging | NoFCLogging deriving (Eq, Show)
+
+useSMTSeqs ::  UseSMTSeq -> Bool
+useSMTSeqs (UseSMTSeq _ _) = True
+useSMTSeqs NoSMTSeq = False
 
 useSMTSeqDCs ::  UseSMTSeq -> Bool
 useSMTSeqDCs (UseSMTSeq { add_to_dcs = a }) = a
@@ -144,7 +153,7 @@ data Config = Config {
     , subpath_length :: Int -- ^ When using subpath search strategy, the length of the subpaths.
     , fp_handling :: FpHandling -- ^ Whether to use real floating point values or rationals
     , print_encode_float :: Bool -- ^ Whether to print floating point numbers directly or via encodeFloat
-    , smt :: SMTSolver -- ^ Sets the SMT solver to solve constraints with
+    , smt :: [SMTSolver] -- ^ Sets the SMT solver to solve constraints with
     , smt_timeout :: Int -- ^ Sets the timeout (in seconds) for the SMT solver
     , smt_path :: Maybe FilePath -- ^ Location of SMT solver
     , smt_discard_on_unknown :: DiscardUnknownStates -- ^ Discard a state when the SMT solver returns unknown
@@ -153,7 +162,9 @@ data Config = Config {
     , quantified_smt_strings :: SMTQuantifiers -- ^ Sets how quantifiers should be used in SMT functions
     , using_smt_lams :: UseSMTLams -- ^ Sets whether SMT Lambda expressions should be used (Z3 only)
     , smt_prim_lists :: UseSMTSeq -- ^ Sets whether the SMT solver should be used to solve lists containing primitive type wrappers (Int, Float, etc.)
+    , smt_list_simplifier :: Bool -- ^ Apply the string SMT formula simplifiers
     , smt_tuples :: UseSMTDC -- ^ Sets whether the SMT solver should be used to solve tuples
+    , smt_adt :: [T.Text] -- ^ Comma separated list of algebraic datatypes to reason about via SMT solver
 
     , literal_tables :: UseLiteralTables -- ^ Sets whether to use literal tables for functions with function arguments, like `map` or `all`
     
@@ -170,6 +181,7 @@ data Config = Config {
     , print_num_solver_calls :: Bool -- ^ Output the number of calls made to check/solve path constraints
     , print_solver_sol_counts :: Bool -- ^ Output the number of sat/unsat/unknown solver results from the SMT solver
     , print_smt :: Bool -- ^ Output SMT formulas when checking/solving path constraints
+    , print_seq_solver :: Bool -- ^ Output logging information from sequence solver
     , accept_times :: Bool -- ^ Output the time each state is accepted
     , states_at_time :: Bool -- ^ Output time and number of states each time a state is added/removed
     , states_at_step :: Bool -- ^ Output step and number of states at each step where a state is added/removed
@@ -286,10 +298,12 @@ mkConfig homedir = Config Regular
                                           <> help "Either `-` to indicate that quantifiers should be used in SMT formulas, or a depth to unroll quantifiers to")
     <*> flag NoSMTLams UseSMTLams (long "smt-lams" <> help "Use map and fold with lambdas to model functions in the SMT solver (Z3 only)")
     <*> flag NoSMTSeq (UseSMTSeq True True) (long "smt-lists" <> help "Sets whether the SMT solver should be used to solve list constraints for primitive types")
+    <*> flag True False (long "no-string-simplifier" <> help "Disable the string SMT formula simplifiers")
     <*> flag NoSMTDC UseSMTDC (long "smt-tuples" <> help "Sets whether the SMT solver should be used to solve tuples")
+    <*> mkSMTADT
 
     <*> flag NoLiteralTables UseLiteralTables (long "lit-tables" <> help "Use literal tables for functions that take functions as arguments, like all and map")
-
+    
     <*> flag False True (long "print-timeout" <> help "print a message indicating if any states timed out")
     <*> flag False True (long "print-timeout-list-depth" <> help "print a message indicating depth of lists in timed out states")
 
@@ -314,6 +328,7 @@ mkConfig homedir = Config Regular
     <*> switch (long "print-num-solver-calls" <> help "output the number of calls made to check/solve path constraints")
     <*> switch (long "print-sol-counts" <> help "output the number of sat/unsat/unknown solver results from the SMT solver")
     <*> switch (long "print-smt" <> help "output SMT formulas when checking/solving path constraints")
+    <*> switch (long "print-seq-solver" <> help "output logging information from sequence solver")
     <*> switch (long "accept-times" <> help "output the time each state is accepted")
     <*> switch (long "states-at-time" <> help "output time and number of states each time a state is added/removed")
     <*> switch (long "states-at-step" <> help "output step and number of states at each step where a state is added/removed")
@@ -415,6 +430,7 @@ mkHigherOrder =
                                     "single" -> Right SingleFunc
                                     "symbolic" -> Right SymbolicFunc
                                     "sym-constraints" -> Right SymConstraints
+                                    "uninterpreted" -> Right Uninterpreted
                                     _ -> Left "Unsupported higher order function handling"))
             ( long "higher-order"
             <> metavar "HANDLING"
@@ -425,18 +441,36 @@ quantStrings :: String -> Maybe SMTQuantifiers
 quantStrings "-" = Just UseQuantifiers
 quantStrings n = fmap UnrollQuant (readMaybe n)
 
-mkSMTSolver :: Parser SMTSolver
+mkSMTADT :: Parser [T.Text]
+mkSMTADT =
+    option (maybeReader (Just . T.splitOn "," . T.pack))
+            ( long "smt-adts"
+            <> metavar "ADTs"
+            <> value []
+            <> help "comma separated list of algebraic datatypes to reason about via SMT solver")
+
+mkSMTSolver :: Parser [SMTSolver]
 mkSMTSolver =
-    option (eitherReader (\s -> case s of
-                                    "z3" -> Right ConZ3
-                                    "z3str3" -> Right ConZ3Str3
-                                    "cvc5" -> Right ConCVC5
-                                    "ostrich" -> Right ConOstrich
-                                    _ -> Left "Unsupported SMT solver"))
+    option (eitherReader mkSMTSolver')
             ( long "smt"
             <> metavar "SMT-SOLVER"
-            <> value ConZ3
+            <> value [ConZ3]
             <> help "z3, z3str3, cvc5, or ostrich, to select the solver to use")
+
+mkSMTSolver' :: String -> Either String [SMTSolver]
+mkSMTSolver' inp =
+    let
+        xs = splitOn ',' inp
+        solvers = map (\s -> case s of
+                                "z3" -> Right ConZ3
+                                "z3str3" -> Right ConZ3Str3
+                                "cvc5" -> Right ConCVC5
+                                "ostrich" -> Right ConOstrich
+                                _ -> Left ()) xs
+    in
+    case all isRight solvers of
+        True -> Right $ rights solvers
+        False -> Left "Unsupported SMT solver"
 
 mkSearchStrategy :: Parser SearchStrategy
 mkSearchStrategy =
@@ -489,7 +523,7 @@ mkConfigDirect homedir as m = Config {
     , subpath_length = 4
     , fp_handling = RealFP
     , print_encode_float = False
-    , smt = strArg "smt" as m smtSolverArg ConZ3
+    , smt = strArg "smt" as m smtSolverArg [ConZ3]
     , smt_timeout = 10
     , smt_path = Nothing
     , smt_discard_on_unknown = KeepUnknown
@@ -498,7 +532,9 @@ mkConfigDirect homedir as m = Config {
     , quantified_smt_strings = UnrollQuant 10
     , using_smt_lams = NoSMTLams
     , smt_prim_lists = NoSMTSeq
+    , smt_list_simplifier = True
     , smt_tuples = NoSMTDC
+    , smt_adt = []
 
     , literal_tables = NoLiteralTables
     
@@ -515,6 +551,7 @@ mkConfigDirect homedir as m = Config {
     , print_num_solver_calls = False
     , print_solver_sol_counts = False
     , print_smt = False
+    , print_seq_solver = False
     , accept_times = boolArg "accept-times" as m Off
     , states_at_time = False
     , states_at_step = False
@@ -563,12 +600,12 @@ extraDefaultIncludePaths :: FilePath -> [FilePath]
 extraDefaultIncludePaths root =
     [ root ++ "/.g2/G2Stubs/src/" ] 
 
-smtSolverArg :: String -> SMTSolver
+smtSolverArg :: String -> [SMTSolver]
 smtSolverArg = smtSolverArg' . map toLower
 
-smtSolverArg' :: String -> SMTSolver
-smtSolverArg' "z3" = ConZ3
-smtSolverArg' "cvc5" = ConCVC5
+smtSolverArg' :: String -> [SMTSolver]
+smtSolverArg' "z3" = [ConZ3]
+smtSolverArg' "cvc5" = [ConCVC5]
 smtSolverArg' _ = error "Unrecognized SMT solver."
 
 higherOrderSolArg :: String -> HigherOrderSolver
