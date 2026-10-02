@@ -1,3 +1,5 @@
+{-# LANGUAGE CPP #-}
+
 module Main where
 
 import Test.Tasty
@@ -17,6 +19,156 @@ main = do
 tests :: TestTree
 tests = testGroup "All Tests"
         [ checkG2Package "tests/G2Plugin/Simple" ["f", "g", "recCall"]
+        , checkG2PackageEquiv "tests/G2Plugin/MoreImports"
+                                []
+                                []
+                                []
+                                []
+                                [ "prop" ]
+        , checkG2PackageEquiv "tests/G2Plugin/MoreSeq"
+                                [ ("g", "gSMT")
+                                , ("h", "hSMT")
+                                , ("update", "updateSMT")
+                                , ("myLast", "lastSMT") ]
+                                [ ("badEquiv", "smtBadEquiv")
+                                , ("headFalse", "headFalseSMT") ]
+                                [ ("count", "countSMT")]
+                                [ "prop_update"
+                                , "prop_update_simple"
+                                , "prop_update_neg_index"
+                                , "prop_update_empty_rep"
+                                , "prop_update_empty_list"
+                                , "prop_update_single"
+                                , "prop_update_len" ]
+                                [ "badEquivProp"
+                                , "prop_rot"
+#if __GLASGOW_HASKELL__ >= 908
+                                , "prop_rot2"
+#endif
+                                , "prop_update_bad" ]
+        , checkG2PackageEquiv "tests/G2Plugin/Strings"
+                                -- Equivalent functions
+                                [
+                                  -- Strings
+                                  ("corr", "smtCorr")
+                                , ("f", "f2")
+                                , ("myApp", "app")
+                                , ("appMult", "smtAppMult")
+
+                                , ("addOneAll", "smtAddOneAll")
+                                , ("addOneAllCVC5", "smtAddOneAllCVC5")
+
+                                , ("sumList", "smtSumList")
+                                , ("sumList2", "smtSumList2")
+                                , ("sumListCVC5", "smtSumListCVC5")
+
+                                , ("myIntersperse", "smtMyIntersperse")
+                                , ("myIntersperse2", "smtMyIntersperse2")
+
+                                , ("myIntersperseBegin", "smtMyIntersperseBegin")
+                                , ("myIntersperseBegin2", "smtMyIntersperseBegin2")
+
+                                , ("myRev", "smtMyRev")
+                                , ("myRev2", "smtMyRev2")
+
+                                , ("makeFourthElemSix", "smtMakeFourthElemSix")
+
+                                , ("myConcatMap", "myConcatMapSMT")
+
+                                -- Tuples
+                                , ("appTuple", "smtAppTuple")
+                                , ("pairA", "smtPairA")
+
+                                , ("concatA", "smtConcatA")
+
+-- This test fails on GitHub CI for GHC 9.8.4, specifically (works locally.)
+#if __GLASGOW_HASKELL__ >= 910 || __GLASGOW_HASKELL__ < 908
+                                , ("myZip", "smtMyZip")
+#endif
+                                , ("myA", "smtMyA")
+                                , ("myUnzip", "smtMyUnzip")
+
+                                -- MoreTuples
+                                , ("listTuple", "smtListTuple")
+                                , ("pairInt", "smtPairInt")
+                                , ("pairInt'", "smtPairInt'")
+                                , ("myZipInt", "smtMyZipInt")
+                                , ("myUnzipInt", "smtMyUnzipInt")
+                                , ("myRevInt", "smtMyRevInt")
+
+                                -- Regex
+                                , ("isNum", "smtIsNum")
+                                , ("containsFour", "smtContainsFour")
+                                , ("noPat", "smtNoPat")
+
+                                -- NonTerm
+                                , ("dontCheck", "smtDontCheck")
+
+                                -- Zeno
+                                , ("len", "lenSMT")
+                                , ("rev", "revSMT")
+                                , ("null", "nullSMT")
+                                , ("delete", "deleteSMT")
+                                , ("++", "appendSMT")
+                                , ("elem", "elemSMT")
+                                , ("drop", "dropSMT")
+                                , ("take", "takeSMT")
+                                , ("count", "countSMT")
+                                , ("last", "lastSMT")
+                                , ("butlast", "butlastSMT")
+                                , ("map", "mapSMT")
+                                , ("ins1", "ins1SMT")
+                                -- , ("sorted", "sortedSMT")
+                                , ("filter", "filterSMT")
+                                -- dropWhile is flaky on CI
+                                -- , ("dropWhile", "dropWhileSMT")
+                                , ("takeWhile", "takeWhileSMT")
+                                , ("zip", "zipSMT")
+                                ]
+
+                                -- Non-equivalent functions
+                                [
+                                  -- Strings
+                                  ("incorr", "smtIncorr")
+                                , ("addTwoAll", "smtAddTwoAll")
+                                , ("sumListBad", "smtSumListBad")
+                                , ("myIntersperseBad", "smtMyIntersperseBad")
+                                , ("myIntersperseBeginBad", "smtMyIntersperseBeginBad")
+                                , ("myRevBad", "smtMyRevBad")
+                                , ("myRevApp1Bad", "smtMyRevApp1Bad")
+
+                                -- Tuples
+                                , ("appTupleBad", "smtAppTupleBad")
+                                , ("pairABad", "smtPairA")
+                                , ("myZipBad", "smtMyZip")
+                                , ("myLookupBad", "smtMyLookupBad")
+
+                                -- MoreTuples
+                                , ("myZipBadInt", "smtMyZipBadInt")
+
+                                -- Regex
+                                , ("isNumBad", "smtIsNumBad")
+                                , ("containsFourBad", "smtContainsFourBad")
+                                , ("noPatBad", "smtNoPatBad")
+
+                                -- NonTerm
+                                , ("nonTerm1", "smtNonTerm1")
+                                , ("nonTerm2", "smtNonTerm2")
+                                , ("nonTerm3", "smtNonTerm3")
+                                ]
+                                -- Unknown functions
+                                []
+                                [ 
+                                --Zeno
+                                  "prop_01"
+                                , "prop_19"
+                                , "prop_37"
+                                , "prop_39"
+                                , "prop_41"
+                                , "prop_44"
+                                , "prop_49"
+                                , "prop_52" ]
+                                [ "myRev_propBad" ]
         , checkNebulaPackage "tests/RewriteVerify/PluginTests/Simple" ["add_assoc", "fg", "fg_toint"] ["f_one"]]
 
 -------------------------------------------------------------------------------
@@ -43,6 +195,96 @@ ranFunc io_out =
                     out <- io_out
                     assertBool ("Not run " ++ f) (isSubstringOf f out))
         )
+
+checkG2PackageEquiv :: FilePath
+                    -> [(String, String)] -- ^ Functions that should be equivalent
+                    -> [(String, String)] -- ^ Functions that should be inequivalent
+                    -> [(String, String)] -- ^ Functions that should terminate, but maybe with an unknown
+                    -> [String] -- ^ Properties that should be proven
+                    -> [String] -- ^ Properties that should NOT be proven
+                    -> TestTree
+checkG2PackageEquiv loc funcs_equiv funcs_inequiv funcs_unknown props false_props =
+    withResource
+        (buildPackage loc)
+        (\_ -> return ()) $
+        \io_out ->
+            testGroup
+            loc
+            $  ranFuncEquiv io_out funcs_equiv
+            ++ ranFuncInequiv io_out funcs_inequiv
+            ++ ranFuncUnknown io_out funcs_unknown
+            ++ ranFuncProp io_out props
+            ++ ranFuncNotProp io_out false_props
+
+ranFuncEquiv :: IO String -> [(String, String)] -> [TestTree]
+ranFuncEquiv io_out =
+    map (\(f1, f2) -> testCase
+                (f1 ++ " and " ++ f2)
+                (do
+                    out <- io_out
+                    assertBool ((if checkInequiv f1 f2 out
+                                     then "Found inequivalent " ++ f1 ++ " and " ++ f2
+                                     else "Not run " ++ f1 ++ " and " ++ f2) ++ "\nFull output:\n" ++ out)
+                               (checkEquiv f1 f2 out))
+        )
+
+ranFuncInequiv :: IO String -> [(String, String)] -> [TestTree]
+ranFuncInequiv io_out =
+    map (\(f1, f2) -> testCase
+                (f1 ++ " and " ++ f2)
+                (do
+                    out <- io_out
+                    assertBool ((if checkEquiv f1 f2 out
+                                     then "Found equivalent " ++ f1 ++ " and " ++ f2
+                                     else "Not run " ++ f1 ++ " and " ++ f2) ++ "\nFull output:\n" ++ out)
+                               (checkInequiv f1 f2 out))
+        )
+
+ranFuncUnknown :: IO String -> [(String, String)] -> [TestTree]
+ranFuncUnknown io_out =
+    map (\(f1, f2) -> testCase
+                (f1 ++ " and " ++ f2)
+                (do
+                    out <- io_out
+                    assertBool ("Not successfully run " ++ f1 ++ " and " ++ f2 ++ "\nFull output:\n" ++ out)
+                               (checkEquiv f1 f2 out || checkInequiv f1 f2 out))
+        )
+
+ranFuncProp :: IO String -> [String] -> [TestTree]
+ranFuncProp io_out =
+    map (\f1 -> testCase
+                f1
+                (do
+                    out <- io_out
+                    assertBool ((if checkNotProp f1 out
+                                     then "Disproved " ++ f1
+                                     else "Not run " ++ f1) ++ "\nFull output:\n" ++ out)
+                               (checkProp f1 out))
+        )
+
+ranFuncNotProp :: IO String -> [String] -> [TestTree]
+ranFuncNotProp io_out =
+    map (\f1 -> testCase
+                f1
+                (do
+                    out <- io_out
+                    assertBool ((if checkProp f1 out
+                                     then "Disproved " ++ f1
+                                     else "Not run " ++ f1) ++ "\nFull output:\n" ++ out)
+                               (checkNotProp f1 out))
+        )
+
+checkEquiv :: String -> String -> String -> Bool
+checkEquiv f1 f2 = isSubstringOf ("Equivalent: " ++ f1 ++ " and " ++ f2)
+
+checkInequiv :: String -> String -> String -> Bool
+checkInequiv f1 f2 = isSubstringOf ("Equivalence not proven: " ++ f1 ++ " and " ++ f2)
+
+checkProp :: String -> String -> Bool
+checkProp f1 = isSubstringOf ("Proven: " ++ f1)
+
+checkNotProp :: String -> String -> Bool
+checkNotProp f1 = isSubstringOf ("Not Proven: " ++ f1)
 
 -------------------------------------------------------------------------------
 -- Nebula

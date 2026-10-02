@@ -23,6 +23,7 @@ module G2.Execution.Rules ( module G2.Execution.RuleTypes
                           , freshSymFuncTicks
                           , defSymFuncTicks
                           , retReplaceSymbFuncVar
+                          , retReplaceSymbFuncUninterp
                           , retReplaceSymbFuncTemplate
 
                           , buildHigherOrderCaseAlts
@@ -45,6 +46,7 @@ import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.PathConds as PC
 import G2.Language.Simplification
 import qualified G2.Language.Stack as S
+import qualified G2.Language.Stack as Stck
 import G2.Preprocessing.NameCleaner
 import G2.Solver hiding (Assert)
 import qualified Data.HashMap.Lazy as HM
@@ -68,13 +70,13 @@ stdReduce config no_inline symb_func_eval solver simplifier s b = do
     return (r, zip s'' (repeat ()), b { name_gen = ng'})
 
 stdReduce' :: (Solver solver, Simplifier simplifier, ASTContainer t Expr) => Config -> HS.HashSet Name -> SymbolicFuncEval t -> solver -> simplifier -> State t -> Bindings -> IO (Rule, [State t], NameGen)
-stdReduce' config no_inline _ solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce }) b@(Bindings { name_gen = ng })
+stdReduce' config no_inline _ solver simplifier s@(State { curr_expr = CurrExpr Evaluate ce }) b@(Bindings { name_gen = ng, data_con_pc_map = dcpm })
     | Var i  <- ce
     , sharing config == Sharing = return $ evalVarSharing s ng i
     | Var i <- ce
     , sharing config == NoSharing = return $ evalVarNoSharing s ng i
     | App e1 e2 <- ce = do
-        let (r, new_pc, ng') = evalApp s ng e1 e2
+        let (r, new_pc, ng') = evalApp s dcpm ng e1 e2
         (ng'', states) <- reduceNewPC (smt_discard_on_unknown config) solver simplifier ng' new_pc
         return (r, states, ng'')
     | Let b_ e <- ce = return $ evalLet s ng b_ e
@@ -174,6 +176,17 @@ getValidStates config no_inline solver simplifier ng new_pc = do
                     FCUnsat -> return (ng_, Nothing)
             | otherwise = return (ng_, Just s_)
 
+-- Note [Forcing Sharing]
+-- The force primitive allows forcing deep evaluation of a value. Suppose we have the following heap mapping:
+-- @
+--   x -> (1 + 2, 7 + 9)
+-- @
+-- and wish to force deep evaluation of x. We would then want, after deep evaluation, a heap mapping
+-- where the first value in x is `3` and the second value in x is `16`.
+-- However, x is already in SWHNF, so by the normal rules for sharing, it's value would not be updated.
+-- We thus ignore these normal rules, and ALWAYS add update frames, when we are forcing evaluation of
+-- some expression.
+
 
 evalVarSharing :: State t -> NameGen -> Id -> (Rule, [State t], NameGen)
 evalVarSharing init_s ng i
@@ -242,7 +255,8 @@ evalVarSharing init_s ng i
     -- expression that it points to. After the evaluation,
     -- we pop the stack to add a redirection pointer into the heap.
     | Just e' <- e
-    , isExprValueForm eenv e' =
+    , isExprValueForm eenv e'
+    , not (forcing_var s) = -- See Note [Forcing Sharing]
       ( RuleEvalVarVal (idName i), [s { curr_expr = CurrExpr Evaluate e' }] ++ lt_extra, ng)
     | Just e' <- e = -- e' is NOT in SWHNF
       ( RuleEvalVarNonVal (idName i)
@@ -284,14 +298,14 @@ makeAltsForPMRet ns tyVarId = go ns tyVarId 1
 --    (2) We have a symbolic value, and no evaluation is possible, so we return
 -- If we do not have a primitive operator, we go into the center of the apps,
 -- to evaluate the function call
-evalApp :: State t -> NameGen -> Expr -> Expr -> (Rule, NewPC t, NameGen)
+evalApp :: State t -> DataConPCMap -> NameGen -> Expr -> Expr -> (Rule, NewPC t, NameGen)
 evalApp s@(State { expr_env = eenv
                  , type_env = tenv
                  , known_values = kv
                  , exec_stack = stck
                  , tyvar_env = tv_env
                  , type_classes = tc })
-        ng e1 e2
+        dcpm ng e1 e2
     | (Var (Id n _)) <- appCenter e1
     , E.isSymbolic n eenv =
         (RuleReturnAppSWHNF, newPCEmpty $ s { curr_expr = CurrExpr Return (App e1 e2) }, ng)
@@ -305,7 +319,7 @@ evalApp s@(State { expr_env = eenv
     | [Prim FoldLeft t, lam, initial] <- unApp e1 =
         let lam' = simplifyExprs eenv eenv lam
             e1' = mkApp [Prim FoldLeft t, lam', initial]
-        in forceEval (App e1' e2) eenv tenv tv_env kv tc s ng
+        in forceEval (moveOutPrim $ App e1' e2) eenv tenv tv_env kv tc s ng
     | [Prim Map t, lam] <- unApp e1 =
         let lam' = simplifyExprs eenv eenv lam
             e1' = mkApp [Prim Map t, lam']
@@ -322,6 +336,19 @@ evalApp s@(State { expr_env = eenv
         let lam' = simplifyExprs eenv eenv lam
             e1' = mkApp [Prim MapConcatI t, lam']
         in forceEval (App e1' e2) eenv tenv tv_env kv tc s ng
+
+    | [Prim Force _, _ {- type -}, e_force {- expression to force eval of -}] <- unApp e1 =
+        let
+            stck' = Stck.push (CurrExprFrame DisableForcingVar (CurrExpr Evaluate e2)) (exec_stack s)
+            s' = s { curr_expr = CurrExpr Evaluate e_force
+                   , exec_stack = stck'
+                   , forcing_var = True }
+            new_pc = SingleState s'
+        in
+        (RuleEvalPrimToNorm, new_pc, ng)
+    | (Prim Force _:_) <- unApp e1 =
+        (RuleEvalPrimToNorm, SingleState $ s { curr_expr = CurrExpr Return (App e1 e2) }, ng)
+
     -- Float ticks to the top of a prim
     | Prim _ _:es <- unApp (App e1 e2)
     , ts <- concatMap getTickish es
@@ -329,7 +356,7 @@ evalApp s@(State { expr_env = eenv
         let e = foldr Tick (stripAllTicks (App e1 e2)) ts in
         (RuleEvalPrimFloatTicks, (newPCEmpty $ s { curr_expr = CurrExpr Evaluate e }), ng)
     | Just (new_pc, ng') <- evalPrimWithState s ng (stripAllTicks $ App e1 e2) = (RuleEvalPrimToNormWithState, new_pc, ng')
-    | Just (e, eenv', pc, ng') <- evalPrimSymbolic tv_env eenv tenv ng kv (App e1 e2) =
+    | Just (e, eenv', pc, ng') <- evalPrimSymbolic tv_env eenv tenv ng kv dcpm (App e1 e2) =
         ( RuleEvalPrimToNormSymbolic
         , (SplitStatePieces
             (s { expr_env = eenv' })
@@ -375,9 +402,18 @@ evalApp s@(State { expr_env = eenv
                 exP' = foldr Tick (stripAllTicks exP) ts
                 er = if null ts then Return else Evaluate
             in
-            ( RuleEvalPrimToNorm
+            ( RuleEvalForcePrimToNorm
             , newPCEmpty $ s_ { expr_env = eenv_', curr_expr = CurrExpr er exP' }
             , ng_ )
+
+        moveOutPrim e
+            | (pr:f:es) <- unApp e
+            , in_f <- inLams f
+            , Just (pr_wr, _) <- getPrimWrapperAndPrim kv in_f = App (Data pr_wr) $ mkApp (pr:insertInLams elimWrapper f:es)
+            | otherwise = e
+
+        elimWrapper _ (App _ e) = e
+        elimWrapper _ e = e
 
 evalLam :: State t -> LamUse -> Id -> Expr -> (Rule, [State t])
 evalLam = undefined
@@ -491,11 +527,25 @@ evalLet s@(State { expr_env = eenv })
 popToCaseFrame :: State t -> CurrExpr -> Maybe (State t, Id, Type, [Alt])
 popToCaseFrame s ce = case S.pop (exec_stack s) of
                         Just (UpdateFrame n, stck) ->
-                            popToCaseFrame (s { expr_env = E.insert n (unwrap ce) (expr_env s), exec_stack = stck }) ce
+                            popToCaseFrame (s { expr_env = E.insert n rewrite_expr (expr_env s), exec_stack = stck }) ce
                         Just (CaseFrame bind t alts, stck) ->
                             Just (s { exec_stack = stck }, bind, t, alts)
                         _ -> Nothing
-                      where unwrap (CurrExpr _ e) = e
+                      where
+                        unwrap (CurrExpr _ e) = e
+                        -- We make use of evalApp to force evaluation of strings/sequences.
+                        -- This is essential to ensure we only send SWHNF expressions to the SMT solver.
+                        -- evalApp yields case expressions such as:
+                        --      case go xs of
+                        --          _ -> b
+                        -- which can then get rewritten by case of case.  This special case
+                        -- works to ensure that if we have an update frame:
+                        --      UpdateFrame y
+                        -- on the stack at that moment, y will still be rewritten to point to b
+                        -- (and b will be rewritten to SWHNF after case-of-case)
+                        rewrite_expr = case unwrap ce of
+                                            Case _ _ _[Alt Default v@(Var _)] -> v
+                                            e -> e
 
 -- | Create `[Alts]` for a case of case optimization
 caseOfCaseAlts :: Type -> [Alt] -> [Alt] -> Id -> [Alt]
@@ -600,7 +650,7 @@ evalCase s@(State { expr_env = eenv
             _ -> error $ "unmatched expr" ++ show (unApp $ unsafeElimOuterCast mexpr)
 
         lsts_cs = liftSymLitAlt s mexpr bind lalts
-        (def_sts, ng'') = liftSymDefAlt s ng' mexpr bind alts
+        (def_sts, ng'') = liftSymDefAlt s ng' dcpm mexpr bind alts
 
         alt_res = dsts_cs ++ lsts_cs ++ def_sts
       in
@@ -707,7 +757,7 @@ concretizeVarExpr' s@(State { type_env = tenv
             binds = [(cvar, (Var mexpr_id))]
             aexpr'' = liftCaseBinds binds aexpr'
 
-            (pcs, ngen'', concs, syms) = adjustExprEnvAndPathConds tvnv ngen' dcpm dcon dcon'' mexpr_id params' news
+            (pcs, ngen'', concs, syms) = adjustExprEnvAndPathConds kv tenv tvnv ngen' dcpm dcon dcon'' mexpr_id params' news
         in
             Just (SD { new_conc_entries = concs, new_sym_entries = syms
                      , new_path_conds = pcs, concretized = [mexpr_id]
@@ -798,7 +848,10 @@ cleanParamsAndMakeDcon tv kv params ngen dcon aexpr mexpr_t m_coercion tenv =
 
 -- | Determines an ExprEnv and Path Constraints from following a particular branch of symbolic execution.
 -- Has special handling for Strings- see [String Concretizations and Constraints]
-adjustExprEnvAndPathConds :: TV.TyVarEnv
+adjustExprEnvAndPathConds ::
+                     KnownValues
+                  -> TypeEnv
+                  -> TV.TyVarEnv
                   -> NameGen
                   -> DataConPCMap
                   -> DataCon -- ^ The data con in the scrutinee (as in `case scrutinee of ...`)
@@ -807,12 +860,12 @@ adjustExprEnvAndPathConds :: TV.TyVarEnv
                   -> [Id] -- ^ Constructor Argument Ids
                   -> [Name]
                   -> ([PathCond], NameGen, EEDiff, EESymDiff)
-adjustExprEnvAndPathConds tv ng dcpm dc dc_e mexpr params dcargs
-    | Just dcpcs <- HM.lookup (dcName dc) dcpm
-    , _:ty_args <- unTyApp $ typeOf tv mexpr
-    , Just dcpc <- L.lookup ty_args dcpcs =
+adjustExprEnvAndPathConds kv tenv tv ng dcpm dc dc_e mexpr params dcargs
+    | Just dcpc <- getDCPCInfo dc (typeOf tv mexpr) kv tenv tv dcpm =
         let (pcs, ng', _, concs, syms) = applyDCPC ng new_ids (Var mexpr) dcpc
         in (pcs, ng', mexpr_dc:concs, syms)
+    | typeOf tv mexpr == tyBool kv =
+        ([ExtCond (mkApp [Prim Eq TyUnknown, Var mexpr, Data dc]) True], ng, [mexpr_dc], new_ids)
     | otherwise = ([], ng, [mexpr_dc], new_ids)
     where
         mexpr_n = idName mexpr
@@ -851,7 +904,7 @@ createExtConds s ng dcpm mexpr cvar (x:xs) =
 -- In the latter case, the note [String Concretizations and Constraints] is relevant.
 createExtCond :: State t -> NameGen -> DataConPCMap -> Expr -> Id -> (DataCon, [Id], Expr) -> (StateDiff, NameGen)
 createExtCond s ngen dcpm mexpr cvar (dcon, bindees, aexpr)
-    | typeOf tvnv mexpr == tyBool kv =
+    | typeOf tvnv dcon == tyBool kv =
         let
             -- Get the Bool value specified by the matching DataCon
             -- Throws an error if dcon is not a Bool Data Constructor
@@ -868,9 +921,7 @@ createExtCond s ngen dcpm mexpr cvar (dcon, bindees, aexpr)
             , new_curr_expr = CurrExpr Evaluate aexpr'
             , new_conc_types = [], new_sym_types = []
             , new_mut_vars = [] }, ngen)
-    | Just dcpcs <- HM.lookup (dcName dcon) dcpm
-    , _:ty_args <- unTyApp $ typeOf tvnv mexpr
-    , Just dcpc <- L.lookup ty_args dcpcs =
+    | Just dcpc <- getDCPCInfo dcon (typeOf (tyvar_env s) mexpr) (known_values s) (type_env s) (tyvar_env s) dcpm =
         let
             mexpr_t = typeOf tvnv mexpr
 
@@ -939,7 +990,7 @@ liftSymLitAlt' s mexpr cvar (lit, aexpr) =
        , new_mut_vars = [] }
   where
     -- Condition that was matched.
-    cond = AltCond lit mexpr True
+    cond = ExtCond (mkApp [Prim Eq TyUnknown, mexpr, Lit lit]) True
     -- Bind the cvar.
     binds = [(cvar, Lit lit)]
     aexpr' = liftCaseBinds binds aexpr
@@ -947,13 +998,13 @@ liftSymLitAlt' s mexpr cvar (lit, aexpr) =
 ----------------------------------------------------
 -- Default Alternatives
 
-liftSymDefAlt :: State t -> NameGen -> Expr ->  Id -> [Alt] -> ([StateDiff], NameGen)
-liftSymDefAlt s ng mexpr cvar as =
+liftSymDefAlt :: State t -> NameGen -> DataConPCMap -> Expr ->  Id -> [Alt] -> ([StateDiff], NameGen)
+liftSymDefAlt s ng dcpm mexpr cvar as =
     let
         match = defAltExpr as
     in
     case match of
-        Just aexpr -> liftSymDefAlt' s ng mexpr aexpr cvar as -- (liftSymDefAlt'' s mexpr aexpr cvar as, ng)
+        Just aexpr -> liftSymDefAlt' s ng dcpm mexpr aexpr cvar as -- (liftSymDefAlt'' s mexpr aexpr cvar as, ng)
         _ -> ([], ng)
 
 -- Note [MutVar Copy Concretization]
@@ -989,8 +1040,8 @@ liftSymDefAlt s ng mexpr cvar as =
 -- came from concretization or newMutVar#.
 
 -- | Concretize Symbolic variable to Case Expr on its possible Data Constructors
-liftSymDefAlt' :: State t -> NameGen -> Expr -> Expr -> Id -> [Alt] -> ([StateDiff], NameGen)
-liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }) ng mexpr aexpr cvar alts
+liftSymDefAlt' :: State t -> NameGen -> DataConPCMap -> Expr -> Expr -> Id -> [Alt] -> ([StateDiff], NameGen)
+liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }) ng dcpm mexpr aexpr cvar alts
     | Var i:_ <- unApp mexpr
     , TyApp (TyApp mvt realworld_ty) stored_ty <- typeOf tvnv i
     , TyCon n _ <- tyAppCenter mvt
@@ -1046,8 +1097,9 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
 
             -- Find DCs already accounted for by other case alts
             badDCs = mapMaybe (\alt -> case alt of
-                (Alt (DataAlt (DataCon dcn _ _ _) _) _) -> Just dcn
+                (Alt (DataAlt dc _) _) -> Just dc
                 _ -> Nothing) alts
+            badDCNames = map dc_name badDCs
         in
         case null badDCs of
             True ->
@@ -1068,13 +1120,13 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
                 let
                     -- Find DCs NOT accounted for by other case alts, i.e. that would go
                     -- down the default path
-                    dcs' = filter (\(DataCon dcn _ _ _) -> dcn `notElem` badDCs) dcs
+                    dcs' = filter (\(DataCon dcn _ _ _) -> dcn `notElem` badDCNames) dcs
 
                     (cvar', ng') = freshSeededId cvar (typeOf tvnv cvar) ng
 
                     -- -- Create a case expression to choose on of viable DCs
                     (_, mexpr', assume_pc, ng'', concs, syms) =
-                        createCaseExpr tvnv bi maybeC cvar' (typeOf tvnv i) kv tenv ng' dcs'
+                        createCaseExpr mexpr tenv tvnv bi maybeC (typeOf tvnv i) kv dcpm ng' dcs'
 
                     binds = [(cvar, Var cvar')]
                     aexpr' = liftCaseBinds binds aexpr
@@ -1105,7 +1157,7 @@ liftSymDefAlt' s@(State { type_env = tenv, known_values = kv, tyvar_env = tvnv }
 liftSymDefAlt'' :: State t -> Expr -> Expr -> Id -> [Alt] -> [StateDiff]
 liftSymDefAlt'' s mexpr aexpr cvar as =
     let
-        conds = mapMaybe (liftSymDefAltPCs (known_values s) mexpr) (map altMatch as)
+        conds = mapMaybe (liftSymDefAltPCs (known_values s) (tyvar_env s) mexpr) (map altMatch as)
 
         binds = [(cvar, mexpr)]
         aexpr' = liftCaseBinds binds aexpr
@@ -1118,14 +1170,24 @@ liftSymDefAlt'' s mexpr aexpr cvar as =
         , new_mut_vars = []
     }]
 
-liftSymDefAltPCs :: KnownValues -> Expr -> AltMatch -> Maybe PathCond
-liftSymDefAltPCs kv mexpr (DataAlt dc _) = -- Only DataAlts would be True/False
-    let boolVal = getBoolFromDataCon kv dc
-    in case boolVal of
-        True -> Just $ ExtCond mexpr False
-        False -> Just $ ExtCond mexpr True
-liftSymDefAltPCs _ mexpr (LitAlt lit) = Just $ AltCond lit mexpr False
-liftSymDefAltPCs _ _ Default = Nothing
+liftSymDefAltPCs :: KnownValues -> TyVarEnv -> Expr -> AltMatch -> Maybe PathCond
+liftSymDefAltPCs kv tv_env mexpr (DataAlt dc _)
+    | typeOf tv_env mexpr == tyBool kv =
+        let boolVal = getBoolFromDataCon kv dc
+        in case boolVal of
+            True -> Just $ ExtCond mexpr False
+            False -> Just $ ExtCond mexpr True
+    | dc_name dc == KV.dcCons kv =
+         Just $ ExtCond (mkApp [Prim Eq TyUnknown, App (Prim StrLen TyUnknown) mexpr, Lit (LitInt 0)]) True
+    | dc_name dc == KV.dcEmpty kv =
+         Just $ ExtCond (mkApp [Prim Neq TyUnknown, App (Prim StrLen TyUnknown) mexpr, Lit (LitInt 0)]) True
+    | dc_name dc == KV.dcTrue kv =
+         Just $ ExtCond (mkApp [Prim Eq TyUnknown, mexpr, mkFalse kv]) True
+    | dc_name dc == KV.dcFalse kv =
+         Just $ ExtCond (mkApp [Prim Eq TyUnknown, mexpr, mkTrue kv]) True
+    | otherwise = Just $ ExtCond (App (Prim Not TyUnknown) (App (Prim (IsConstructor dc) TyUnknown) mexpr)) True
+liftSymDefAltPCs _ _ mexpr (LitAlt lit) = Just $ ExtCond (App (Prim Not TyUnknown) (mkApp [Prim Eq TyUnknown, mexpr, Lit lit])) True
+liftSymDefAltPCs _ _ _ Default = Nothing
 
 defAltExpr :: [Alt] -> Maybe Expr
 defAltExpr [] = Nothing
@@ -1358,6 +1420,12 @@ retCurrExpr s _ DiscardIfNoError orig_ce stck ng =
                 , ng )
         False -> (RuleReturnCurrExprFr, NoState, ng)
 
+retCurrExpr s _ DisableForcingVar orig_ce stck ng =
+    ( RuleReturnCurrExprFr
+    , newPCEmpty $ s { curr_expr = orig_ce
+                     , exec_stack = stck
+                     , forcing_var = False }
+    , ng )
 retCurrExpr s _ NoAction orig_ce stck ng =
     let
         s'= noActionUpdateState s orig_ce stck
@@ -1937,6 +2005,50 @@ retReplaceSymbFuncVar _
         notApplyFrame | Just (frm, _) <- S.pop stck = not (isApplyFrame frm)
                       | otherwise = True
 
+-- | Handles symbolic higher order function application via uninterpreted functions in the SMT solver.
+-- If the expression is a symbolic higher order function application, we force evaluation of all arguments.
+retReplaceSymbFuncUninterp :: SymFuncTicks ->  State t -> NameGen -> Expr -> Maybe (Rule, [State t], NameGen)
+retReplaceSymbFuncUninterp _
+                     s@(State { expr_env = eenv
+                              , exec_stack = stck
+                              , tyvar_env = tvnv })
+                     ng ce
+    | notApplyFrame
+    , (Var (Id f idt):ars) <- unApp ce
+    , E.isSymbolic f eenv
+    , isTyFun idt
+    , t <- typeOf tvnv ce
+    , not (isTyFun t) =
+        let
+            (is, ng') = freshIds (map (typeOf tvnv) ars) ng
+            eenv' = foldl' (\env (Id n _, e_) -> E.insert n e_ env) eenv $ zip is ars
+
+            -- See Note [UninterpFunc Primitive]
+            new_ce = mkApp $ Prim (UninterpFunc f) idt:map Var is
+
+            (is_head, is_tail) = fromJust $ L.uncons is
+            stck' = foldl' (\st i -> Stck.push (CurrExprFrame NoAction (CurrExpr Evaluate $ Var i)) st)
+                            (Stck.push (CurrExprFrame NoAction (CurrExpr Return new_ce)) stck )
+                            is_tail
+        in
+        Just (RuleReturnReplaceSymbFunc,
+            [s { expr_env = eenv'
+               , curr_expr = CurrExpr Evaluate $ Var is_head
+               , exec_stack = stck' }]
+            , ng')
+    | otherwise = Nothing
+    where
+        notApplyFrame | Just (frm, _) <- S.pop stck = not (isApplyFrame frm)
+                      | otherwise = True
+
+
+-- Note [UninterpFunc Primitive]
+-- The temptation is to just leave uninterpreted functions as normal Vars.
+-- However, this creates a large number of difficulties/requires a great deal of special casing elsewhere,
+-- as applications of variables are generally not in SWHNF, and so other parts of G2 expect variable applications
+-- to be reduced via rules, rather then sent to the SMT solver.  On the other hand, primitives ARE expected
+-- to be sent to the solver- so everything just works out nicely if we introduce a primitive for uninterpreted functions.
+
 isApplyFrame :: Frame -> Bool
 isApplyFrame (ApplyFrame _) = True
 isApplyFrame _ = False
@@ -1952,9 +2064,9 @@ retLitTableFrame :: (Solver solver, Simplifier simplifier)
                  -> S.Stack Frame
                  -> IO (Rule, [State t], NameGen)
 retLitTableFrame dus solver simplifier s ng ltc up stck = case ltc of
-    Exploring _ -> retLTExploring ng updated_state sym_id
-    Diff sd (eenv, tvenv, mvenv, conds) ->
-        retLTDiff dus solver simplifier s ng sd eenv tvenv mvenv conds stck up
+    Exploring _ -> return (RuleReturnLitTableExpl, [updated_state], ng)
+    Diff sd conds ->
+        retLTDiff dus solver simplifier s ng sd conds stck up
     StartedBuilding n ->
         retLTStartedBuilding updated_state ng n
     where
@@ -1965,17 +2077,12 @@ retLitTableFrame dus solver simplifier s ng ltc up stck = case ltc of
         -- so we scan the stack
         e = unwrapCurrExpr $ curr_expr s
         frames = S.toList $ exec_stack s
-        explorings = filterJust $ map getExploringConds frames
-        all_pcs = L.foldl' PC.union PC.empty explorings
+        explorings = concat . filterJust $ map getExploringConds frames
         updated_lts = if up
-            then S.modifyTop (updateLiteralTable all_pcs e) $ lit_table_stack s
+            then S.modifyTop (updateLiteralTable explorings e) $ lit_table_stack s
             else lit_table_stack s
-        sym_id = getLTArg s
         updated_state = s { exec_stack = stck, lit_table_stack = updated_lts }
 
-retLTExploring :: NameGen -> State t -> Id -> IO (Rule, [State t], NameGen)
-retLTExploring ng updated_state sym_id =
-    return (RuleReturnLitTableExpl, [updated_state { curr_expr = CurrExpr Return (Var sym_id) } ], ng)
 
 retLTDiff :: (Solver solver, Simplifier simplifier)
           => DiscardUnknownStates
@@ -1984,19 +2091,12 @@ retLTDiff :: (Solver solver, Simplifier simplifier)
           -> State t
           -> NameGen
           -> StateDiff
-          -> E.ExprEnv
-          -> TV.TyVarEnv
-          -> MutVarEnv
           -> PathConds
           -> S.Stack Frame
           -> LTUpdate
           -> IO (Rule, [State t], NameGen)
-retLTDiff dus solver simplifier s ng sd eenv tvenv mvenv conds stck up = do
-    -- We need to make sure the argument is still symbolic
-    -- after exploring other paths, since it can get concretized
-    let diff_state = s { exec_stack = stck, expr_env = eenv
-                        , tyvar_env = tvenv, mutvar_env = mvenv
-                        , path_conds = conds }
+retLTDiff dus solver simplifier s ng sd conds stck up = do
+    let diff_state = s { exec_stack = stck, path_conds = conds }
     res <- reduceStateDiff dus solver simplifier ng diff_state sd
     case res of
         -- This diff is unsat or unknown, try the next
@@ -2026,7 +2126,8 @@ retLTStartedBuilding s ng n =
         s1 = s { lit_tables = table_map'
                , lit_table_stack = lts'
                , curr_expr = CurrExpr Return lam_e
-               , path_conds = lt_init_pcs table
+               , path_conds = lt_init_pcs table `PC.union` global_lit_table_pc s
+               , global_lit_table_pc = if Stck.null lts' then PC.empty else global_lit_table_pc s
                , expr_env = insertSyms sym_diff (expr_env s) }
     in return (RuleReturnLitTableSB, [s1], ng1)
 
@@ -2037,9 +2138,9 @@ filterJust :: [Maybe a] -> [a]
 filterJust [] = []
 filterJust x = map fromJust $ filter isJust x
 
-getExploringConds :: Frame -> Maybe PathConds
+getExploringConds :: Frame -> Maybe [PathCond]
 getExploringConds (LitTableFrame (Exploring pc) _) = Just pc
 getExploringConds _ = Nothing
 
 makeExploring :: LTUpdate -> StateDiff -> Frame
-makeExploring up sd = (LitTableFrame (Exploring (PC.fromList $ new_path_conds sd)) up)
+makeExploring up sd = (LitTableFrame (Exploring $ new_path_conds sd) up)

@@ -273,6 +273,7 @@ data Primitive = -- Mathematical and logical operators
                | StrPrefixOf
                | StrSuffixOf
                | StrReverse -- CVC5 only
+               | StrUpdate -- CVC5 only
 
                | SeqNth -- ^ Z3 and CVC5 only, return the nth element of a sequence (unspecified if out of range)
 
@@ -317,6 +318,10 @@ data Primitive = -- Mathematical and logical operators
                | ReadMutVar -- ^ `forall d a. MutVar# d a -> State# d -> a`.
                | WriteMutVar -- ^ `forall d a. MutVar# d a -> a -> State# d -> State# d`.
 
+               -- ADTs
+               | IsConstructor DataCon -- ^ IsConstructor dc :: a -> Bool, the value of type `a` has the constructor `dc`
+               | Selector DataCon Int -- ^ Selector dc i :: a, the i^th field of the constructor-- should only be used if we are SURE we have the given constructor
+
                -- True if passed an expression that can be converted into an SMT formula, false otherwise
                | IsSMTRep
                -- True if passed an expression that when evaluated
@@ -330,6 +335,12 @@ data Primitive = -- Mathematical and logical operators
                -- 1: Lists of Ints, Integers, Floats, or Doubles
                -- 0: Any other type
                | TypeIndex TypeHandling
+
+               -- (force x y) forces deep evaluation of x and then returns y
+               | Force -- ^ Force :: a -> b -> b
+
+               | UninterpFunc Name -- ^ Id should be a symbolic function, to be used as an uninterpreted function in the SMT solver.
+                                   -- See Note [UninterpFunc Primitive] in G2.Execution.Reducer
 
                -- Errors
                | Error

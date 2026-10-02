@@ -1,45 +1,58 @@
+{-# LANGUAGE OverloadedStrings #-}
+
 module G2.Initialization.AddDCPC (addToDCPC) where
 
 import G2.Config
 import G2.Execution.DataConPCMap
 import G2.Initialization.Types as IT
 import G2.Language.AlgDataTy
-import G2.Language.Expr
 import qualified G2.Language.KnownValues as KV
 import G2.Language.Syntax
-import qualified G2.Language.Typing as T
 import qualified G2.Language.TyVarEnv as TV
+import G2.Language.TypeEnv
 
 import qualified Data.Foldable as F
 import qualified Data.HashMap.Lazy as HM
 
-addToDCPC :: Config -> IT.SimpleState -> DataConPCMap -> DataConPCMap
+addToDCPC :: Config -> IT.SimpleState -> DataConPCMap -> (DataConPCMap, TypeEnv)
 addToDCPC (Config { smt_prim_lists = UseSMTSeq { add_to_dcs = True } }) (IT.SimpleState { IT.known_values = kv, IT.type_env = tenv }) dcpc =
     let
       tys = filter (to_smt . snd) $ HM.toList tenv
-      ty_cons = map (\(n, adt) ->
-                        let
-                          bi = bound_ids adt
-                          kind = T.mkTyFun (map (\(Id _ t) -> t) bi ++ [TYPE])
-                        in
-                        T.mkTyApp $ TyCon n kind:map TyVar bi
-                    ) tys
+      dcs = concatMap (\(_, adt) -> data_cons adt) tys
 
-      dcpc_prim = addWrappedListToDCPCMap kv (mkDCDouble kv tenv) TyLitDouble
-                . addWrappedListToDCPCMap kv (mkDCFloat kv tenv) TyLitFloat
-                . addWrappedListToDCPCMap kv (mkDCInteger kv tenv) TyLitInt
-                . addWrappedListToDCPCMap kv (mkDCInt kv tenv) TyLitInt $ dcpc
+      dcpc_prim = addGenericListToDCPCMap kv
+                . addToDCPCMap (KV.dcChar kv) [] (wrapper TyLitChar)
+                . addToDCPCMap (KV.dcInt kv) [] (wrapper TyLitInt)
+                . addToDCPCMap (KV.dcInteger kv) [] (wrapper TyLitInt)
+                . addToDCPCMap (KV.dcWord kv) [] (wrapper TyLitWord)
+                . addToDCPCMap (KV.dcFloat kv) [] (wrapper TyLitFloat)
+                . addToDCPCMap (KV.dcDouble kv) [] (wrapper TyLitDouble)
+                $ dcpc
+      
+      dcpc_map = F.foldl' (addArbDC kv) dcpc_prim dcs
+      
+      tenv' = F.foldl' (flip (HM.adjust setToSMT)) tenv [ KV.tyChar kv
+                                                        , KV.tyInt kv
+                                                        , KV.tyInteger kv
+                                                        , KV.tyWord kv
+                                                        , KV.tyFloat kv
+                                                        , KV.tyDouble kv ]
     in
-    F.foldl' (addListToDCPCMap kv) dcpc_prim ty_cons
-addToDCPC _ _ dcpc = dcpc
+    (dcpc_map, tenv')
+addToDCPC _ s dcpc = (dcpc, IT.type_env s)
 
-addWrappedListToDCPCMap :: KV.KnownValues -> Expr -> Type -> DataConPCMap -> DataConPCMap
-addWrappedListToDCPCMap kv dc t =
-      addToDCPCMap (KV.dcEmpty kv) [T.returnType $ T.typeOf TV.empty dc] (listEmpty t kv TV.empty)
-    . addToDCPCMap (KV.dcCons kv) [T.returnType $ T.typeOf TV.empty dc] (wrapperListCons dc t kv TV.empty)
-
-addListToDCPCMap :: KV.KnownValues -> DataConPCMap -> Type -> DataConPCMap
-addListToDCPCMap kv dcpc t =
+addGenericListToDCPCMap :: KV.KnownValues -> DataConPCMap -> DataConPCMap
+addGenericListToDCPCMap kv dcpc =
+    let t = TyVar (Id (Name "__!!__G2_TYVAR" Nothing 0 Nothing) TYPE) in
       addToDCPCMap (KV.dcEmpty kv) [t] (listEmpty t kv TV.empty)
     . addToDCPCMap (KV.dcCons kv) [t] (listCons t kv TV.empty)
     $ dcpc
+
+addArbDC :: KV.KnownValues -> DataConPCMap -> DataCon -> DataConPCMap
+addArbDC kv dcpc dc =
+  let (ty_args, dcpi) = arbDC kv TV.empty dc in
+  addToDCPCMap (dc_name dc) (map TyVar ty_args) dcpi dcpc
+
+setToSMT :: AlgDataTy -> AlgDataTy
+setToSMT adt@(DataTyCon {}) = adt { to_smt = True }
+setToSMT adt = adt

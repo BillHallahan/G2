@@ -4,6 +4,7 @@ module G2.Language.CallGraph ( CallGraph
                              , calls
                              , calledBy
                              , nameLevels
+                             , bottomUpNameLevels
                              , reachable
                              , getAllCalledBys
                              , isFuncNonRecursive ) where
@@ -87,6 +88,15 @@ nameLevels' callers eds =
 
 removeEdgesTo :: [Name] -> [(Name, Name)] -> [(Name, Name)]
 removeEdgesTo ns = filter (\(_, n2) -> n2 `notElem` ns)
+
+-- | Returns:
+-- (1) a list of list of names, where the first list contains functions
+-- that do not call any functions (except themselves), and the nth list, n > 2,
+-- includes functions that call functions in the (n - 1)th list.
+bottomUpNameLevels :: CallGraph -> [[Name]]
+bottomUpNameLevels cg = map (map (nodeName cg)) . map flattenTree $ scc (graph cg)
+    where
+        flattenTree (Node x xs) = x:concatMap flattenTree xs
 
 -- | Get all the methods that call a particular function
 getAllCalledBys :: Name -> CallGraph -> [Name]

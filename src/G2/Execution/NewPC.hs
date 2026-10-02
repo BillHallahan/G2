@@ -8,8 +8,10 @@ module G2.Execution.NewPC ( NewPC (..)
                           , reduceToFirstDiff ) where
 
 import G2.Data.Utils
+import qualified G2.Execution.DataConPCMap as DCPC
 import G2.Language
 import qualified G2.Language.ExprEnv as E
+import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as S
 import qualified G2.Language.TyVarEnv as TV
@@ -20,6 +22,7 @@ import G2.Execution.MutVar
 import G2.Execution.LiteralTable
 import G2.Config.Config (DiscardUnknownStates (KeepUnknown))
 
+import Control.Exception
 import Data.List
 import Data.Maybe
 import qualified Data.Sequence as Seq
@@ -55,24 +58,120 @@ reduceNewPC :: (Solver solver, Simplifier simplifier)
             -> NameGen
             -> NewPC t
             -> IO (NameGen, [State t])
-reduceNewPC _ _ _ ng NoState = return (ng, [])
+reduceNewPC _ _ _  ng NoState = return (ng, [])
 reduceNewPC _ _ _ ng (SingleState state) = return (ng, [state])
 reduceNewPC discard_unknown_states solver simplifier ng (SplitStatePieces state state_diffs)
-    | inLitTableMode state = do
-        res <- reduceToFirstDiff discard_unknown_states solver simplifier ng state state_diffs
+    | inLitTableMode state
+    , scrut_smt_rep || all (null . new_conc_entries) state_diffs = do
+        let 
+            -- Rewrite concrete entries and path constraints to use selectors
+            state_diffs' = map (conc_entries_and_pcs_to_selectors) state_diffs
+        res <- reduceToFirstDiff discard_unknown_states solver simplifier ng state state_diffs'
         case res of
             Just (ng', first_s, pcs, other_diffs) ->
                 let prev_stck = stopUpdateLastExpl $ exec_stack first_s
                     diffs_pushed = foldr S.push prev_stck $ map wrap other_diffs
-                    expl_pushed = S.push (LitTableFrame (Exploring (PC.fromList pcs)) True) diffs_pushed
-                in return (ng', [first_s { exec_stack = expl_pushed }])
+                    expl_pushed = S.push (LitTableFrame (Exploring pcs) True) diffs_pushed
+
+                    new_stack = if not $ isTyFun (typeOf tv_env $ unwrapped_ce) then expl_pushed else exec_stack first_s
+
+                    (ng'', eenv', simp_pc) = simplifyAllPCs simplifier first_s ng' force_specific_cons_args
+                    glob_pc' = foldr PC.insert (global_lit_table_pc state) simp_pc
+
+                in return (ng'', [first_s { expr_env = eenv', exec_stack = new_stack, global_lit_table_pc = glob_pc' }])
             Nothing -> return (ng, [])
     | otherwise =
         mapAccumMaybeM (\ng' sd -> reduceStateDiff discard_unknown_states solver simplifier ng' state sd) ng state_diffs
     where
-        wrap diff = LitTableFrame (
-                        Diff diff (expr_env state, tyvar_env state, mutvar_env state, path_conds state)
-                    ) True
+        kv = known_values state
+        tenv = type_env state
+        tv_env = tyvar_env state
+        ce = curr_expr state
+        unwrapped_ce = (\(CurrExpr _ e) -> e) ce
+
+        scrut_smt_rep = case unwrapped_ce of
+                            Case e _ _ _ 
+                                | DCPC.allInDCPC kv tenv $ typeOf tv_env e -> True
+                                | TyCon n _ <- typeOf tv_env e -> n == KV.tyBool kv
+                            _ -> False
+        
+        conc_entry_to_selector n e
+            | [Data dc, _] <- unApp e
+            , isPrimWrapperDC kv dc = [(n, e)]
+            | Data dc:es <- unApp e = to_selector dc es (Var . Id n $ typeOf tv_env e)
+            | otherwise = []
+        
+        pc_to_selector (ExtCond e True)
+            | [ Prim Eq _, e1, e2 ] <- unApp e
+            , Data dc:es <- unApp e1
+            , [ Prim (Selector _ _) _, _] <- unApp e2 = to_selector dc es e2
+            | [ Prim Eq _, e1, e2 ] <- unApp e
+            , Var (Id n t) <- e1
+            , [ Prim (Selector _ _) _, _] <- unApp e2 = assert (isPrimType t) [(n, e2)]
+        pc_to_selector _ = []
+
+        to_selector dc es e2 = 
+            let
+                dc_t = typeOf tv_env (mkApp $ Data dc:es)
+                es' = filter (not . isType) es
+            in
+            zipWith (\v j -> case v of
+                                (Var (Id vn vt)) -> 
+                                    let
+                                        t = TyFun dc_t vt
+                                    in
+                                    (vn, mkApp [Prim (Selector dc j) t, e2])
+                                _ -> error "reduceNewPC: expected var") es' [1 :: Int ..]
+
+        isType (Type _) = True
+        isType _ = False
+
+        -- For types being branched on in literal tables, we want to avoid concretization,
+        -- only using the path conds.
+        -- When we get a concrete entry like:
+        --      x -> (y, z)
+        -- we rewrite to a concrete entry
+        --      x -> (selector-(,)-1 x, selector-(,)-2 x)
+        -- so that we do not rely on specific variable names `y` and `z` in a literal table.
+        --
+        -- We may then later have a case on a selector:
+        --     case selector-(,)-1 x of
+        --         Nothing -> ...
+        --         Just y -> ...
+        -- we will get a path cond like:
+        --     Just y == selector-(,)-1 x
+        -- we want to turn this into a concrete entry:
+        --     y -> selector-Just-1 (selector-(,)-1 x)
+        -- so that, again, we do not rely on specific names `y` in the literal table
+        conc_entries_and_pcs_to_selectors d =
+            d { new_conc_entries = concatMap (uncurry conc_entry_to_selector) (new_conc_entries d)
+                                ++ concatMap pc_to_selector (new_path_conds d)
+              , new_path_conds = filter (null . pc_to_selector) (new_path_conds d) }
+
+        -- Suppose we have:
+        --   x == Just y
+        -- If we negate this, we get:
+        --   not (x == Just y)
+        -- all variables in the path constraints are existential- so this is not quite what we want!
+        -- It allows `x = Just 4, y = 3`, for instance.
+        -- To avoid this, we introduce constraints that:
+        --   is-Just x ==> x == Just y
+        -- i.e. if x is a `Just` constructor, its argument MUST be equal to y.
+        force_specific_cons_args = mapMaybe (uncurry consImpliesEq) (concatMap new_conc_entries state_diffs)
+        consImpliesEq n e
+            | typeOf tv_env e == tyBool kv = Nothing
+            | Data dc <- appCenter e
+            , isPrimWrapperName kv (dc_name dc) = Nothing
+            | Data dc <- appCenter e =
+                let
+                    v = Var (Id n $ typeOf tv_env e)
+                    has_cons = App (Prim (IsConstructor dc) TyUnknown) v
+                    eq_dc = mkApp [ Prim Eq TyUnknown, v, e]
+                in
+                Just $ ExtCond ( mkApp [Prim Implies TyUnknown, has_cons, eq_dc]) True 
+            | otherwise = Nothing -- error "Expected constructor"
+
+        wrap diff = LitTableFrame (Diff diff (path_conds state)) True
 
 -- Find the first diff to explore, when in literal table building mode
 reduceToFirstDiff :: (Solver solver, Simplifier simplifier)
@@ -133,21 +232,16 @@ addPCsToState :: (Solver solver, Simplifier simplifier)
                 -> [PathCond]
                 -> IO (Maybe (NameGen, State t))
 addPCsToState discard_unknown_states solver simplifier ng
-             s@(State { expr_env = eenv
-                      , path_conds = state_pc })
+             s@(State { path_conds = state_pc })
              conc_ids pc
     | not (null pc) || not (null conc_ids) = do
-        let ((ng', eenv'), pc') =
-                mapAccumR (\(ng_, eenv_) pc_ ->
-                                let (ng_', eenv_', pc_') = simplifyPCWithExprEnv simplifier s ng_ eenv_ pc_ in
-                                ((ng_', eenv_'), pc_')) (ng, eenv) pc
+        let (ng', eenv', pc') = simplifyAllPCs simplifier s ng pc
 
-        let pc'' = concat pc'
+        let s' = s { expr_env = eenv' }
+            new_pc = foldr PC.insert state_pc pc'
+            new_pc' = foldr (simplifyPCs simplifier s') new_pc pc
 
-        let new_pc = foldr PC.insert state_pc pc''
-            new_pc' = foldr (simplifyPCs simplifier s) new_pc pc
-
-            s' = s { expr_env = eenv', path_conds = new_pc' }
+            s'' = s' { path_conds = new_pc' }
 
         -- Optimization
         -- We replace the path_conds with only those that are directly affected by the new path constraints.
@@ -158,17 +252,27 @@ addPCsToState discard_unknown_states solver simplifier ng
         -- For this reason, we extract names for the original (unsimplified) path constraints
         let ns = (concatMap PC.varNamesInPC pc) ++ namesList conc_ids
             rel_pc = case ns of
-                [] -> PC.fromList pc''
+                [] -> PC.fromList pc'
                 _ -> PC.scc' (Nothing:map Just ns) new_pc'
 
         res <- check solver s rel_pc
 
         case res of
-            SAT () -> return $ Just (ng', s')
+            SAT () -> return $ Just (ng', s'')
             UNSAT () -> return Nothing
-            Unknown _ _ | discard_unknown_states == KeepUnknown -> return $ Just (ng', s')
+            Unknown _ _ | discard_unknown_states == KeepUnknown -> return $ Just (ng', s'')
                         | otherwise -> return Nothing
     | otherwise = return $ Just (ng, s)
+
+simplifyAllPCs :: Simplifier simplifier => simplifier -> State t -> NameGen -> [PathCond] -> (NameGen, ExprEnv, [PathCond])
+simplifyAllPCs simplifier s@(State { expr_env = eenv }) ng pc =
+    let
+        ((ng', eenv'), pc') =
+                mapAccumR (\(ng_, eenv_) pc_ ->
+                                let (ng_', eenv_', pc_') = simplifyPCWithExprEnv simplifier s ng_ eenv_ pc_ in
+                                ((ng_', eenv_'), pc_')) (ng, eenv) pc
+    in
+    (ng', eenv', concat pc')
 
 mapAccumMaybeM :: Monad m => (s -> a -> m (Maybe (s, b))) -> s -> [a] -> m (s, [b])
 mapAccumMaybeM f s xs = do

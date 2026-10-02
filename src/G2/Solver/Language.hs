@@ -31,6 +31,7 @@ data SMTHeader = Assert !SMTAST
                | AssertSoft !SMTAST (Maybe T.Text)
                | Minimize !SMTAST
                | DefineFun SMTName [(SMTName, Sort)] Sort !SMTAST
+               | DefineFunRec SMTName [(SMTName, Sort)] Sort !SMTAST
                | DeclareFun SMTName [Sort] Sort
                | DeclareDatatypes [SMTDataType]
                | VarDecl SMTNameBldr Sort
@@ -45,6 +46,7 @@ data SMTDataType = SmtDT { dt_name :: SMTName
 
 -- | Various logics supported by (some) SMT solvers 
 data Logic = ALL
+           | HO_ALL
            | QF_LIA
            | QF_LRA
            | QF_NIA
@@ -141,14 +143,16 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | StrPrefixOfSMT !SMTAST !SMTAST
             | StrSuffixOfSMT !SMTAST !SMTAST
             | StrReverseSMT !SMTAST
+            | StrUpdateSMT !SMTAST !SMTAST !SMTAST
             | SeqNthSMT !SMTAST !SMTAST
 
-            | MapSMT SMTName Sort !SMTAST !SMTAST
+            | MapSMT SMTName Sort Sort !SMTAST !SMTAST
             | MapConcatSMT SMTName Sort Sort !SMTAST !SMTAST
             | MapConcatISMT SMTName Sort SMTName Sort Sort !SMTAST !SMTAST
             | FoldLeftSMT SMTName Sort SMTName Sort !SMTAST !SMTAST !SMTAST
             | FoldLeftISMT SMTName Sort SMTName Sort SMTName Sort !SMTAST !SMTAST !SMTAST !SMTAST
             | LambdaSMT [(SMTName, Sort)] SMTAST
+            | AppLam SMTAST SMTAST
 
             | InReSMT !SMTAST !SMTAST
             | ToReSMT !SMTAST
@@ -182,7 +186,9 @@ data SMTAST = (:>=) !SMTAST !SMTAST
             | VBool Bool
 
             | V SMTName Sort
-            | DataSMT SMTName [SMTAST]
+            | DataSMT SMTName [SMTAST] (Maybe Sort)
+            | IsConstructorSMT SMTName SMTAST
+            | SelectorSMT SMTName Int SMTAST
 
             | FloatToIntSMT !SMTAST -- ^ Float to Integer conversion
             | DoubleToIntSMT !SMTAST -- ^ Double to Integer conversion
@@ -350,17 +356,19 @@ instance AST SMTAST where
     children (x :!! y) = [x, y]
     children (StrSubstrSMT x y z) = [x, y, z]
     children (StrIndexOfSMT x y z) = [x, y, z]
+    children (StrContainsSMT x y) = [x, y]
     children (StrReplaceSMT x y z) = [x, y, z]
     children (StrPrefixOfSMT x y) = [x, y]
     children (StrSuffixOfSMT x y) = [x, y]
     children (SeqNthSMT x y) = [x, y]
 
-    children (MapSMT _ _ x y) = [x, y]
+    children (MapSMT _ _ _ x y) = [x, y]
     children (MapConcatSMT _ _ _ x y) = [x, y]
     children (MapConcatISMT _ _ _ _ _ x y) = [x, y]
     children (FoldLeftSMT _ _ _ _ x y z) = [x, y, z]
     children (FoldLeftISMT _ _ _ _ _ _ w x y z) = [w, x, y, z]
     children (LambdaSMT _ x) = [x]
+    children (AppLam x y) = [x, y]
 
     children (InReSMT x y) = [x, y]
     children (ToReSMT x) = [x]
@@ -383,7 +391,7 @@ instance AST SMTAST where
     children (FromCode x) = [x]
     children (ToCode x) = [x]
 
-    children (DataSMT _ xs) = xs
+    children (DataSMT _ xs _) = xs
 
     children (FloatToIntSMT x) = [x]
     children (DoubleToIntSMT x) = [x]
@@ -481,13 +489,14 @@ instance AST SMTAST where
     modifyChildren f (StrSuffixOfSMT x y) = StrSuffixOfSMT (f x) (f y)
     modifyChildren f (SeqNthSMT x y) = SeqNthSMT (f x) (f y)
 
-    modifyChildren f (MapSMT n1 s1 x y) = MapSMT n1 s1 (f x) (f y)
+    modifyChildren f (MapSMT n1 s1 s2 x y) = MapSMT n1 s1 s2 (f x) (f y)
     modifyChildren f (MapConcatSMT n1 s1 accum_s x y) = MapConcatSMT n1 s1 accum_s (f x) (f y)
     modifyChildren f (MapConcatISMT n1 s1 n2 s2 accum_s x y) = MapConcatISMT n1 s1 n2 s2 accum_s (f x) (f y)
     modifyChildren f (FoldLeftSMT n1 s1 n2 s2 x y z) = FoldLeftSMT n1 s1 n2 s2 (f x) (f y) (f z)
     modifyChildren f (FoldLeftISMT idx idx_t n1 s1 n2 s2 w x y z) =
         FoldLeftISMT idx idx_t n1 s1 n2 s2 (f w) (f x) (f y) (f z)
     modifyChildren f (LambdaSMT binds body) = LambdaSMT binds (f body)
+    modifyChildren f (AppLam x y) = AppLam (f x) (f y)
 
     modifyChildren f (InReSMT x y) = InReSMT (f x) (f y)
     modifyChildren f (ToReSMT x) = ToReSMT (f x)
@@ -510,7 +519,7 @@ instance AST SMTAST where
     modifyChildren f (FromCode x) = FromCode (f x)
     modifyChildren f (ToCode x) = ToCode (f x)
 
-    modifyChildren f (DataSMT n xs) = DataSMT n (map f xs)
+    modifyChildren f (DataSMT n xs srt) = DataSMT n (map f xs) srt
 
     modifyChildren f (FloatToIntSMT x) = FloatToIntSMT (f x)
     modifyChildren f (DoubleToIntSMT x) = DoubleToIntSMT (f x)
@@ -541,12 +550,13 @@ instance ASTContainer SMTHeader SMTAST where
     containedASTs (AssertSoft a _) = [a]
     containedASTs (Minimize a) = [a]
     containedASTs (DefineFun _ _ _ a) = [a]
+    containedASTs (DefineFunRec _ _ _ a) = [a]
     containedASTs _ = []
 
     modifyContainedASTs f (Assert a) = Assert (f a)
     modifyContainedASTs f (AssertSoft a lbl) = AssertSoft (f a) lbl
     modifyContainedASTs f (Minimize a) = Minimize (f a)
-    modifyContainedASTs f (DefineFun n ars r a) = DefineFun n ars r (f a)
+    modifyContainedASTs f (DefineFunRec n ars r a) = DefineFunRec n ars r (f a)
     modifyContainedASTs _ s = s
 
 instance ASTContainer SMTAST Sort where

@@ -83,6 +83,9 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
 
                      , lit_tables :: HM.HashMap Name LitTable -- ^ Mapping of name to literal table
                      , lit_table_stack :: Stack LitTable -- ^ Stack for nested literal tables
+                     , global_lit_table_pc :: PathConds -- ^ Extra PCs to add to the main PCs after we are done building a literal table
+
+                     , forcing_var :: Bool -- ^ Are we currently forcing deep evaluation of a variable? See Note [Forcing Sharing] in G2.Execution.Rules
 
                      , track :: t
                      } deriving (Show, Eq, Read, Generic, Data)
@@ -214,6 +217,7 @@ instance Hashable Frame
 data CEAction = EnsureEq Expr -- ^ `EnsureEq focus e1` means that we should check if the `curr_expr` is equal to `e1`
               | UpdateSolvingFCs FCStatus -- ^ Update the Ids/Lits in the solving_sym_func_constraints field
               | DiscardIfNoError -- ^ Discard the state if it has not hit an error
+              | DisableForcingVar -- ^ Set the forcing_var field of the state to False
               | NoAction -- ^ Just replace the curr_expr, no other actions are needed
               deriving (Show, Eq, Read, Generic, Data)
 
@@ -342,6 +346,8 @@ instance Named t => Named (State t) where
                , tags = tags s
                , lit_tables = rename old new $ lit_tables s
                , lit_table_stack = rename old new $ lit_table_stack s
+               , global_lit_table_pc = rename old new $ global_lit_table_pc s
+               , forcing_var = forcing_var s
                , reached_fc_ticks = rename old new $ reached_fc_ticks s
                , log_path = log_path s }
 
@@ -376,6 +382,8 @@ instance Named t => Named (State t) where
                , tags = tags s
                , lit_tables = renames hm $ lit_tables s
                , lit_table_stack = renames hm $ lit_table_stack s
+               , global_lit_table_pc = renames hm $ global_lit_table_pc s
+               , forcing_var = forcing_var s 
                , reached_fc_ticks = renames hm $ reached_fc_ticks s
                , log_path = log_path s }
 
@@ -396,6 +404,7 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
                       (containedASTs $ rules s) ++
                       (containedASTs $ lit_tables s) ++
                       (containedASTs $ lit_table_stack s) ++
+                      (containedASTs $ global_lit_table_pc s) ++
                       (containedASTs $ reached_fc_ticks s) ++
                       (containedASTs $ rules s)
 
@@ -413,6 +422,7 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
                                 , track = modifyContainedASTs f $ track s
                                 , lit_tables = modifyContainedASTs f $ lit_tables s
                                 , lit_table_stack = modifyContainedASTs f $ lit_table_stack s
+                                , global_lit_table_pc = modifyContainedASTs f $ global_lit_table_pc s
                                 , sym_gens = modifyContainedASTs f $ sym_gens s
                                 , reached_fc_ticks = modifyContainedASTs f $ reached_fc_ticks s
                                 , rules = modifyContainedASTs f $ rules s }
@@ -436,6 +446,7 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                       (containedASTs $ rules s) ++
                       (containedASTs $ lit_tables s) ++
                       (containedASTs $ lit_table_stack s) ++
+                      (containedASTs $ global_lit_table_pc s) ++
                       (containedASTs $ reached_fc_ticks s) ++
                       (containedASTs $ rules s)
 
@@ -456,6 +467,7 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                                 , sym_gens = modifyContainedASTs f $ sym_gens s
                                 , lit_tables = modifyContainedASTs f $ lit_tables s
                                 , lit_table_stack = modifyContainedASTs f $ lit_table_stack s
+                                , global_lit_table_pc = modifyContainedASTs f $ global_lit_table_pc s
                                 , reached_fc_ticks = modifyContainedASTs f $ reached_fc_ticks s
                                 , rules = modifyContainedASTs f $ rules s }
 
@@ -632,19 +644,16 @@ instance ASTContainer Handle Type where
     modifyContainedASTs f h@(HandleInfo { h_start = s, h_pos = p }) =
         h { h_start = modifyContainedASTs f s, h_pos = modifyContainedASTs f p }
 
-data LitTableCond = Exploring PathConds
-                  -- In the literal table process, we might modify some parts of
-                  -- the State that we don't want modified when we start Exploring
-                  -- other Diffs, so we need to save the original versions in Diff frames
-                  | Diff StateDiff (E.ExprEnv, TV.TyVarEnv, MutVarEnv, PathConds)
+data LitTableCond = Exploring [PathCond]
+                  | Diff StateDiff PathConds
                   | StartedBuilding Name
                   deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable LitTableCond
 
-data LitTable = LitTable { lt_arg :: Id
+data LitTable = LitTable { lt_arg :: [Id]
                          , lt_rec_funs :: HS.HashSet Expr -- | The functions we have evaluated (so we can check for recursion)
-                         , lt_mapping :: HM.HashMap PathConds Expr
+                         , lt_mapping :: [([PathCond], Expr)]
                          , lt_errored :: Bool -- | Whether an error was encountered during creation or not
                          , lt_init_pcs :: PathConds -- | Conds from the creation process shouldn't linger
                          , lt_partial :: Bool -- | Whether this is a partial table or not

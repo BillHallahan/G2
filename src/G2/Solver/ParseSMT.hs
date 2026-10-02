@@ -175,13 +175,16 @@ funcExpr =
 varExpr :: Parser SMTAST
 varExpr = do
     v <- identifier
-    return . V v $ ParSort "UNKNOWN"
+    case v of
+        c:_ | isUpper c -> return $ DataSMT v [] Nothing
+        _ -> return . V v $ ParSort "UNKNOWN"
+
 
 dcExpr :: Parser SMTAST
 dcExpr = parens $ do
     ex <- identifier
     as <- many1 (sExpr Nothing)
-    return $ DataSMT ex as
+    return $ DataSMT ex as Nothing
 
 lambdaExpr :: Parser SMTAST
 lambdaExpr = do
@@ -405,8 +408,8 @@ parseUni = do
         _ -> fail $ "parseUni': Bad string " ++ str
 
 parseSort :: Parser Sort
-parseSort =
-     (do
+parseSort = do
+     try (do
         _ <- string "Array"
         _ <- whiteSpace
         sorts <- many1 (do srt <- parseSort; _ <- whiteSpace; return srt)
@@ -415,11 +418,11 @@ parseSort =
         return (SortArray inds val)
         )
     <|>
-    (do _ <- string "Int"; return SortInt)
+    try (do _ <- string "Int"; return SortInt)
     <|>
-    (do _ <- string "Bool"; return SortBool)
+    try (do _ <- string "Bool"; return SortBool)
     <|>
-    (do _ <- string "String"; return SortString)
+    try (do _ <- string "String"; return SortString)
     <|>
     (return . ParSort =<< identifier)
     <|>

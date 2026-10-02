@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP #-}
+{-# LANGUAGE CPP, DeriveGeneric #-}
 {-# LANGUAGE FlexibleContexts #-}
 {-# LANGUAGE FlexibleInstances #-}
 {-# LANGUAGE FunctionalDependencies #-}
@@ -14,7 +14,10 @@ module G2.Solver.Converters
     , toSMTHeaders
     , toSolverText
     , toSolverASTString
-    , toSolverASTSeq
+    , toSolverASTSeqZ3
+    , toSolverASTSeqCVC5
+
+    , addSetLogic
 
     , exprToSMT --WOULD BE NICE NOT TO EXPORT THIS
     , typeToSMT --WOULD BE NICE NOT TO EXPORT THIS
@@ -25,6 +28,7 @@ module G2.Solver.Converters
 
     , addHeaders
     , checkConstraintsPC
+    , GenSeqFunc (..)
     , checkModelPC
     , checkConstraints
     , solveConstraints
@@ -35,8 +39,11 @@ module G2.Solver.Converters
     , castFloatToWord32
     , SMTConverter (..) ) where
 
+import GHC.Generics (Generic)
+
 import qualified Data.Bits as Bits
 import Data.Char
+import Data.Hashable
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
@@ -52,6 +59,7 @@ import System.Process
 
 import G2.Language hiding (Assert, vars)
 import qualified G2.Language.ExprEnv as E
+import qualified G2.Language.KnownValues as KV
 import qualified G2.Language.PathConds as PC
 import G2.Solver.Language
 import G2.Solver.Solver
@@ -60,9 +68,13 @@ import qualified G2.Language.TyVarEnv as TV
 #if MIN_VERSION_text_builder(0,6,8)
 import qualified TextBuilder as TB
 type Builder = TB.TextBuilder
+tbToText :: Builder -> T.Text
+tbToText = TB.toText
 #else
 import qualified Text.Builder as TB
 type Builder = TB.Builder
+tbToText :: Builder -> T.Text
+tbToText = TB.run
 #endif
 
 type PrintSMT = Bool
@@ -77,6 +89,9 @@ class Solver con => SMTConverter con where
     closeIO :: con -> IO ()
 
     reset :: con -> IO ()
+
+    setLogic :: con -> [GenSeqFunc] -> [SMTHeader] -> [SMTHeader]
+    setLogic _ _ = addSetLogic
 
     checkSatInstr :: con -> IO ()
     maybeCheckSatResult :: con -> IO (Maybe (Result () () ()))
@@ -109,35 +124,49 @@ class Solver con => SMTConverter con where
 addHeaders :: SMTConverter con => con -> [SMTHeader] -> IO ()
 addHeaders = addFormula
 
-checkConstraintsPC :: SMTConverter con => TV.TyVarEnv -> TypeEnv -> con -> PathConds -> IO (Result () () ())
-checkConstraintsPC tv tenv con pc = do
-    let headers = toSMTHeaders tv tenv pc
+-- | Generate higher order functions for handling sequences?
+data GenSeqFunc = GenMap
+                        Type -- ^ Input type
+                        Type -- ^ Output type
+                | GenFold
+                        Type -- ^ Accum type
+                        Type -- ^ List element type
+                  deriving (Eq, Generic)
+
+instance Hashable GenSeqFunc
+
+checkConstraintsPC :: SMTConverter con => KnownValues -> TV.TyVarEnv -> TypeEnv -> con -> [GenSeqFunc] -> PathConds -> IO (Result () () ())
+checkConstraintsPC kv tv tenv con gen_seq_fun pc = do
+    let headers = toSMTHeaders con kv tv tenv gen_seq_fun pc
     checkConstraints con headers
 
 checkConstraints :: SMTConverter con => con -> [SMTHeader] -> IO (Result () () ())
 checkConstraints = checkSat
 
 -- | Checks if the constraints are satisfiable, and returns a model if they are
-checkModelPC :: SMTConverter con => ArbValueFunc -> con -> State t -> Bindings -> [Id] -> PathConds -> IO (Result SatRes () ())
-checkModelPC avf con s b is pc = return . liftCasts (tyvar_env s) =<< checkModel' avf con s b is pc
+checkModelPC :: SMTConverter con => ArbValueFunc -> con -> State t -> Bindings -> [Id] -> [GenSeqFunc] -> PathConds -> IO (Result SatRes () ())
+checkModelPC avf con s b is gen_seq_fun pc = return . liftCasts (tyvar_env s) =<< checkModel' avf con s b is gen_seq_fun pc
 
 -- | We split based on whether we are evaluating a ADT or a literal.
 -- ADTs can be solved using our efficient addADTs, while literals require
 -- calling an SMT solver.
-checkModel' :: SMTConverter con => ArbValueFunc -> con -> State t -> Bindings -> [Id] -> PathConds -> IO (Result SatRes () ())
-checkModel' _ _ s b [] _ = do
+checkModel' :: SMTConverter con => ArbValueFunc -> con -> State t -> Bindings -> [Id] -> [GenSeqFunc] -> PathConds -> IO (Result SatRes () ())
+checkModel' _ _ s b [] _ _ = do
     return . SAT $ SatRes (model s) (tyvar_env s) (name_gen b)
-checkModel' avf con s b (i:is) pc
-    | (idName i) `HM.member` (model s) = checkModel' avf con s b is pc
+checkModel' avf con s b (i:is) gen_seq_fun pc
+    | (idName i) `HM.member` (model s) = checkModel' avf con s b is gen_seq_fun pc
     | otherwise =  do
-        (m, av) <- getModelVal avf con s b i pc
+        (m, av) <- getModelVal avf con s b i gen_seq_fun pc
         case m of
             SAT (SatRes m' tv_env ng) ->
-                checkModel' avf con (s {tyvar_env = tv_env, model = HM.union m' (model s)}) (b {name_gen = ng, arb_value_gen = av}) is pc
+                checkModel' avf con 
+                            (s {tyvar_env = tv_env, model = HM.union m' (model s)}) 
+                            (b {name_gen = ng, arb_value_gen = av})
+                            is gen_seq_fun pc
             r -> return r
 
-getModelVal :: SMTConverter con => ArbValueFunc -> con -> State t -> Bindings -> Id -> PathConds -> IO (Result SatRes () (), ArbValueGen)
-getModelVal avf con s@(State { expr_env = eenv, type_env = tenv, known_values = kv, tyvar_env = tvnv }) b (Id n _) pc = do
+getModelVal :: SMTConverter con => ArbValueFunc -> con -> State t -> Bindings -> Id -> [GenSeqFunc] -> PathConds -> IO (Result SatRes () (), ArbValueGen)
+getModelVal avf con s@(State { expr_env = eenv, type_env = tenv, known_values = kv, tyvar_env = tvnv }) b (Id n _) gen_seq_fun pc = do
     let (n', t) = case E.lookup n eenv of
                      Just (Var (Id n_ t_)) -> (n_, t_)
                      _ -> error $ "getModelVal: expected to find a Var, found " ++ show (E.lookup n eenv)
@@ -148,12 +177,12 @@ getModelVal avf con s@(State { expr_env = eenv, type_env = tenv, known_values = 
                     in
                     return (SAT $ SatRes (HM.singleton n' e) tv_env' ng', av)
                 False -> do
-                    m <- solveNumericConstraintsPC tvnv con kv tenv pc (name_gen b)
+                    m <- solveNumericConstraintsPC tvnv con kv tenv gen_seq_fun pc (name_gen b)
                     return (m, arb_value_gen b)
 
-solveNumericConstraintsPC :: SMTConverter con => TV.TyVarEnv -> con -> KnownValues -> TypeEnv -> PathConds -> NameGen -> IO (Result SatRes () ())
-solveNumericConstraintsPC tv con kv tenv pc ng = do
-    let headers = toSMTHeaders tv tenv pc
+solveNumericConstraintsPC :: SMTConverter con => TV.TyVarEnv -> con -> KnownValues -> TypeEnv -> [GenSeqFunc] -> PathConds -> NameGen -> IO (Result SatRes () ())
+solveNumericConstraintsPC tv con kv tenv gen_seq_fun pc ng = do
+    let headers = toSMTHeaders con kv tv tenv gen_seq_fun pc
     let vs = map (\(n', srt) -> (nameToStr n', srt)) . HS.toList . pcVars tv $ pc
     let ty_map = HM.fromList . map (\(Id n t) -> (nameToStr n, t)) . HS.toList $ PC.allIds pc
 
@@ -178,17 +207,26 @@ constraintsToModelOrUnsatCoreNoReset = checkSatGetModelOrUnsatCoreNoReset
 -- we need only consider the types and path constraints of that state.
 -- We can also pass in some other Expr Container to instantiate names from, which is
 -- important if you wish to later be able to scrape variables from those Expr's
-toSMTHeaders :: TV.TyVarEnv -> TypeEnv -> PathConds -> [SMTHeader]
-toSMTHeaders tv tenv pc = addSetLogic  (toSMTHeaders' tv tenv pc)
+toSMTHeaders :: SMTConverter con => con -> KnownValues -> TV.TyVarEnv -> TypeEnv -> [GenSeqFunc] -> PathConds -> [SMTHeader]
+toSMTHeaders con kv tv tenv gen_seq_fun pc = setLogic con gen_seq_fun (toSMTHeaders' kv tv tenv gen_seq_fun pc)
 
-toSMTHeaders' :: TV.TyVarEnv -> TypeEnv -> PathConds -> [SMTHeader]
-toSMTHeaders' tv tenv pc =
+toSMTHeaders' :: KnownValues -> TV.TyVarEnv -> TypeEnv -> [GenSeqFunc] -> PathConds -> [SMTHeader]
+toSMTHeaders' kv tv tenv gen_seq_fun pc =
     let
-        dc_types = evalASTs getADTTypes pc
+        dc_types = fixTypes $ evalASTs getADTTypes pc
         tenv' = HM.toList $ HM.filterWithKey (\n adt-> n `elem` dc_types && to_smt adt) tenv        
         pc' = PC.toList pc
+
+        smt_dcs = mapMaybe (uncurry (datatypeDecls kv tv)) tenv'
+        declare_decls = if null smt_dcs then [] else [DeclareDatatypes smt_dcs]
+
+        seq_func = map (\case
+                            GenMap t1 t2 -> defineFunMap tv t1 t2
+                            GenFold t1 t2 -> defineFunFoldLeft tv t1 t2) gen_seq_fun
     in
-    map (uncurry (datatypeDecls tv)) tenv'
+    declare_decls
+    ++
+    seq_func
     ++
     pcVarDecls tv pc
     ++
@@ -196,7 +234,13 @@ toSMTHeaders' tv tenv pc =
     where
         getADTTypes (TyCon n _) = HS.singleton n
         getADTTypes (TyVar (Id n _)) | Just (TV.TyConc t) <- TV.lookupConcOrSym n tv = getADTTypes t
+        getADTTypes (TyApp t1 t2) = getADTTypes t1 `HS.union` getADTTypes t2
         getADTTypes _ = HS.empty
+
+        fixTypes hs =
+            let hs' = mconcat . map fixTypes' $ HS.toList hs in 
+            if hs == hs' then hs else fixTypes hs'
+        fixTypes' n = evalASTs getADTTypes $ HM.lookup n tenv
 
 -- |  Determines an appropriate SetLogic command, and adds it to the headers
 addSetLogic :: [SMTHeader] -> [SMTHeader]
@@ -353,6 +397,7 @@ isStr' (StrReplaceReAllSMT _ _ _) = All True
 isStr' (StrPrefixOfSMT _ _) = All True
 isStr' (StrSuffixOfSMT _ _) = All True
 isStr' (StrReverseSMT _) = All True
+isStr' (StrUpdateSMT _ _ _) = All True
 isStr' (FromCode _) = All True
 isStr' (ToCode _) = All True
 
@@ -398,6 +443,64 @@ isCoreSort SortBool = True
 isCoreSort _ = False
 
 -------------------------------------------------------------------------------
+-- Create Higher Order Sequence Functions
+-------------------------------------------------------------------------------
+
+defineFunMap :: TyVarEnv -> Type -> Type -> SMTHeader
+defineFunMap tv_env t1 t2 =
+    let
+        ret_elem_srt = typeToSMT tv_env t2
+        f_srt = SortFunc [typeToSMT tv_env t1] ret_elem_srt
+        x_srt = typeToSMT tv_env t1
+        xs_srt = SortSeq x_srt
+        ret_sort = SortSeq ret_elem_srt
+
+        f = V "f" f_srt
+        xs = V "xs" xs_srt
+
+        seq_map = seqMapName x_srt ret_elem_srt
+    in
+    DefineFunRec seq_map [ ("f", f_srt), ("xs", xs_srt)] ret_sort $
+        IteSMT 
+            (StrLenSMT xs := VInt 0)
+            (SeqEmptySMT ret_elem_srt)
+            (StrAppendSMT [ SeqUnitSMT (Func "f" [SeqNthSMT xs (VInt 0)])
+                          , Func seq_map [f, StrSubstrSMT xs (VInt 1) (StrLenSMT xs :- VInt 1)]])
+
+seqMapName :: Sort -> Sort -> SMTName
+seqMapName s1 s2 = "|seq.map " <> (T.unpack . tbToText $ sortName s1) <> " -> " <> (T.unpack . tbToText $ sortName s2) <> "|"
+
+defineFunFoldLeft :: TyVarEnv -> Type -> Type -> SMTHeader
+defineFunFoldLeft tv_env t1 t2 =
+    let
+        accum_srt = typeToSMT tv_env t1
+        elem_srt = typeToSMT tv_env t2
+        xs_srt = SortSeq elem_srt
+        f_srt = SortFunc [accum_srt, elem_srt] accum_srt 
+
+        f = V "f" f_srt
+        acc = V "acc" accum_srt
+        xs = V "xs" xs_srt
+
+
+        fold_left = seqFoldLeftName accum_srt elem_srt
+    in
+    DefineFunRec fold_left [("f", f_srt), ("acc", accum_srt), ("xs", xs_srt)] accum_srt $
+        IteSMT
+            (StrLenSMT xs := VInt 0)
+            acc
+            (Func fold_left [ f
+                            , Func "f" [acc, SeqNthSMT xs (VInt 0)]
+                            , StrSubstrSMT xs (VInt 1) (StrLenSMT xs :- VInt 1)
+                            ])
+
+
+seqFoldLeftName :: Sort -> Sort -> SMTName
+seqFoldLeftName s1 s2 = "|seq.fold_left " <> (T.unpack . tbToText $ sortName s1) <> " -> " <> (T.unpack . tbToText $ sortName s2) <> "|"
+
+-------------------------------------------------------------------------------
+-- Path Constraints to Asserts
+-------------------------------------------------------------------------------
 
 pathConsToSMTHeaders :: TV.TyVarEnv -> [PathCond] -> [SMTHeader]
 pathConsToSMTHeaders tv = map (pathConsToSMT tv)
@@ -408,12 +511,6 @@ pathConsToSMT tv (SoftPC pc) = AssertSoft (pathConsToSMT' tv pc) Nothing
 pathConsToSMT tv pc = Assert (pathConsToSMT' tv pc) 
 
 pathConsToSMT' :: TV.TyVarEnv -> PathCond -> SMTAST
-pathConsToSMT' tv (AltCond l e b) =
-    let
-        exprSMT = exprToSMT tv e
-        altSMT = altToSMT l e
-    in
-    if b then exprSMT := altSMT else (:!) (exprSMT := altSMT) 
 pathConsToSMT' tv (ExtCond e b) =
     let
         exprSMT = exprToSMT tv e
@@ -447,7 +544,7 @@ exprToSMT _ (Data (DataCon n (TyCon (Name "Bool" _ _ _) _ ) _ _)) =
         "True" -> VBool True
         "False" -> VBool False
         _ -> error "Invalid bool in exprToSMT"
-exprToSMT _ (Data (DataCon n _ _ _)) = DataSMT (nameToStr n) []
+exprToSMT _ (Data (DataCon n _ _ _)) = DataSMT (nameToStr n) [] Nothing
 exprToSMT tv (App (Data (DataCon (Name "[]" _ _ _) _ _ _)) type_t@(Type t))
     | Just (TyCon (Name "Char" _ _ _) _) <- TV.deepLookup tv type_t = VString ""
     | Just (TyApp (TyCon (Name "Any" (Just "GHC.Types") _ _) _) _) <- TV.deepLookup tv type_t = VString ""
@@ -476,7 +573,7 @@ exprToSMT tv e | [ Data (DataCon (Name ":" _ _ _) _ _ _)
                             App (Data (DataCon (Name "[]" _ _ _) _ _ _)) type_t'
                                 | Just (TyCon (Name "Char" _ _ _) _) <- TV.deepLookup tv type_t' -> exprToSMT tv unwrapped_e1
                             _ -> StrAppendSMT [exprToSMT tv unwrapped_e1, exprToSMT tv e2]
-                    _ -> StrAppendSMT [SeqUnitSMT (exprToSMT tv unwrapped_e1), exprToSMT tv e2]
+                    _ -> strAppendSMT (SeqUnitSMT (exprToSMT tv unwrapped_e1)) (exprToSMT tv e2)
 exprToSMT tv e | [ Data (DataCon (Name ":" _ _ _) _ _ _)
                  , type_t
                  , e1
@@ -503,6 +600,7 @@ exprToSMT tv a@(App _ _) =
         getFunc p@(Prim _ _) = p
         getFunc (App a' _) = getFunc a'
         getFunc d@(Data _) = d 
+        getFunc l@(Lam _ _ _) = l 
         getFunc err = error $ "getFunc: invalid Expr: " ++ show err
 
         getArgs :: Expr -> [Expr]
@@ -523,6 +621,14 @@ exprToSMT tv (Tick _ e) = exprToSMT tv e
 
 exprToSMT _ e = error $ "exprToSMT: unhandled Expr: " ++ show e
 
+strAppendSMT :: SMTAST -> SMTAST -> SMTAST
+strAppendSMT (SeqEmptySMT _) smt2 = smt2
+strAppendSMT smt1 (SeqEmptySMT _) = smt1
+strAppendSMT (StrAppendSMT xs) (StrAppendSMT ys) = StrAppendSMT (xs ++ ys)
+strAppendSMT (StrAppendSMT xs) smt2 = StrAppendSMT (xs ++ [smt2])
+strAppendSMT smt1 (StrAppendSMT xs) = StrAppendSMT (smt1:xs)
+strAppendSMT smt1 smt2 = StrAppendSMT [smt1, smt2]
+
 lonePrim :: Primitive -> SMTAST
 lonePrim ReNone = ReNoneSMT
 lonePrim ReAll = ReAllSMT
@@ -531,6 +637,7 @@ lonePrim p = error $ "unhandled Prim in lonePrim: " ++ show p
 
 -- | We split based on whether the passed Expr is a function or known data constructor, or an unknown data constructor
 funcToSMT :: TV.TyVarEnv -> Expr -> [Expr] -> SMTAST
+funcToSMT tv (Prim (UninterpFunc n) _) es = Func (nameToStr n) $ map (exprToSMT tv) es
 funcToSMT tv (Prim p _) [a] = funcToSMT1Prim tv p a
 funcToSMT tv (Prim p _) [a1, a2] = funcToSMT2Prim tv p a1 a2
 funcToSMT tv (Prim p _) [a1, a2, a3] = funcToSMT3Prim tv p a1 a2 a3
@@ -539,10 +646,23 @@ funcToSMT tv (Data dc) es =
     let
         isType (Type _) = True
         isType _ = False
+
+        -- We need to use an `as` to specify the sort if all sort parameters do not appear in arguments
+        univ_ts = map idName $ dc_univ_tyvars dc
+        used_ty_vars = tyVarNames . anonArgumentTypes $ dc_type dc
+        all_used = all (`elem` used_ty_vars) univ_ts
+
+        srt = typeToSMT tv (returnType . typeOf tv . mkApp $ Data dc:es)
+
+        data_smt = DataSMT (nameToStr $ dc_name dc) . map (exprToSMT tv) $ filter (not . isType) es
     in
-    DataSMT (nameToStr $ dc_name dc) . map (exprToSMT tv) $ filter (not . isType) es
+    case all_used of
+        True -> data_smt Nothing
+        False -> data_smt (Just srt)
 funcToSMT tv (Var (Id n _)) es = -- Uninterpreted function
     Func (nameToStr n) $ map (exprToSMT tv) es
+funcToSMT tv (Lam _ (Id n t) e) [e'] =
+    AppLam (LambdaSMT [(nameToStr n, typeToSMT tv t)] (exprToSMT tv e)) (exprToSMT tv e')
 funcToSMT _ e l = error ("Unrecognized " ++ show e ++ " with args " ++ show l ++ " in funcToSMT")
 
 funcToSMT1Prim :: TV.TyVarEnv -> Primitive -> Expr -> SMTAST
@@ -590,6 +710,19 @@ funcToSMT1Prim tv SeqUnit e = SeqUnitSMT (exprToSMT tv e)
 funcToSMT1Prim tv ToRe e = ToReSMT (exprToSMT tv e)
 funcToSMT1Prim tv ReStar e = ReStarSMT (exprToSMT tv e)
 funcToSMT1Prim tv ReComp e = ReCompSMT (exprToSMT tv e)
+
+funcToSMT1Prim tv (IsConstructor dc) e
+    | nameOcc (dc_name dc) == ":" = StrLenSMT (exprToSMT tv e) :> VInt 0
+    | nameOcc (dc_name dc) == "[]" = StrLenSMT (exprToSMT tv e) := VInt 0
+    | otherwise = IsConstructorSMT (nameToStr $ dc_name dc) (exprToSMT tv e)
+funcToSMT1Prim tv (Selector dc i) e
+    | nameOcc (dc_name dc) == ":" =
+        let smt_e = exprToSMT tv e in
+        case i of
+            1 -> SeqNthSMT smt_e (VInt 0)
+            2 -> StrSubstrSMT smt_e (VInt 1) (StrLenSMT smt_e :- VInt 1)
+            _ -> error "funcToSMT1Prim: invalid list selector"
+    | otherwise = SelectorSMT (nameToStr $ dc_name dc) i (exprToSMT tv e)
 
 funcToSMT1Prim _ err _ = error $ "funcToSMT1Prim: invalid Primitive " ++ show err
 
@@ -671,7 +804,7 @@ funcToSMT2Prim tv Map (Lam _ (Id n1 t1) e) xs =
     let
         n1' = nameToStr n1
     in
-    MapSMT n1' (typeToSMT tv t1) (wrapChar n1' (exprToSMT tv e)) (exprToSMT tv xs)
+    MapSMT n1' (typeToSMT tv t1) (typeToSMT tv . returnType $ typeOf tv e) (wrapChar n1' (exprToSMT tv e)) (exprToSMT tv xs)
 funcToSMT2Prim tv MapConcat (Lam _ (Id n1 t1) e) xs =
     let
         n1' = nameToStr n1
@@ -688,7 +821,8 @@ funcToSMT2Prim tv MapConcatI (Lam _ (Id n1 t1) (Lam _ (Id n2 t2) e)) xs =
        (wrapChar n1' $ wrapChar n2' (exprToSMT tv e))
        (exprToSMT tv xs)
 
-funcToSMT2Prim tv op lhs rhs = error $ "funcToSMT2Prim: invalid case with (tyvar_env, op, lhs, rhs): " ++ show (tv, op, lhs, rhs)
+funcToSMT2Prim tv op lhs rhs =
+    error $ "funcToSMT2Prim: invalid case with:\ntv_env = " ++ show tv ++ "\n(op, lhs, rhs) = " ++ show (op, lhs, rhs)
 
 funcToSMT3Prim :: TV.TyVarEnv -> Primitive -> Expr -> Expr -> Expr -> SMTAST
 funcToSMT3Prim tv Fp x y z = FpSMT  (exprToSMT tv x) (exprToSMT tv y) (exprToSMT tv z)
@@ -699,6 +833,7 @@ funcToSMT3Prim tv StrReplace x y z = StrReplaceSMT (exprToSMT tv x) (exprToSMT t
 funcToSMT3Prim tv StrReplaceAll x y z = StrReplaceAllSMT (exprToSMT tv x) (exprToSMT tv y) (exprToSMT tv z)
 funcToSMT3Prim tv StrReplaceRe x y z = StrReplaceReSMT (exprToSMT tv x) (exprToSMT tv y) (exprToSMT tv z)
 funcToSMT3Prim tv StrReplaceReAll x y z = StrReplaceReAllSMT (exprToSMT tv x) (exprToSMT tv y) (exprToSMT tv z)
+funcToSMT3Prim tv StrUpdate x y z = StrUpdateSMT (exprToSMT tv x) (exprToSMT tv y) (exprToSMT tv z)
 
 funcToSMT3Prim tv ForAllBoundPr lower upper e_body | (Lam _ (Id n t) e) <- stripAllTicks e_body =
     let
@@ -745,14 +880,6 @@ wrapChar :: SMTName -> SMTAST -> SMTAST
 wrapChar n v@(V vn SortChar) | n == vn = SeqUnitSMT v
 wrapChar n smt = modifyChildren (wrapChar n) smt
 
-altToSMT :: Lit -> Expr -> SMTAST
-altToSMT (LitInt i) _ = VInt i
-altToSMT (LitWord i) _ = VWord i
-altToSMT (LitFloat f) _ = VFloat f
-altToSMT (LitDouble d) _ = VDouble d
-altToSMT (LitChar c) _ = VChar c
-altToSMT am _ = error $ "Unhandled " ++ show am
-
 createUniqVarDecls :: [(Name, Sort)] -> [SMTHeader]
 createUniqVarDecls [] = []
 createUniqVarDecls ((n,SortWord):xs) =
@@ -768,20 +895,30 @@ createUniqVarDecls ((n,SortChar):xs) =
 createUniqVarDecls ((n,SortFunc srt_args sort_ret):xs) = DeclareFun (nameToStr n) srt_args sort_ret:createUniqVarDecls xs
 createUniqVarDecls ((n,s):xs) = VarDecl (nameToBuilder n) s:createUniqVarDecls xs
 
-datatypeDecls :: TV.TyVarEnv -> Name -> AlgDataTy -> SMTHeader
-datatypeDecls tv_env n (DataTyCon { bound_ids = is, data_cons = dcs }) =
+datatypeDecls :: KnownValues -> TV.TyVarEnv -> Name -> AlgDataTy -> Maybe SMTDataType
+datatypeDecls kv tv_env n (DataTyCon { bound_ids = is, data_cons = dcs })
+    | n /= KV.tyInt kv
+    , n /= KV.tyInteger kv
+    , n /= KV.tyFloat kv
+    , n /= KV.tyDouble kv
+    , n /= KV.tyChar kv =
     let
         dts = map (\dc ->
                         let
                             dc_n = nameToStr $ dc_name dc
-                            dc_a = zipWith (\i d -> ("extract" ++ show i, d)) [1 :: Integer ..] . map (typeToSMT tv_env) . anonArgumentTypes $ dc_type dc
+                            dc_a = zipWith (\i d -> (selectorName dc_n i, d)) [1 :: Int ..] . map (typeToSMT tv_env) . anonArgumentTypes $ dc_type dc
                         in
                         (dc_n, dc_a)
                   ) dcs
         smt_dt = SmtDT { dt_name = nameToStr n, dt_tyvars = map (nameToStr . idName) is, dt_constructors = dts}
     in
-    DeclareDatatypes [ smt_dt ]
-datatypeDecls _ _ _ = error "datatypeDecls: unsupported"
+    Just smt_dt
+datatypeDecls _ _ _ _ = Nothing
+
+selectorName :: String -> Int -> String
+selectorName n i 
+    | '|':ns <- n = "|select_" ++ show i ++ "_" ++ ns
+    | otherwise = n ++ "_select_" ++ show i
 
 pcVarDecls :: TV.TyVarEnv -> PathConds -> [SMTHeader]
 pcVarDecls tv = createUniqVarDecls . HS.toList . pcVars tv
@@ -842,7 +979,7 @@ adtTypeToSMTSeq _ (TyCon (Name "Integer" _ _ _) _) = SortSeq SortInt
 adtTypeToSMTSeq _ (TyCon (Name "Float" _ _ _) _) = SortSeq SortFloat
 adtTypeToSMTSeq _ (TyCon (Name "Double" _ _ _) _) = SortSeq SortDouble
 adtTypeToSMTSeq _ (TyCon (Name "Bool" _ _ _) _) = SortSeq SortBool
-adtTypeToSMTSeq tv t | TyCon n _:ts <- unTyApp t = SortSeq . ADTSort (nameToStr n) $ map (typeToSMT tv) ts
+adtTypeToSMTSeq tv t | TyCon _ _:_ <- unTyApp t = SortSeq (typeToSMT tv t)
 adtTypeToSMTSeq tv (TyVar (Id n _)) | Just t <- TV.deepLookupName tv n = adtTypeToSMTSeq tv t
 adtTypeToSMTSeq _ t = error $ "Unsupported type in adtTypeToSMTSeq: " ++ show t
 
@@ -857,7 +994,13 @@ defineFun :: (SMTAST -> Builder) -> String -> [(String, Sort)] -> Sort -> SMTAST
 defineFun str_seq fn ars ret body =
     "(define-fun " <> (TB.string fn) <> " ("
         <> TB.intercalate " " (map (\(n, s) -> "(" <> TB.string n <> " " <> sortName s <> ")") ars) <> ")"
-        <> " (" <> sortName ret <> ") " <> toSolverAST str_seq body <> ")"
+        <> " " <> sortName ret <> " " <> toSolverAST str_seq body <> ")"
+
+defineFunRec :: (SMTAST -> Builder) -> String -> [(String, Sort)] -> Sort -> SMTAST -> Builder
+defineFunRec str_seq fn ars ret body =
+    "(define-fun-rec " <> (TB.string fn) <> " ("
+        <> TB.intercalate " " (map (\(n, s) -> "(" <> TB.string n <> " " <> sortName s <> ")") ars) <> ")"
+        <> " " <> sortName ret <> " " <> toSolverAST str_seq body <> ")"
 
 declareFun :: String -> [Sort] -> Sort -> Builder
 declareFun fn ars ret =
@@ -874,8 +1017,12 @@ declareDataTypes dts =
             let
                 par = TB.intercalate " " . map TB.string $ dt_tyvars dt
                 cons = map handle_cons . dt_constructors $ dt
+
+                (par_str, end_str) = case dt_tyvars dt of
+                                        [] -> ("", "")
+                                        _ -> ("par (" <> par <> ") (", ")")
             in
-            "(par (" <> par <> ") (" <> TB.intercalate " " cons <> "))"
+            "(" <> par_str <> TB.intercalate " " cons <> ")" <> end_str
 
         dt_list = TB.intercalate " "
                 $ map (\dt -> "(" <> TB.string (dt_name dt) <> " " <> (TB.string . show . length . dt_tyvars $ dt) <> ")") dts
@@ -891,6 +1038,7 @@ toSolverText str_seq = TB.intercalate "\n" . map go
         go (AssertSoft ast lab) = assertSoftSolver (toSolverAST str_seq ast) lab
         go (Minimize ast) = function1 "minimize" $ toSolverAST str_seq ast
         go (DefineFun f ars ret body) = defineFun str_seq f ars ret body
+        go (DefineFunRec f ars ret body) = defineFunRec str_seq f ars ret body
         go (DeclareFun f ars ret) = declareFun f ars ret
         go (DeclareDatatypes dts) = declareDataTypes dts
         go (VarDecl n s) = toSolverVarDecl n s
@@ -1022,7 +1170,13 @@ toSolverAST str_seq = go
                             | otherwise = "\"\\u{" <> TB.string (showHex (fromEnum c) "") <> "}\""
         go (VBool b) = if b then "true" else "false"
         go (V n _) = TB.string n
-        go (DataSMT n as) = "(" <> TB.string n <> TB.intercalate " " (map go as) <> ")"
+        go (DataSMT n [] Nothing) = TB.string n
+        go (DataSMT n [] (Just srt)) = "(as " <> TB.string n <> " " <> sortName srt <> ")"
+        go (DataSMT n as Nothing) = "(" <> TB.string n <> " " <> TB.intercalate " " (map go as) <> ")"
+        go (DataSMT n as (Just srt)) = "((as " <> TB.string n <> " " <> sortName srt <> ") " <> TB.intercalate " " (map go as) <> ")"
+        go (IsConstructorSMT n e) | '|':ns <- n = "(|is-" <> TB.string ns <> " " <> go e <> ")"
+                                  | otherwise = "(is-" <> TB.string n <> " " <> go e <> ")"
+        go (SelectorSMT n i e) = "(" <> TB.string (selectorName n i) <> " " <> go e <> ")"
 
         go (Named x n) = "(! " <> go x <> " :named " <> TB.string n <> ")"
 
@@ -1048,12 +1202,25 @@ toSolverASTString = go
         go (StrPrefixOfSMT x y) = function2 "str.prefixof" (goBack x) (goBack y)
         go (StrSuffixOfSMT x y) = function2 "str.suffixof" (goBack x) (goBack y)
         go (StrReverseSMT x) = function1 "str.rev" (goBack x)
+        go (StrUpdateSMT x y z) = function3 "str.update" (goBack x) (goBack y) (goBack z)
+        go (SeqNthSMT x y) = function2 "seq.nth" (goBack x) (goBack y)
+        go (LambdaSMT [(n, s)] e) =
+            "(lambda ((" <> TB.string n <> " " <> sortNameLam s <>  "))" <> go e <> ")"
+        go (AppLam e1 e2) = "(" <> go e1 <> " " <> go e2 <> ")"
         go c = toSolverASTRe goBack c
 
         goBack = toSolverAST toSolverASTString
 
-toSolverASTSeq :: SMTAST -> Builder
-toSolverASTSeq = go
+data UseAtForLam = UseAt | NoAt deriving Eq
+
+toSolverASTSeqZ3 :: SMTAST -> Builder
+toSolverASTSeqZ3 = toSolverASTSeq NoAt
+
+toSolverASTSeqCVC5 :: SMTAST -> Builder
+toSolverASTSeqCVC5 = toSolverASTSeq UseAt
+
+toSolverASTSeq :: UseAtForLam -> SMTAST -> Builder
+toSolverASTSeq use_at = go
     where
         go (StrAppendSMT xs) = functionList "seq.++" (map goBack xs)
         go (StrLenSMT x) = function1 "seq.len" $ goBack x
@@ -1062,17 +1229,24 @@ toSolverASTSeq = go
         go (StrIndexOfSMT x y z) = function3 "seq.indexof" (goBack x) (goBack y) (goBack z)
         go (StrContainsSMT x y) = function2 "seq.contains" (goBack x) (goBack y)
         go (StrReplaceSMT x y z) = function3 "seq.replace" (goBack x) (goBack y) (goBack z)
-        go (StrReplaceAllSMT x y z) = function3 "seq.replace_all" (goBack x) (goBack y) (goBack z)
+        go (StrReplaceAllSMT x y z) |  use_at == UseAt = function3 "seq.replace_all" (goBack x) (goBack y) (goBack z)
+                                    | otherwise = function3 "str.replace_all" (goBack x) (goBack y) (goBack z)
         -- CVC5 does not support Seq Regexes, so must use str.replace_re/str.replace_re_all
         go (StrReplaceReSMT x y z) = function3 "str.replace_re" (goBack x) (goBack y) (goBack z)
         go (StrReplaceReAllSMT x y z) = function3 "str.replace_re_all" (goBack x) (goBack y) (goBack z)
         go (StrPrefixOfSMT x y) = function2 "seq.prefixof" (goBack x) (goBack y)
         go (StrSuffixOfSMT x y) = function2 "seq.suffixof" (goBack x) (goBack y)
         go (StrReverseSMT x) = function1 "seq.rev" (goBack x)
+        go (StrUpdateSMT x y z) = function3 "seq.update" (goBack x) (goBack y) (goBack z)
         go (SeqNthSMT x y) = function2 "seq.nth" (goBack x) (goBack y)
         go (SeqEmptySMT s) = "(as seq.empty (Seq " <> sortName s <> "))"
-        go (MapSMT n1 s1 x y) =
-            "(seq.map (lambda ((" <> TB.string n1 <> " " <> sortNameLam s1 <> ")) "
+        go (MapSMT n1 s1 s2 x y) =
+            let
+                n = case use_at of
+                        UseAt -> TB.string $ seqMapName s1 s2
+                        NoAt -> "seq.map"
+            in
+            "(" <> n <> " (lambda ((" <> TB.string n1 <> " " <> sortNameLam s1 <> ")) "
                     <> goBack x <> ") " <> goBack y <> ")"
         go (MapConcatSMT n1 s1 accum_s x y) =
             "(seq.fold_left (lambda ((G2_INTERNAL_acc " <> sortNameLam accum_s <> ") ("
@@ -1084,7 +1258,12 @@ toSolverASTSeq = go
                     <> TB.string n2 <> " " <> sortNameLam s2 <> ")) "
                     <> "(seq.++ G2_INTERNAL_acc "<> goBack x <> ")) 0 (as seq.empty " <> sortNameLam accum_s <> ") " <> goBack y <> ")"
         go (FoldLeftSMT n1 s1 n2 s2 x y z) =
-            "(seq.fold_left (lambda ((" <> TB.string n1 <> " " <> sortNameLam s1 <> ")"
+            let
+                n = case use_at of
+                        UseAt -> TB.string $ seqFoldLeftName s1 s2
+                        NoAt -> "seq.fold_left"
+            in
+            "(" <> n <> "(lambda ((" <> TB.string n1 <> " " <> sortNameLam s1 <> ")"
                     <> " (" <> TB.string n2 <> " " <> sortNameLam s2 <> ")) "
                     <> goBack x <> ") " <> goBack y <> " " <> goBack z <> ")"
         go (FoldLeftISMT idx idx_t n1 s1 n2 s2 w x y z) =
@@ -1092,9 +1271,13 @@ toSolverASTSeq = go
                     <> " (" <> TB.string n1 <> " " <> sortNameLam s1 <> ")"
                     <> " (" <> TB.string n2 <> " " <> sortNameLam s2 <> ")) "
                     <> goBack w <> ") " <> goBack x <> " " <> goBack y <> " " <> goBack z <> ")"
+        go (LambdaSMT [(n, s)] e) =
+            "(lambda ((" <> TB.string n <> " " <> sortNameLam s <>  "))" <> go e <> ")"
+        go (AppLam e1 e2) | use_at == UseAt = "(@ " <> go e1 <> " " <> go e2 <> ")"
+                          | otherwise = "(" <> go e1 <> " " <> go e2 <> ")"
         go c = toSolverASTRe goBack c
 
-        goBack = toSolverAST toSolverASTSeq
+        goBack = toSolverAST (toSolverASTSeq use_at)
 
 toSolverASTRe :: (SMTAST -> Builder) -> SMTAST -> Builder
 toSolverASTRe goBack = go
@@ -1110,7 +1293,7 @@ toSolverASTRe goBack = go
         go (ReStarSMT r) = function1 "re.*" $ goBack r
         go (ReRangeSMT s1 s2) = function2 "re.range" (goBack s1) (goBack s2)
         go (ReCompSMT r) = function1 "re.comp" $ goBack r
-        go _ = error "toSolverASTRe: primitive not handled"
+        go pr = goBack pr
 
 -- | Converts a bit vector to a signed Int.
 -- Z3 has a bv2int function, but uses unsigned integers.
@@ -1188,7 +1371,7 @@ sortName (SortArray ind val) = "(Array " <> TB.intercalate " " (map sortName ind
 sortName (ADTSort n []) = TB.string n
 sortName (ADTSort n xs) = "(" <> TB.string n <> " " <> TB.intercalate " " (map sortName xs) <> ")"
 sortName (ParSort n) = TB.string n
-sortName _ = error "sortName: unsupported Sort"
+sortName (SortFunc xs r) = "(-> " <> TB.intercalate " " (map sortName xs) <> " " <> sortName r <> ")"
 
 sortNameLam :: Sort -> Builder
 sortNameLam SortChar = "Unicode"
@@ -1206,6 +1389,7 @@ toSolverSetLogic lgc =
             QF_NIRA -> "QF_NIRA"
             QF_UFLIA -> "QF_UFLIA"
             QF_SLIA -> "QF_SLIA"
+            HO_ALL -> "HO_ALL"
             _ -> "ALL"
     in
     "(set-logic " <> s <> ")"
@@ -1247,10 +1431,10 @@ smtastToExpr kv tenv tv_env arg_tys t (StrAppendSMT xs) =
     where
         fromUnit (SeqUnitSMT s) = s
         fromUnit _ = error "fromUnit: unsupported case"
-smtastToExpr kv tenv tv_env arg_tys t (DataSMT dc_smt_n as)
+smtastToExpr kv tenv tv_env arg_tys t (DataSMT dc_smt_n as _)
     | let dc_n = certainStrToName dc_smt_n
     
-    , TyCon tycon_n _:ts <- unTyApp t
+    , TyCon tycon_n _:ts <- unTyApp $ tyVarSubst tv_env t
     , Just dc <- getDataCon tenv tycon_n dc_n =
     let
         named_ty = map idName . leadingTyForAllBindings $ dc_type dc
@@ -1261,6 +1445,13 @@ smtastToExpr kv tenv tv_env arg_tys t (DataSMT dc_smt_n as)
         es = zipWith (smtastToExpr kv tenv tv_env arg_tys) anon_t_inst as
     in
     mkApp $ Data dc:map Type ts ++ es
+smtastToExpr kv tenv tv_env arg_tys _ (DataSMT dc_smt_n as _)
+    | let dc_n = certainStrToName dc_smt_n =
+    let
+        es = map (smtastToExpr kv tenv tv_env arg_tys TyUnknown) as
+    in
+    mkApp $ Data (DataCon { dc_name = dc_n, dc_type = TyUnknown, dc_univ_tyvars = [], dc_exist_tyvars = [] }):es
+
 smtastToExpr kv tenv tv_env arg_tys t (LambdaSMT bound body) =
     let
         ts = anonArgumentTypes t
@@ -1306,8 +1497,10 @@ smtastToExpr kv tenv tv_env arg_tys _ (smt1 := smt2) =
     in
     mkApp $ [ Prim Eq TyUnknown, e1', e2']
 smtastToExpr kv tenv tv_env arg_tys _ (SmtAnd xs) =
-      foldr (\e1 e2 -> mkApp [Prim And TyUnknown, e1, e2]) (mkTrue kv)
-    $ map (smtastToExpr kv tenv tv_env arg_tys (tyBool kv)) xs
+    let ys = map (smtastToExpr kv tenv tv_env arg_tys (tyBool kv)) xs in
+    case ys of
+        [] -> mkTrue kv
+        z:zs -> foldr (\e1 e2 -> mkApp [Prim And TyUnknown, e1, e2]) z zs
 smtastToExpr kv tenv tv_env arg_tys _ (SmtOr xs) =
       foldr (\e1 e2 -> mkApp [Prim Or TyUnknown, e1, e2]) (mkFalse kv)
     $ map (smtastToExpr kv tenv tv_env arg_tys (tyBool kv)) xs
@@ -1340,11 +1533,12 @@ smtastToExpr kv tenv tv_env arg_tys t@(TyFun _ _) (ArrayStore arr ind val) =
 smtastToExpr kv tenv tv_env arg_tys t@(TyFun _ _) (ArrayConst v _ _) =
     let
         arg_ty = anonArgumentTypes t
-        bound_i = zipWith (\i -> Id (Name "lam__!!_G2_arr_store" Nothing i Nothing)) [1..] arg_ty
+        bound_i = zipWith (\i -> Id (Name "lam__G2_arr_store" Nothing i Nothing)) [1..] arg_ty
     in
     mkLams (zip (repeat TermL) bound_i) $ smtastToExpr kv tenv tv_env arg_tys (returnType t) v
 
-smtastToExpr _ _ _ _ _ smt = error $ "smtastToExpr: Conversion of this SMTAST to an Expr not supported." ++ "\n" ++ show smt
+smtastToExpr _ _ tv_env _ t smt =
+    error $ "smtastToExpr: Conversion of this SMTAST to an Expr not supported." ++ "\n" ++ show smt ++ "\n" ++ show t ++ "\n" ++ show (tyVarSubst tv_env t)
 
 getTypeForList :: TyVarEnv -> Type -> Type
 getTypeForList tv_env (TyApp _ t) = tyVarSubst tv_env t
@@ -1373,4 +1567,7 @@ certainStrToName :: String -> Name
 certainStrToName s =
     case maybe_StrToName s of
         Just n -> n
-        Nothing -> Name (T.pack s) Nothing 0 Nothing
+        Nothing -> Name (T.pack $ repExclamation s) Nothing 0 Nothing
+
+repExclamation :: String -> String
+repExclamation = map (\c -> if c == '!' then '_' else c)

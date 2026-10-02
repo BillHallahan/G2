@@ -1,4 +1,4 @@
-{-# LANGUAGE FlexibleContexts, OverloadedStrings #-}
+{-# LANGUAGE FlexibleContexts, LambdaCase, OverloadedStrings #-}
 
 module G2.Initialization.Interface (MkArgTypes, runInitialization1, runInitialization2) where
 
@@ -8,6 +8,7 @@ import G2.Initialization.TrivializeDCs
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Expr
 import G2.Language.KnownValues
+import G2.Language.Naming
 import G2.Language.Syntax
 import G2.Language.Support hiding (State (..))
 import G2.Language.Typing
@@ -22,6 +23,8 @@ import G2.Initialization.Types as IT
 import qualified G2.Language.TyVarEnv as TV
 import G2.Execution.DataConPCMap
 import G2.SMTSynth.Integrate
+
+import qualified Data.HashMap.Lazy as HM
 
 type MkArgTypes = IT.SimpleState -> [Type]
 
@@ -52,7 +55,7 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
                                 then (E.insert (typeIndex kv) 
                                             (Lam TypeL t . Lam TermL x . Lit $ LitInt 0) eenv4, ng2)
                                 else mapFst adjTyH $ trivializeDCs TV.empty ng2 kv eenv4
-        eenv6 = if smt_strings config == NoSMTStrings
+        eenv6 = if smt_strings config == NoSMTStrings && smt_prim_lists config == NoSMTSeq
                         then E.insert (adjStr kv) 
                                       (Lam TypeL t . Lam TermL x . Lam TermL str $ Var x) eenv5
                         else eenv5
@@ -60,23 +63,18 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
                         then E.insert (adjStr kv) 
                                       (Var (Id (checkStrLazy kv) TyUnknown)) eenv6
                         else eenv6
-        use_lams = using_smt_lams config == UseSMTLams && smt config == ConZ3
+        use_lams = using_smt_lams config == UseSMTLams && ConZ3 `elem` smt config
         eenv8 = if use_lams
                         then E.insert (usingSMTLams kv) 
                                       (mkTrue kv) eenv7
                         else eenv7
 
-        eenv9 = case E.lookupNameMod "usingStrReverse#" (Just "GHC.Prim") eenv of
-                    Just (using_smt_rev, _) | smt config == ConCVC5 ->
-                                    E.insert using_smt_rev (mkTrue kv) eenv8
-                    _ -> eenv8
-
         use_lts = literal_tables config == UseLiteralTables
-        eenv10 = if use_lts
-                    then E.insert (usingLiteralTables kv) (mkTrue kv) eenv9
-                    else eenv9
+        eenv9 = if use_lts
+                    then E.insert (usingLiteralTables kv) (mkTrue kv) eenv8
+                    else eenv8
 
-        s1 = s { IT.expr_env = eenv10
+        s1 = s { IT.expr_env = eenv9
                , IT.name_gen = ng3
                , IT.handles = hs}
         
@@ -89,11 +87,18 @@ runInitialization2 config s@(IT.SimpleState { IT.expr_env = eenv
                     else s2
         kv' = recalcSmtStringFuncs (expr_env s3) (known_values s3) use_lams use_lts
         s4 = s3 { known_values = kv' }
-        
 
-        dcpc = addToDCPC config s4 (dcpcMap TV.empty kv tenv)
+        tenv2 = HM.mapWithKey (\n ->
+                \case adt@(DataTyCon {}) -> if nameOcc n `elem` smt_adt config then adt { to_smt = True } else adt
+                      adt -> adt) tenv
+        
+        s5 = s4 { type_env = tenv2 }
+
+        (dcpc, tenv3) = addToDCPC config s5 (dcpcMap TV.empty kv tenv2)
+
+        s6 = s5 { type_env = tenv3 }
     in
-    (s4, dcpc)
+    (s6, dcpc)
     where
         adjTyH = E.insert (typeIndex kv) . modifyASTs adjTyH' $ eenv E.! typeIndex kv
 

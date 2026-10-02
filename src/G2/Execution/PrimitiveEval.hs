@@ -12,6 +12,7 @@ module G2.Execution.PrimitiveEval ( evalPrimsSharing
                                   , toString
                                   , toExprList) where
 
+import G2.Execution.DataConPCMap
 import G2.Execution.LiteralTable
 import G2.Execution.NewPC
 import G2.Execution.MutVar
@@ -444,17 +445,19 @@ evalPrimWithState s ng (App (App (App (App (App (Prim WriteMutVar _) _) (Type t)
     Just (newPCEmpty s', ng')
 evalPrimWithState _ _ e | [Prim WriteMutVar _, _, _, _, _, _] <- unApp e = Nothing
 evalPrimWithState s ng (App (Prim BuildLitTable _) fun_e)
-    | (TyFun fst_t snd_t) <- typeOf (tyvar_env s) fun_e =
+    | t <- typeOf (tyvar_env s) fun_e
+    , arg_ts <- anonArgumentTypes t
+    , ret_t <- returnType t =
     -- When starting to build a literal table, we need to insert a literal table frame,
     -- put an empty table on the literal table stack, and create a new symbolic var
     -- to evaluate the function with
-    let (arg_id, ng1) = freshId fst_t ng
+    let (arg_ids, ng1) = freshIds arg_ts ng
 
-        ce1 = CurrExpr Evaluate (App fun_e (Var arg_id))
-        eenv1 = E.insertSymbolic arg_id $ expr_env s
+        ce1 = CurrExpr Evaluate (mkApp $ fun_e:(map Var arg_ids))
+        eenv1 = foldr E.insertSymbolic (expr_env s) arg_ids
 
         (lt_name, ng2) = freshName ng1
-        s1 = introduceLitTable s lt_name arg_id snd_t
+        s1 = introduceLitTable s lt_name arg_ids ret_t
 
         s2 = s1 { curr_expr = ce1
                 , expr_env = eenv1 }
@@ -535,7 +538,7 @@ evalPrimADT1 kv _ StrLen e = fmap (Lit . LitInt) (compLen e)
         compLen _ = Nothing
 evalPrimADT1 kv tenv StrReverse xs = do
     t <- listType xs
-    xs' <- toExprList xs
+    xs' <- toExprList kv xs
     return $ toListExpr kv tenv t (reverse xs')
 evalPrimADT1 kv _ Not e
     | Just v <- toBool kv e = Just . mkBool kv $ not v
@@ -549,30 +552,30 @@ evalPrimADT2 _ _ _ kv _ Or e1 e2
     | Just b1 <- toBool kv e1
     , Just b2 <- toBool kv e2 = Just $ mkBool kv (b1 || b2)
 
-evalPrimADT2 _ _ _ kv _ Eq l1 l2 = do
-    xs <- toExprList l1
-    ys <- toExprList l2
+evalPrimADT2 eenv _ _ kv _ Eq l1 l2 = do
+    xs <- toConcRedExprList kv eenv l1
+    ys <- toConcRedExprList kv eenv l2
     return $ mkBool kv (xs == ys)
-evalPrimADT2 _ _ _ kv _ Neq l1 l2 = do
-    xs <- toExprList l1
-    ys <- toExprList l2
+evalPrimADT2 eenv _ _ kv _ Neq l1 l2 = do
+    xs <- toConcRedExprList kv eenv l1
+    ys <- toConcRedExprList kv eenv l2
     return $ mkBool kv (xs /= ys)
 
 evalPrimADT2 _ tenv _ kv _ StrAppend xs ys = do
     t <- listType xs
-    xs' <- toExprList xs
-    ys' <- toExprList ys
+    xs' <- toExprList kv xs
+    ys' <- toExprList kv ys
     return . toListExpr kv tenv t $ xs' ++ ys'
 
-evalPrimADT2 _ _ _ kv _ StrContains str sub = do
-    str' <- toExprList str
-    sub' <- toExprList sub
+evalPrimADT2 eenv _ _ kv _ StrContains str sub = do
+    str' <- toConcRedExprList kv eenv str
+    sub' <- toConcRedExprList kv eenv sub
     let ret = sub' `L.isInfixOf` str'
     return $ mkBool kv ret
 
 evalPrimADT2 _ tenv _ kv _ StrAt xs (Lit (LitInt i)) = do
     t <- listType xs
-    xs' <- toExprList xs
+    xs' <- toExprList kv xs
     let c = if 0 <= i && fromInteger i < length xs' then  [xs' !! (fromInteger i)] else []
     return $ toListExpr kv tenv t c
 
@@ -581,19 +584,19 @@ evalPrimADT2 _ _ _ kv _ SeqNth xs (Lit (LitInt i)) = do
                                                              || dcn == KV.dcInteger kv = e
         stripCons e = e
     
-    xs' <- toExprList xs
+    xs' <- toExprList kv xs
     if 0 <= i && fromInteger i < length xs'
         then Just . stripCons $ xs' !! (fromInteger i)
         else Just $ Prim Error TyBottom
 
-evalPrimADT2 _ _ _ kv _ StrPrefixOf pre s = do
-    pre' <- toExprList pre
-    s' <- toExprList s
+evalPrimADT2 eenv _ _ kv _ StrPrefixOf pre s = do
+    pre' <- toConcRedExprList kv eenv pre
+    s' <- toConcRedExprList kv eenv s
     return . mkBool kv $ pre' `L.isPrefixOf` s'
 
-evalPrimADT2 _ _ _ kv _ StrSuffixOf suf s = do
-    suf' <- toExprList suf
-    s' <- toExprList s
+evalPrimADT2 eenv _ _ kv _ StrSuffixOf suf s = do
+    suf' <- toConcRedExprList kv eenv suf
+    s' <- toConcRedExprList kv eenv s
     return . mkBool kv $ suf' `L.isSuffixOf` s'
 
 evalPrimADT2 _ _ _ kv _ StrLe f s = fmap (mkBool kv) $ lstLe f s
@@ -620,17 +623,20 @@ evalPrimADT2 _ _ _ kv _ StrGe f s = do
     return $ mkBool kv (f' >= s')
 
 evalPrimADT2 _ _ _ kv _ InRe s regex = do
-    s' <- toExprList s
-    return $ mkBool kv (matchesRegex s' regex)
+    s' <- toExprList kv s
+    return $ mkBool kv (matchesRegex kv s' regex)
 
 evalPrimADT2 eenv tenv tv_env kv tc Map (Lam _ (Id a_id _) e) lst = do
-    lst' <- toExprList lst
-    let t = typeOf tv_env e
-    let mapped = L.foldl (\acc a_val -> acc ++ [replaceVar a_id a_val e]) [] lst'
+    lst' <- toExprList kv lst
+    let lst'' = map (\el -> case el of
+                                App (Data _) l@(Lit _) -> l
+                                _ -> el) lst'
+        t = typeOf tv_env e
+    let mapped = L.foldl (\acc a_val -> acc ++ [replaceVar a_id a_val e]) [] lst''
     let mapped' = toListExpr kv tenv t mapped
     return . evalPrims eenv tenv tv_env kv tc $ inlineVarsForPrim eenv tc mapped'
 evalPrimADT2 eenv tenv tv_env kv tc MapConcat (Lam _ (Id a_id _) e) lst = do
-    lst' <- toExprList lst
+    lst' <- toExprList kv lst
     let lst_t = typeOf tv_env e
     t <- innerListTy kv lst_t
     let emp = toListExpr kv tenv t []
@@ -640,7 +646,7 @@ evalPrimADT2 eenv tenv tv_env kv tc MapConcat (Lam _ (Id a_id _) e) lst = do
                                   , replaceVar a_id a_val e]) emp lst'
     return . evalPrims eenv tenv tv_env kv tc $ inlineVarsForPrim eenv tc mapped
 evalPrimADT2 eenv tenv tv_env kv tc MapConcatI (Lam _ (Id b_id _) (Lam _ (Id a_id _) e)) lst = do
-    lst1 <- toExprList lst
+    lst1 <- toExprList kv lst
     let lst_t = typeOf tv_env e
     t <- innerListTy kv lst_t
     let emp = toListExpr kv tenv t []
@@ -658,49 +664,49 @@ innerListTy :: KnownValues -> Type -> Maybe Type
 innerListTy kv t | [t1, t2] <- unTyApp t, t1 == tyList kv = Just t2
 innerListTy _ _ = Nothing
 
-matchesRegex :: [Expr] -> Expr -> Bool
-matchesRegex es r = any null $ matchesRegex' es r
+matchesRegex :: KnownValues -> [Expr] -> Expr -> Bool
+matchesRegex kv es r = any null $ matchesRegex' kv es r
 
 -- | `matchesRegex' es r` tries to match some prefix of es to the regular expression r.
 -- A list of all suffixes that would result from removing a matching prefix is returned.
-matchesRegex' :: [Expr] -> Expr -> [[Expr]]
-matchesRegex' es (App (Prim ToRe _) e') | Just es' <- toExprList e' =
+matchesRegex' :: KnownValues -> [Expr] -> Expr -> [[Expr]]
+matchesRegex' kv es (App (Prim ToRe _) e') | Just es' <- toExprList kv e' =
     case L.stripPrefix es' es of
         Nothing -> []
         Just post -> [post]
-matchesRegex' _ (Prim ReNone _) = []
-matchesRegex' es (Prim ReAll _) = L.tails es
-matchesRegex' (_:es) (Prim ReAllChar _) = [es]
-matchesRegex' es (App (App (Prim ReConcat _) es1) es2) = do
-    es1' <- matchesRegex' es es1
-    matchesRegex' es1' es2 
-matchesRegex' es (App (App (Prim ReUnion _) r1) r2) = matchesRegex' es r1 <> matchesRegex' es r2
-matchesRegex' es (App (App (Prim ReInter _) r1) r2) = matchesRegex' es r1 `L.intersect` matchesRegex' es r2
+matchesRegex' _ _ (Prim ReNone _) = []
+matchesRegex' _ es (Prim ReAll _) = L.tails es
+matchesRegex' _ (_:es) (Prim ReAllChar _) = [es]
+matchesRegex' kv es (App (App (Prim ReConcat _) es1) es2) = do
+    es1' <- matchesRegex' kv es es1
+    matchesRegex' kv es1' es2 
+matchesRegex' kv es (App (App (Prim ReUnion _) r1) r2) = matchesRegex' kv es r1 <> matchesRegex' kv es r2
+matchesRegex' kv es (App (App (Prim ReInter _) r1) r2) = matchesRegex' kv es r1 `L.intersect` matchesRegex' kv es r2
 
-matchesRegex' es re_star@(App (Prim ReStar _) r1) = es:do -- Star might repeat 0 times, so return es
-    let es' = matchesRegex' es r1 -- r1 matches once
+matchesRegex' kv es re_star@(App (Prim ReStar _) r1) = es:do -- Star might repeat 0 times, so return es
+    let es' = matchesRegex' kv es r1 -- r1 matches once
     e <- es' -- Get each way r1 matches
-    let m = matchesRegex' e re_star -- Allow r1 to repeat
+    let m = matchesRegex' kv e re_star -- Allow r1 to repeat
     es' ++ m
 
-matchesRegex' es (App (Prim ReComp _) r) = comp (splits es)
+matchesRegex' kv es (App (Prim ReComp _) r) = comp (splits es)
     where
         -- Try to match each prefix of es to r.
         -- If it can match, discard, otherwise return suffix to allow it to continue matching past the complement.
-        comp = concatMap (\(b, a) -> case matchesRegex' b r of
+        comp = concatMap (\(b, a) -> case matchesRegex' kv b r of
                 xs | all (not . null) xs -> [a]
                 _ -> [])
 
         splits [] = [([], [])]
         splits (x:xs) = ([], x:xs) : [ (x : before, after) | (before, after) <- splits xs ]
 
-matchesRegex' ((App (Data _) (Lit (LitChar c))):es) (App (App (Prim ReRange _) lower) upper)
+matchesRegex' _ ((App (Data _) (Lit (LitChar c))):es) (App (App (Prim ReRange _) lower) upper)
     | Just lower_str <- toString lower
     , Just upper_str <- toString upper
     , lower_str <= [c]
     , [c] <= upper_str = [es]
 
-matchesRegex' _ _ = []
+matchesRegex' _ _ _ = []
 
 
 evalPrimADT3 :: ExprEnv -> TypeEnv -> TyVarEnv -> KnownValues -> TypeClasses -> Primitive -> Expr -> Expr -> Expr -> Maybe Expr
@@ -722,21 +728,21 @@ evalPrimADT3 _ tenv _ kv _ StrSubstr str (Lit (LitInt s)) (Lit (LitInt e)) = sub
         substr (App (App (App (Data _) _) _) xs) st en = substr xs (st - 1) en
         substr _ _ _ = Nothing
 
-evalPrimADT3 _ tenv _ kv _ StrReplace s orig rep = do
+evalPrimADT3 eenv tenv _ kv _ StrReplace s orig rep = do
         t <- listType orig
-        s' <- toExprList s
-        orig' <- toExprList orig
-        rep' <- toExprList rep
+        s' <- toConcRedExprList kv eenv s
+        orig' <- toConcRedExprList kv eenv orig
+        rep' <- toExprList kv rep
         return $ toListExpr kv tenv t (replace s' orig' rep')
     where
         replace [] _ _ = []
         replace xss@(x:xs) o r | Just xss' <- L.stripPrefix o xss = r ++ xss'
                                | otherwise = x:replace xs o r
-evalPrimADT3 _ tenv _ kv _ StrReplaceAll s orig rep = do
+evalPrimADT3 eenv tenv _ kv _ StrReplaceAll s orig rep = do
         t <- listType orig
-        s' <- toExprList s
-        orig' <- toExprList orig
-        rep' <- toExprList rep
+        s' <- toConcRedExprList kv eenv s
+        orig' <- toConcRedExprList kv eenv orig
+        rep' <- toExprList kv rep
         return $ toListExpr kv tenv t (replaceAll s' orig' rep')
     where
         replaceAll [] _ _ = []
@@ -745,7 +751,7 @@ evalPrimADT3 _ tenv _ kv _ StrReplaceAll s orig rep = do
                                   | otherwise = x:replaceAll xs o r
 
 evalPrimADT3 eenv tenv tv_env kv tc FoldLeft (Lam _ (Id b_id _) (Lam _ (Id a_id _) e)) initial lst = do
-    lst' <- toExprList lst
+    lst' <- toExprList kv lst
     let unfolded = L.foldl (\b_val a_val -> replaceVar b_id b_val $ replaceVar a_id a_val e) initial lst'
     return . evalPrims eenv tenv tv_env kv tc $ inlineVarsForPrim eenv tc unfolded
 
@@ -763,7 +769,7 @@ evalPrimADT4 :: ExprEnv
              -> Expr
              -> Maybe Expr
 evalPrimADT4 eenv tenv tv_env kv tc FoldLeftI (Lam _ (Id i_id _) (Lam _ (Id b_id _) (Lam _ (Id a_id _) e))) offset initial lst = do
-    lst1 <- toExprList lst
+    lst1 <- toExprList kv lst
     offset1 <- getInteger offset
     let lst2 = zip (map (Lit . LitInt) [offset1..]) lst1
     let unfolded =
@@ -781,10 +787,24 @@ toString (App (Data _) (Type (TyCon n _))) | nameOcc n == "Char" = Just []
 toString (App (App (App (Data _) (Type (TyCon n _))) (App _ (Lit (LitChar c)))) xs) | nameOcc n == "Char" = fmap (c:) $ toString xs
 toString _ = Nothing
 
-toExprList :: Expr -> Maybe [Expr]
-toExprList (App (Data _) _) = Just []
-toExprList (App (App (App (Data _) _) l) xs) = fmap (l:) $ toExprList xs
-toExprList _ = Nothing
+toExprList :: KnownValues -> Expr -> Maybe [Expr]
+toExprList kv (App (Data dc) _) | dc_name dc == KV.dcEmpty kv = Just []
+toExprList kv (App (App (App (Data dc) _) l) xs) | dc_name dc == KV.dcCons kv = fmap (l:) $ toExprList kv xs
+toExprList _ _ = Nothing
+
+toConcRedExprList :: KnownValues -> ExprEnv -> Expr -> Maybe [Expr]
+toConcRedExprList kv eenv e = foldr go (Just []) =<< toExprList kv e
+    where
+        go x (Just xs) | let e' = inlineVars eenv x
+                       , isConcRed e' = Just (x:xs)
+        go _ _ = Nothing
+
+        isConcRed (Data _) = True
+        isConcRed (Type _) = True
+        isConcRed (Lit _) = True
+        isConcRed (Lam _ _ e1) = isConcRed e1
+        isConcRed (App e1 e2) = isConcRed e1 && isConcRed e2
+        isConcRed _ = False
 
 getInteger :: Expr -> Maybe Integer
 getInteger (Lit (LitInt i)) = Just i
@@ -857,7 +877,8 @@ evalTypeAnyArgPrim _ tenv tv kv _ (TypeIndex tyh) t _
                                                  || t_a == tyInteger kv
                                                  || t_a == tyFloat kv
                                                  || t_a == tyDouble kv
-                                                 || supportsSMT t_a = Just (Lit (LitInt 2 ))
+                                                 || t_a == tyBool kv
+                                                 || supportsSMT t_a = Just (Lit (LitInt 2))
                                                  | otherwise = Just (Lit (LitInt 0))
     where
         supportsSMT t' | s_t <- tyVarSubst tv t'
@@ -866,6 +887,7 @@ evalTypeAnyArgPrim _ tenv tv kv _ (TypeIndex tyh) t _
                        || s_t == tyInteger kv
                        || s_t == tyFloat kv
                        || s_t == tyDouble kv
+                       || s_t == tyBool kv
                        || maybe False to_smt (M.lookup n tenv)
                        , all supportsSMT ts = True
                        | otherwise = False
@@ -1012,8 +1034,8 @@ evalPrim3 kv Ite (Data (DataCon { dc_name = b })) e1 e2 | b == KV.dcTrue kv = Ju
 evalPrim3 _ _ _ _ _ = Nothing
 
 -- | Evaluate certain primitives applied to symbolic expressions, when possible
-evalPrimSymbolic ::  TV.TyVarEnv -> ExprEnv -> TypeEnv -> NameGen -> KnownValues -> Expr -> Maybe (Expr, ExprEnv, [PathCond], NameGen)
-evalPrimSymbolic tv eenv tenv ng kv e
+evalPrimSymbolic ::  TV.TyVarEnv -> ExprEnv -> TypeEnv -> NameGen -> KnownValues -> DataConPCMap -> Expr -> Maybe (Expr, ExprEnv, [PathCond], NameGen)
+evalPrimSymbolic tv eenv tenv ng kv dcpm e
     | [Prim DataToTag _, type_t, (Var (Id n _))] <- unApp e
     , Just t <- TV.deepLookup tv type_t
     , Just sym_n <- deepLookupVar n eenv
@@ -1025,14 +1047,12 @@ evalPrimSymbolic tv eenv tenv ng kv e
 
             dcs = dataCon adt
 
-            (cvar, ng') = freshId t ng
-
-            (ret, cse, assume_pc, ng'', concs, syms) = createCaseExpr tv bi Nothing cvar t kv tenv ng' dcs
+            (ret, cse, assume_pc, ng', concs, syms) = createCaseExpr e tenv tv bi Nothing t kv dcpm ng dcs
 
             eenv' = E.insertSymbolic ret . E.insert sym_n cse . E.insertExprs concs
                         $ L.foldl' (flip E.insertSymbolic) eenv syms
         in
-        Just (Var ret, eenv', assume_pc, ng'')
+        Just (Var ret, eenv', assume_pc, ng')
     | [Prim DataToTag _, type_t, cse] <- unApp e
     , Just t <- TV.deepLookup tv type_t
     , Case v@(Var _) _ _ alts <- cse
