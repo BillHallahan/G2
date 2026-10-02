@@ -176,7 +176,7 @@ def run_verify(filename, thm, time_limit, var_settings):
 
 def call_verify_process(filename, thm, time_limit, var_settings):
     try:
-        args = [exe_name, "verify/tests/" + filename, thm, "--time", str(time_limit)]
+        args = [exe_name, "verify/tests/" + filename, thm, "--time", str(time_limit), "--search", "subpath"]
         res = subprocess.run(args + var_settings, universal_newlines=True, capture_output=True, timeout=time_limit+30);
         return res.stdout
     except subprocess.TimeoutExpired as TimeoutEx:
@@ -243,7 +243,7 @@ def test_suite_general(fname_in, suite, time_limit, var_settings):
     total_ver_time = 0
     total_cex_time = 0
 
-    with Pool(processes=8) as pool:
+    with Pool(processes=6) as pool:
         arg_suite = [(fname_in, time_limit, var_settings, s) for (s, _) in suite]
         for (thm, res) in pool.imap(run_theorem, arg_suite):
             print(thm)
