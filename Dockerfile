@@ -73,7 +73,7 @@ RUN pwd
 
 RUN cabal update
 
-RUN cabal build --only-dependencies
+RUN cabal build --only-dependencies -j1
 
 # ------------------------------------------------------------
 # Build G2
@@ -81,7 +81,7 @@ RUN cabal build --only-dependencies
 
 RUN ./base_setup.sh
 
-RUN cabal build
+RUN cabal build G2 -j1
 
 WORKDIR /g2
 

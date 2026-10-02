@@ -580,10 +580,10 @@ mkConfigDirect homedir as m = Config {
 
 baseIncludeDef :: FilePath -> [FilePath]
 baseIncludeDef root =
-    [ root ++ "/.g2/base-4.9.1.0/Control/Exception/"
-    , root ++ "/.g2/base-4.9.1.0/"
-    , root ++ "/.g2/base-4.9.1.0/Data/Internal/"
-    , root ++ "/.g2/G2Stubs/smt/"
+    [ "/g2/base-4.9.1.0/Control/Exception/"
+    , "/g2/base-4.9.1.0/"
+    , "/g2/base-4.9.1.0/Data/Internal/"
+    , "/g2/G2Stubs/smt/"
     ]
 
 baseDef :: FilePath -> [FilePath]
@@ -591,14 +591,14 @@ baseDef root = baseSimple root
 
 baseSimple :: FilePath -> [FilePath]
 baseSimple root =
-    [ root ++ "/.g2/base-4.9.1.0/Control/Exception/Base.hs"
-    , root ++ "/.g2/base-4.9.1.0/Prelude.hs"
-    , root ++ "/.g2/base-4.9.1.0/Control/Monad.hs"
-    , root ++ "/.g2/G2Stubs/smt/SMT.hs" ]
+    [ "/g2/base-4.9.1.0/Control/Exception/Base.hs"
+    , "/g2/base-4.9.1.0/Prelude.hs"
+    , "/g2/base-4.9.1.0/Control/Monad.hs"
+    , "/g2/G2Stubs/smt/SMT.hs" ]
 
 extraDefaultIncludePaths :: FilePath -> [FilePath]
 extraDefaultIncludePaths root =
-    [ root ++ "/.g2/G2Stubs/src/" ] 
+    [ "/g2/G2Stubs/src/" ] 
 
 smtSolverArg :: String -> [SMTSolver]
 smtSolverArg = smtSolverArg' . map toLower

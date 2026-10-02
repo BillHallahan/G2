@@ -222,4 +222,4 @@ def read_output(logsDirPath):
 
 current_path = os.path.join(os.getcwd(), "seq_benchmarks/SeqProperties/")
 print(current_path)
-read_output(current_path)
+read_output("/g2/seq_benchmarks/SeqProperties")
