@@ -1499,6 +1499,13 @@ checkExprVerifiedWithNoSharedVar =
     in
     checkExprVerifierWithConfig configTL30 vr_config (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
 
+checkExprVerifiedWithNoSharedVar :: String -> String -> TestTree
+checkExprVerifiedWithNoSharedVar =
+    let
+        vr_config = defVerifyConfig { shared_var_heuristic = NoSharedVarHeuristic }
+    in
+    checkExprVerifierWithConfig vr_config (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
+
 checkExprCEx :: String -> String -> TestTree
 checkExprCEx = checkExprVerifier (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> False)
 
