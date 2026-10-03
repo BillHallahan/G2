@@ -1258,6 +1258,8 @@ verifierTests = testGroup "Verifier"
     , checkExprVerified "tests/Verify/HigherOrder.hs" "prop2"
     , checkExprVerifiedSubpath "tests/Verify/HigherOrder.hs" "prop2"
 
+    , checkExprVerifiedSubpath "tests/Verify/HigherOrder2.hs" "prop"
+
     , checkExprVerified "tests/Verify/IdCall.hs" "idCall"
     , checkExprVerified "tests/Verify/IdCall.hs" "idCall2"
     , checkExprVerified "tests/Verify/IdCall.hs" "p1"
