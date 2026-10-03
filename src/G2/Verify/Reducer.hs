@@ -424,7 +424,7 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
                        , known_values = kv
                        , type_classes = tc 
                        , tyvar_env = tvnv }) b@(Bindings { name_gen = ng })
-            | (App (Var (Id n raw_ty_fun)) ar) <- stripAllTicks ce
+            | (App (Var (Id n raw_ty_fun)) ar) <- ce
             , let ty_fun = tyVarSubst tvnv raw_ty_fun
             , E.isSymbolic n eenv =
                 let
