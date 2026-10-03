@@ -1241,6 +1241,8 @@ verifierTests = testGroup "Verifier"
     , checkExprVerified "tests/Verify/Infinite1.hs" "p1"
     , checkExprCEx "tests/Verify/Infinite1.hs" "p1False"
 
+    , checkExprVerifiedWithNoSharedVar "tests/Verify/NonEmpty.hs" "prop1"
+
     , checkExprCEx "tests/Verify/NonStrict1.hs" "prop1False"
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
@@ -1451,6 +1453,13 @@ checkExprVerifiedWithNoRevAbs :: String -> String -> TestTree
 checkExprVerifiedWithNoRevAbs =
     let
         vr_config = defVerifyConfig { rev_abs = False }
+    in
+    checkExprVerifierWithConfig vr_config (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
+
+checkExprVerifiedWithNoSharedVar :: String -> String -> TestTree
+checkExprVerifiedWithNoSharedVar =
+    let
+        vr_config = defVerifyConfig { shared_var_heuristic = NoSharedVarHeuristic }
     in
     checkExprVerifierWithConfig vr_config (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
 
