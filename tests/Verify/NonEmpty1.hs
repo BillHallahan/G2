@@ -1,4 +1,4 @@
-module NonEmpty where
+module NonEmpty1 where
 
 data X = X
 
