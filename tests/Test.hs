@@ -1246,6 +1246,8 @@ verifierTests = testGroup "Verifier"
     , checkExprVerified "tests/Verify/Infinite1.hs" "p1"
     , checkExprCEx "tests/Verify/Infinite1.hs" "p1False"
 
+    , checkExprVerifiedWithNoSharedVar "tests/Verify/NonEmpty1.hs" "prop1"
+
     , checkExprCEx "tests/Verify/NonStrict1.hs" "prop1False"
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
@@ -1295,7 +1297,7 @@ verifierTests = testGroup "Verifier"
     , checkExprVerifiedWithNoSharedVar "tests/Verify/FMap.hs" "prop"
     , checkExprVerifiedWithNoSharedVar "tests/Verify/FMap.hs" "prop2"
 
-    , checkExprNotCExSubPathWithNoSharedVar "tests/Verify/NonEmpty.hs" "prop"
+    , checkExprNotCExSubPathWithNoSharedVar "tests/Verify/NonEmpty2.hs" "prop"
 
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust"
     , checkRuleVerified "tests/Verify/Rules1.hs" "justJust2"
@@ -1496,6 +1498,13 @@ checkExprVerifiedWithNoSharedVar =
         vr_config = defVerifyConfig { shared_var_heuristic = NoSharedVarHeuristic }
     in
     checkExprVerifierWithConfig configTL30 vr_config (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
+
+checkExprVerifiedWithNoSharedVar :: String -> String -> TestTree
+checkExprVerifiedWithNoSharedVar =
+    let
+        vr_config = defVerifyConfig { shared_var_heuristic = NoSharedVarHeuristic }
+    in
+    checkExprVerifierWithConfig vr_config (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
 
 checkExprCEx :: String -> String -> TestTree
 checkExprCEx = checkExprVerifier (\case Verified -> False; Counterexample _ -> True; VerifyTimeOut -> False)

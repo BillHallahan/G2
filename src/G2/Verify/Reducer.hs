@@ -70,7 +70,7 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
             return (s, b) }
 
     where        
-        red rv s@(State { curr_expr = CurrExpr er ce, expr_env = eenv, tyvar_env = tvnv, track = vt }) b@(Bindings { name_gen = ng })
+        red rv s@(State { curr_expr = CurrExpr er ce, expr_env = eenv, known_values = kv, tyvar_env = tvnv, track = vt }) b@(Bindings { name_gen = ng })
             | Stck.null . popAppliable $ exec_stack s
             , let stripped_ce = stripNRBT ce
             , (Var (Id vn _)):(_:_) <- unApp stripped_ce
@@ -94,7 +94,10 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
             , let (wrapped_ce, stck') = applyWrap need_apply (getExpr s) (exec_stack s)
 
             , let stripped_ce = stripNRBT wrapped_ce
-            , v@(Var (Id _ _)):es@(_:_) <- unApp stripped_ce  = do
+            , v@(Var (Id n _)):es@(_:_) <- unApp stripped_ce
+
+            -- TypeIndex calculation is always deterministic
+            , n /= typeIndex kv = do
                 -- Convert arguments into NRPCs
                 let s' = s { curr_expr = CurrExpr er wrapped_ce, exec_stack = stck' }
                     (s'', ng') = if (arg_rev_abs v_config) == AbsFuncArgs then argsToNRPCs s' (name_gen b) v es else (s', ng)
