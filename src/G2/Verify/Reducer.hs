@@ -213,10 +213,6 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
                                | need > 0, Just (UpdateFrame _, stck') <- Stck.pop stck = applyWrap need e stck'
                                | otherwise = (e, stck)
         
-        stripNRBT (Tick nl e) | isNonRedBlockerTick nl = e
-        stripNRBT (App e1 e2) = App (stripNRBT e1) e2
-        stripNRBT e = e
-
         hasNRBT (Tick nl e) | isNonRedBlockerTick nl = True
                             | otherwise = hasNRBT e
         hasNRBT (App e1 _) = hasNRBT e1
@@ -226,6 +222,12 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
                           | Just (ApplyFrame _, stck') <- Stck.pop stck = popAppliable stck'
                           | Just (CurrExprFrame (EnsureEq _) _, stck') <- Stck.pop stck = popAppliable stck'
                           | otherwise = stck
+
+stripNRBT :: Expr -> Expr
+stripNRBT (Tick nl e) | isNonRedBlockerTick nl = e
+stripNRBT (App e1 e2) = App (stripNRBT e1) e2
+stripNRBT e = e
+
 
 deepLookupCenterName :: Name -> ExprEnv -> Name
 deepLookupCenterName n_init eenv = go n_init (HS.singleton n_init)
@@ -424,7 +426,7 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
                        , known_values = kv
                        , type_classes = tc 
                        , tyvar_env = tvnv }) b@(Bindings { name_gen = ng })
-            | (App (Var (Id n raw_ty_fun)) ar) <- ce
+            | (App (Var (Id n raw_ty_fun)) ar) <- stripNRBT ce
             , let ty_fun = tyVarSubst tvnv raw_ty_fun
             , E.isSymbolic n eenv =
                 let
