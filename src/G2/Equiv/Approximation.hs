@@ -97,7 +97,7 @@ mkProposedLemma lm_name or_s1 or_s2 s1 s2 =
           Just c -> c
         h1' = E.mapConcOrSym (cs h2) h1
         h2' = E.mapConcOrSym (cs h1) h2
-        f (E.SymbObj _) e2 = e2
+        f (E.Sym _) e2 = e2
         f e1 _ = e1
         h1'' = E.unionWith f h1' h2'
         h2'' = E.unionWith f h2' h1'
@@ -120,6 +120,6 @@ syncEnvs s1 s2 =
 -- the left one takes precedence
 envMerge :: ExprEnv -> ExprEnv -> ExprEnv
 envMerge env h =
-  let f (E.SymbObj _) e2 = e2
+  let f (E.Sym _) e2 = e2
       f e1 _ = e1
   in E.unionWith f env h

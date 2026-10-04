@@ -25,6 +25,7 @@ import qualified G2.Language.ExprEnv as E
 import G2.Language.Naming
 import G2.Language.NonRedPathConds
 import qualified G2.Language.PathConds as P
+import G2.Language.ReachesSym
 import qualified G2.Language.Stack as Stck
 import G2.Language.Support
 import G2.Language.Syntax
@@ -38,7 +39,6 @@ import Data.Either
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import Data.Maybe
-import Data.Monoid hiding (Alt)
 
 type GenerateLemma t l = State t -> State t -> (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) -> Expr -> Expr -> l
 type Lookup t = Name -> State t -> Maybe E.ConcOrSym
@@ -159,8 +159,8 @@ moreRestrictive' mr_cont m_gen_lemma lkp = go
           (Var i1, Var i2) | HS.member (idName i1) ns
                           , idName i1 == idName i2 -> Right hm
                           | idName i1 == idName i2
-                          , not (reachesSym h1 e1)
-                          , not (reachesSym h2 e2) -> Right hm
+                          , not (reachesSymbolic h1 e1)
+                          , not (reachesSymbolic h2 e2) -> Right hm
                           | HS.member (idName i1) ns -> Left []
                           | HS.member (idName i2) ns -> Left []
           (Var i, _) | Just (E.Sym _) <- lkp (idName i) s1
@@ -270,13 +270,6 @@ moreRestrictive' mr_cont m_gen_lemma lkp = go
                 >>= \hm' -> go s1 s2 ns hm' active n1 n2 ex1 ex2
 
           _ -> mr_cont s1 s2 ns hm active n1 n2 e1 e2
-          where
-              reachesSym h = getAny . reachesSym' HS.empty h
-              reachesSym' seen h (Var (Id n _)) | n `elem` ns = Any False
-                                                | n `HS.member` seen = Any False
-                                                | (Just (E.Conc e)) <- E.lookupConcOrSym n h = reachesSym' (HS.insert n seen) h e
-                                                | otherwise = Any True
-              reachesSym' seen h e = evalChildren (reachesSym' seen h) e
 
 -- check only the names for DataAlt
 altEquiv :: AltMatch -> AltMatch -> Bool
