@@ -36,6 +36,7 @@ import Control.Exception
 import Control.Monad.Extra
 import Control.Monad.IO.Class
 import Data.Either
+import qualified Data.Foldable as F
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import Data.Maybe
@@ -406,7 +407,7 @@ rhsCountCenters ns eenv nrpcs =
       nrpc_vars = map nrpc_rhs $ toListNRPC nrpcs
       dc_count = mapMaybe (deepLookupCenterName ns eenv) $ mapMaybe toName nrpc_vars
   in
-  (foldl' (\count n -> HM.insertWith (+) n 1 count) HM.empty dc_count, length nrpc_vars - length dc_count)
+  (F.foldl' (\count n -> HM.insertWith (+) n 1 count) HM.empty dc_count, length nrpc_vars - length dc_count)
   where
     toName e
       | Var (Id n _) <- appCenter e = Just n
