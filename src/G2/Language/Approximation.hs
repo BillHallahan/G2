@@ -358,6 +358,16 @@ moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns init_hm nrpc1 nrpc2
   -- We are looking to match each nrpc in nrpc1 to an nrpc in nrpc2- this is clearly impossible
   -- if nrpc1 has more nrpcs then nrpc2
   | numNRPC nrpc1 > numNRPC nrpc2 = Left []
+  | let (centers1, _) = rhsCountCenters ns (expr_env s1) nrpc1
+  , let (centers2, symvar2) = rhsCountCenters ns (expr_env s2) nrpc2
+  -- We are looking to match each NRPC in nrpc1 to an NRPC in nrpc2- this is clearly impossible
+  -- if nrpc1 has more NRPCs returning a particular constructor then exist NRPCs returning that constructor in nrpc2.
+  -- 
+  -- We calculate the number of times each constructor D is returned in nrpc1, D#1, and nrpc2, D#2, and the number
+  -- of unknown symbolic variables being returned in nrpc2, #SV. If for some constructor:
+  --        D#1 > D#2 + #SV
+  -- then there are not enough NRPCS (potentially) returning D in nrpc2 to match up to the NRPCs in nrpc1
+  , any (\(n, c1) -> c1 > HM.lookupDefault 0 n centers2 + symvar2) $ HM.toList centers1 = Left []
   | otherwise = matchNRPCs init_hm (toListNRPC nrpc1) (toListNRPC nrpc2)
   where
     matchNRPCs hm [] _ = Right hm
@@ -386,6 +396,33 @@ selectJusts p = sel [] []
                             (sel (x:pre) opts xs)
                             (\r' -> let opts' = (r', reverse pre ++ xs):opts in sel (x:pre) opts' xs)
                             (p x)
+
+rhsCountCenters :: HS.HashSet Name
+                -> ExprEnv
+                -> NonRedPathConds
+                -> (HM.HashMap Name Int, Int) -- ^ (Mapping DCs to frequency, how many symvars?)
+rhsCountCenters ns eenv nrpcs =
+  let
+      nrpc_vars = map nrpc_rhs $ toListNRPC nrpcs
+      dc_count = mapMaybe (deepLookupCenterName ns eenv) $ mapMaybe toName nrpc_vars
+  in
+  (foldl' (\count n -> HM.insertWith (+) n 1 count) HM.empty dc_count, length nrpc_vars - length dc_count)
+  where
+    toName e
+      | Var (Id n _) <- appCenter e = Just n
+      | otherwise = error "rhsCountCenters: not var on RHS"
+
+deepLookupCenterName :: HS.HashSet Name -> ExprEnv -> Name -> Maybe Name
+deepLookupCenterName ns eenv n_init = go n_init (HS.singleton n_init)
+    where
+        go n seen
+            | Just e' <- E.lookup n eenv
+            , Var (Id n' _):_ <- unApp $ stripAllTicks e'
+            , n' `notElem` seen = go n' (HS.insert n' seen)
+            | Just e' <- E.lookup n eenv
+            , Data (DataCon {dc_name = n' }):_ <- unApp $ stripAllTicks e' = Just n'
+            | n `elem` ns = Just n
+            | otherwise = Nothing
 
 -- Note [Renaming in moreRestrictivePC]
 -- We do renaming of variables in s1 (the older state) in moreRestricivePC.  To see why this is needed: consider an “old state" with:
