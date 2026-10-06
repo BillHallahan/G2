@@ -143,18 +143,15 @@ moreRestrictive' mr_cont m_gen_lemma lkp = go
   where
     go s1@(State {expr_env = h1, tyvar_env = tv1}) s2@(State {expr_env = h2, tyvar_env = tv2}) ns hm active n1 n2 e1 e2 =
         case (e1, e2) of
-          (Var i, _) | m <- idName i
-                    , (m, e2) `elem` n1 -> Right hm
-                    | m <- idName i
-                    , not $ HS.member m ns
-                    , not $ (m, e2) `elem` n1
+          -- Handling concrete variables
+          (Var (Id m _), _)
+                    | (m, e2) `elem` n1 -> Right hm
+                    | not $ HS.member m ns
                     , Just (E.Conc e) <- lkp m s1 ->
                       go s1 s2 ns hm active ((m, e2):n1) n2 e e2
-          (_, Var i) | m <- idName i
-                    , (m, e1) `elem` n2 -> Right hm
-                    | m <- idName i
-                    , not $ HS.member m ns
-                    , not $ (m, e1) `elem` n2
+          (_, Var (Id m _))
+                    | (m, e1) `elem` n2 -> Right hm
+                    | not $ HS.member m ns
                     , Just (E.Conc e) <- lkp m s2 ->
                       go s1 s2 ns hm active n1 ((m, e1):n2) e1 e
           (Var i1, Var i2) | HS.member (idName i1) ns
@@ -164,19 +161,14 @@ moreRestrictive' mr_cont m_gen_lemma lkp = go
                           , not (reachesSymbolic h2 e2) -> Right hm
                           | HS.member (idName i1) ns -> Left []
                           | HS.member (idName i2) ns -> Left []
-          (Var i, _) | Just (E.Sym _) <- lkp (idName i) s1
-                    , (hm', hs) <- hm
-                    , Nothing <- HM.lookup i hm' -> Right (HM.insert i (inlineEquiv lkp s2 ns e2) hm', hs)
-                    | Just (E.Sym _) <- lkp (idName i) s1
-                    , Just e <- HM.lookup i (fst hm)
-                    , e == inlineEquiv lkp s2 ns e2 -> Right hm
-                    -- this last case means there's a mismatch
-                    | Just (E.Sym _) <- lkp (idName i) s1 -> Left []
-                    | not $ (idName i, e2) `elem` n1
-                    , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i) ++ "\n" ++ show (log_path s1) ++ "\n" ++ show (num_steps s1)
-          (_, Var i) | Just (E.Sym _) <- lkp (idName i) s2 -> Left [] -- sym replaces non-sym
-                    | not $ (idName i, e1) `elem` n2
-                    , not $ HS.member (idName i) ns -> error $ "unmapped variable " ++ (show i)
+          -- Handling symbolic variables
+          (Var i, _) | Just (E.Sym _) <- lkp (idName i) s1 ->
+                          let (hm', hs) = hm in
+                          case HM.lookup i hm' of
+                              Nothing -> Right (HM.insert i (inlineEquiv lkp s2 ns e2) hm', hs)
+                              Just e | e == inlineEquiv lkp s2 ns e2 -> Right hm
+                                     | otherwise -> Left []
+          (_, Var _) -> Left [] -- sym replaces non-sym
         
           (App f1 a1, App f2 a2) | Right hm_fa <- moreResFA -> Right hm_fa
                                 -- don't just choose the minimal conflicting expressions
@@ -185,8 +177,8 @@ moreRestrictive' mr_cont m_gen_lemma lkp = go
                                 , not (hasFuncType (typeOf tv1 e1) )
                                 , not (hasFuncType (typeOf tv2 e2) )
                                 , not active
-                                , Var (Id m1 _):_ <- unApp (stripAllTicks e1)
-                                , Var (Id m2 _):_ <- unApp (stripAllTicks e2)
+                                , Var (Id m1 _) <- appCenter (stripAllTicks e1)
+                                , Var (Id m2 _) <- appCenter (stripAllTicks e2)
                                 , nameOcc m1 == nameOcc m2
                                 , Left lems <- moreResFA ->
                                       Left $ (gen_lemma s1 s2 hm e1 e2):lems
@@ -201,14 +193,14 @@ moreRestrictive' mr_cont m_gen_lemma lkp = go
           --
           -- We use an empty HashSet when inlining because when generating a path constraint
           -- we DO NOT want any top level names being preserved- these would just confuse the SMT solver.
-          (App _ _, _) | e1':_ <- unApp e1
+          (App _ _, _) | e1' <- appCenter e1
                        , T.isPrimType . returnType $ typeOf tv1 e1'
                        , T.isPrimType $ typeOf tv1 e2
                        , (Prim _ _) <- inlineEquiv lkp s1 HS.empty e1'
                        , isSWHNF $ (s2 { curr_expr = CurrExpr Evaluate e2 }) ->
                                         let (hm', hs) = hm
                                         in Right (hm', HS.insert (inlineEquiv lkp s1 HS.empty e1, inlineEquiv lkp s2 HS.empty e2) hs)
-          (_, App _ _) | e2':_ <- unApp e2
+          (_, App _ _) | e2' <- appCenter e2
                        , T.isPrimType . returnType $ typeOf tv2 e2'
                        , T.isPrimType $ typeOf tv1 e1
                        , (Prim _ _) <- inlineEquiv lkp s2 HS.empty e2'
@@ -417,13 +409,13 @@ deepLookupCenterName :: HS.HashSet Name -> ExprEnv -> Name -> Maybe Name
 deepLookupCenterName ns eenv n_init = go n_init (HS.singleton n_init)
     where
         go n seen
-            | Just e' <- E.lookup n eenv
-            , Var (Id n' _):_ <- unApp $ stripAllTicks e'
+            | Just (Var (Id n' _)) <- r
             , n' `notElem` seen = go n' (HS.insert n' seen)
-            | Just e' <- E.lookup n eenv
-            , Data (DataCon {dc_name = n' }):_ <- unApp $ stripAllTicks e' = Just n'
+            | Just (Data (DataCon {dc_name = n' })) <- r = Just n'
             | n `elem` ns = Just n
             | otherwise = Nothing
+            where
+                r = appCenter . stripAllTicks <$> E.lookup n eenv
 
 -- Note [Renaming in moreRestrictivePC]
 -- We do renaming of variables in s1 (the older state) in moreRestricivePC.  To see why this is needed: consider an “old state" with:
