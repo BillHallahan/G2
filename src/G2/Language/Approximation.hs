@@ -25,7 +25,6 @@ import qualified G2.Language.ExprEnv as E
 import G2.Language.Naming
 import G2.Language.NonRedPathConds
 import qualified G2.Language.PathConds as P
-import G2.Language.ReachesSym
 import qualified G2.Language.Stack as Stck
 import G2.Language.Support
 import G2.Language.Syntax
