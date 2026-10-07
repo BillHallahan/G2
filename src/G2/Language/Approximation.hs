@@ -144,6 +144,8 @@ moreRestrictive' mr_cont m_gen_lemma lkp = go
     go s1@(State {expr_env = h1, tyvar_env = tv1}) s2@(State {expr_env = h2, tyvar_env = tv2}) ns hm active n1 n2 e1 e2 =
         case (e1, e2) of
           -- Handling concrete variables
+          (Var i1, Var i2) | HS.member (idName i1) ns
+                          , idName i1 == idName i2 -> Right hm
           (Var (Id m _), _)
                     | (m, e2) `elem` n1 -> Right hm
                     | not $ HS.member m ns
@@ -154,13 +156,10 @@ moreRestrictive' mr_cont m_gen_lemma lkp = go
                     | not $ HS.member m ns
                     , Just (E.Conc e) <- lkp m s2 ->
                       go s1 s2 ns hm active n1 ((m, e1):n2) e1 e
-          (Var i1, Var i2) | HS.member (idName i1) ns
-                          , idName i1 == idName i2 -> Right hm
-                          | idName i1 == idName i2
-                          , not (reachesSymbolic h1 e1)
-                          , not (reachesSymbolic h2 e2) -> Right hm
-                          | HS.member (idName i1) ns -> Left []
-                          | HS.member (idName i2) ns -> Left []
+          -- If we have known function variables and previous steps failed,
+          -- we have an inequivalence
+          (Var i1, Var i2) | HS.member (idName i1) ns -> Left []
+                           | HS.member (idName i2) ns -> Left []
           -- Handling symbolic variables
           (Var i, _) | Just (E.Sym _) <- lkp (idName i) s1 ->
                           let (hm', hs) = hm in
