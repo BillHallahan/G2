@@ -153,8 +153,8 @@ moreRestrictive' mr_cont m_gen_lemma lkp = go
                     | Just (E.Sym _) <- v ->
                           let (hm', hs) = hm in
                           case HM.lookup i hm' of
-                              Nothing -> Right (HM.insert i (inlineEquiv lkp s2 ns e2) hm', hs)
-                              Just e | e == inlineEquiv lkp s2 ns e2 -> Right hm
+                              Nothing -> Right (HM.insert i (stripAllTicks $ inlineEquiv lkp s2 ns e2) hm', hs)
+                              Just e | e == stripAllTicks (inlineEquiv lkp s2 ns e2) -> Right hm
                                      | otherwise -> Left []
                     where
                       v = lkp m s1
