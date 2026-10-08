@@ -905,9 +905,9 @@ prettyEEnv tv pg@(PG {env_ordering=e_ord}) cexpr estack eenv = T.intercalate "\n
                                     Unordered -> id)
                    . E.toList $ eenv
     where
-        printFunc n e = mkNameHaskell pg n <> " :: " <> mkTypeHaskellPG pg (envObjType tv eenv e)
-                            <> "\n" <> mkNameHaskell pg n <> " = " <> printEnvObj pg e
-        reorder :: [(Name, E.EnvObj)] -> [(Name, E.EnvObj)]
+        printFunc n e = mkNameHaskell pg n <> " :: " <> mkTypeHaskellPG pg (concOrSymType tv eenv e)
+                            <> "\n" <> mkNameHaskell pg n <> " = " <> printConcOrSym pg e
+        reorder :: [(Name, E.ConcOrSym)] -> [(Name, E.ConcOrSym)]
         reorder el = let
                         ce_names = HS.fromList . F.toList . names $ cexpr
                         es_names = HS.fromList . F.toList . names $ estack
@@ -916,13 +916,13 @@ prettyEEnv tv pg@(PG {env_ordering=e_ord}) cexpr estack eenv = T.intercalate "\n
                   ++ L.filter (\(x, _) -> HS.member x es_names && not (HS.member x ce_names)) el
                   ++ L.filter (\(x, _) -> not (HS.member x ce_names) && not (HS.member x es_names)) el
 
-printEnvObj :: PrettyGuide -> E.EnvObj -> T.Text
-printEnvObj pg (E.ExprObj e) = mkDirtyExprHaskell pg e
-printEnvObj pg (E.SymbObj (Id _ t)) = "symbolic " <> mkTypeHaskellPG pg t
+printConcOrSym :: PrettyGuide -> E.ConcOrSym -> T.Text
+printConcOrSym pg (E.Conc e) = mkDirtyExprHaskell pg e
+printConcOrSym pg (E.Sym (Id _ t)) = "symbolic " <> mkTypeHaskellPG pg t
 
-envObjType :: TV.TyVarEnv -> ExprEnv -> E.EnvObj -> Type
-envObjType tvnv _ (E.ExprObj e) = typeOf tvnv e
-envObjType _ _ (E.SymbObj (Id _ t)) = t
+concOrSymType :: TV.TyVarEnv -> ExprEnv -> E.ConcOrSym -> Type
+concOrSymType tvnv _ (E.Conc e) = typeOf tvnv e
+concOrSymType _ _ (E.Sym (Id _ t)) = t
 
 prettyPathConds :: PrettyGuide -> PathConds -> T.Text
 prettyPathConds pg = T.intercalate "\n" . map (prettyPathCond pg) . PC.toList
