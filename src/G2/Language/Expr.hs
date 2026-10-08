@@ -64,6 +64,7 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , modifyLamTop
                         , nonDataFunctionCalls
                         , appCenter
+                        , appCenterThroughTicks
                         , mapArgs
                         , mkLams
                         , elimAsserts
@@ -452,6 +453,12 @@ centerIsData _ = False
 appCenter :: Expr -> Expr
 appCenter (App a _) = appCenter a
 appCenter e = e
+
+appCenterThroughTicks :: Expr -> Expr
+appCenterThroughTicks e =
+    case appCenter e of
+        Tick _ e' -> appCenterThroughTicks e'
+        e' -> e'
 
 mapArgs :: (Expr -> Expr) -> Expr -> Expr
 mapArgs f (App e e') = App (mapArgs f e) (f e')

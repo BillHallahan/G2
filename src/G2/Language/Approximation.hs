@@ -38,6 +38,7 @@ import Data.Either
 import qualified Data.Foldable as F
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashMap.Strict as HMS
 import Data.Maybe
 
 type GenerateLemma t l = State t -> State t -> (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) -> Expr -> Expr -> l
@@ -84,8 +85,7 @@ moreRestrictiveIncludingPCAndNRPC :: (Named t) =>
 moreRestrictiveIncludingPCAndNRPC mr_cont gen_lemma lkp ns s1 s2 = do
     let mr = moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns (HM.empty, HS.empty) True [] [] (getExpr s1) (getExpr s2)
               --  >>= \hm -> moreRestrictiveStack mr_cont gen_lemma lkp s1 s2 ns hm (exec_stack s1) (exec_stack s2)
-               >>= \hm' -> moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns hm'
-                                    (stripAllTicks $ non_red_path_conds s1) (stripAllTicks $ non_red_path_conds s2)
+               >>= \hm' -> moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns hm' (non_red_path_conds s1) (non_red_path_conds s2)
     -- putStrLn $ "log_path s1 = " ++ show (log_path s1) ++ " " ++ show (num_steps s1)
     -- putStrLn $ "log_path s2 = " ++ show (log_path s2) ++ " " ++ show (num_steps s2)
     -- putStrLn $ "mr = " ++ show mr
@@ -177,8 +177,8 @@ moreRestrictive' mr_cont m_gen_lemma lkp = go
                                 , not (hasFuncType (typeOf tv1 e1) )
                                 , not (hasFuncType (typeOf tv2 e2) )
                                 , not active
-                                , Var (Id m1 _) <- appCenter (stripAllTicks e1)
-                                , Var (Id m2 _) <- appCenter (stripAllTicks e2)
+                                , Var (Id m1 _) <- appCenterThroughTicks e1
+                                , Var (Id m2 _) <- appCenterThroughTicks e2
                                 , nameOcc m1 == nameOcc m2
                                 , Left lems <- moreResFA ->
                                       Left $ (gen_lemma s1 s2 hm e1 e2):lems
@@ -397,17 +397,18 @@ selectJusts p = sel [] []
 rhsCountCenters :: HS.HashSet Name
                 -> ExprEnv
                 -> NonRedPathConds
-                -> (HM.HashMap Name Int, [Maybe Name], Int) -- ^ (Mapping DCs to frequency, how many symvars?)
+                -> (HMS.HashMap Name Int, [Maybe Name], Int) -- ^ (Mapping DCs to frequency, how many symvars?)
 rhsCountCenters ns eenv nrpcs =
   let
       nrpc_vars = map nrpc_rhs $ toListNRPC nrpcs
       app_centers = map (deepLookupCenterName ns eenv) $ map toName nrpc_vars
       dc_app_centers = catMaybes app_centers
+      !cm = F.foldl' (\count n -> HMS.insertWith (+) n 1 count) HM.empty dc_app_centers
   in
-  (F.foldl' (\count n -> HM.insertWith (+) n 1 count) HM.empty dc_app_centers, app_centers, length nrpc_vars - length dc_app_centers)
+  (cm, app_centers, length nrpc_vars - length dc_app_centers)
   where
     toName e
-      | Var (Id n _) <- appCenter e = n
+      | Var (Id n _) <- appCenterThroughTicks e = n
       | otherwise = error "rhsCountCenters: not var on RHS"
 
 deepLookupCenterName :: HS.HashSet Name -> ExprEnv -> Name -> Maybe Name
@@ -420,7 +421,7 @@ deepLookupCenterName ns eenv n_init = go n_init (HS.singleton n_init)
             | n `elem` ns = Just n
             | otherwise = Nothing
             where
-                r = appCenter . stripAllTicks <$> E.lookup n eenv
+                r = appCenterThroughTicks <$> E.lookup n eenv
 
 -- Note [Renaming in moreRestrictivePC]
 -- We do renaming of variables in s1 (the older state) in moreRestricivePC.  To see why this is needed: consider an “old state" with:
