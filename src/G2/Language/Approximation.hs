@@ -145,11 +145,19 @@ moreRestrictive' mr_cont m_gen_lemma lkp = go
           -- Handling concrete variables
           (Var i1, Var i2) | HS.member (idName i1) ns
                           , idName i1 == idName i2 -> Right hm
-          (Var (Id m _), _)
+          (Var i@(Id m _), _)
                     | (m, e2) `elem` n1 -> Right hm
                     | not $ HS.member m ns
-                    , Just (E.Conc e) <- lkp m s1 ->
+                    , Just (E.Conc e) <- v ->
                       go s1 s2 ns hm active ((m, e2):n1) n2 e e2
+                    | Just (E.Sym _) <- v ->
+                          let (hm', hs) = hm in
+                          case HM.lookup i hm' of
+                              Nothing -> Right (HM.insert i (inlineEquiv lkp s2 ns e2) hm', hs)
+                              Just e | e == inlineEquiv lkp s2 ns e2 -> Right hm
+                                     | otherwise -> Left []
+                    where
+                      v = lkp m s1
           (_, Var (Id m _))
                     | (m, e1) `elem` n2 -> Right hm
                     | not $ HS.member m ns
@@ -160,12 +168,6 @@ moreRestrictive' mr_cont m_gen_lemma lkp = go
           (Var i1, Var i2) | HS.member (idName i1) ns -> Left []
                            | HS.member (idName i2) ns -> Left []
           -- Handling symbolic variables
-          (Var i, _) | Just (E.Sym _) <- lkp (idName i) s1 ->
-                          let (hm', hs) = hm in
-                          case HM.lookup i hm' of
-                              Nothing -> Right (HM.insert i (inlineEquiv lkp s2 ns e2) hm', hs)
-                              Just e | e == inlineEquiv lkp s2 ns e2 -> Right hm
-                                     | otherwise -> Left []
           (_, Var _) -> Left [] -- sym replaces non-sym
         
           (App f1 a1, App f2 a2) | Right hm_fa <- moreResFA -> Right hm_fa
@@ -349,8 +351,6 @@ moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns init_hm nrpc1 nrpc2
   -- We are looking to match each nrpc in nrpc1 to an nrpc in nrpc2- this is clearly impossible
   -- if nrpc1 has more nrpcs then nrpc2
   | numNRPC nrpc1 > numNRPC nrpc2 = Left []
-  | let (centers1, _) = rhsCountCenters ns (expr_env s1) nrpc1
-  , let (centers2, symvar2) = rhsCountCenters ns (expr_env s2) nrpc2
   -- We are looking to match each NRPC in nrpc1 to an NRPC in nrpc2- this is clearly impossible
   -- if nrpc1 has more NRPCs returning a particular constructor then exist NRPCs returning that constructor in nrpc2.
   -- 
@@ -358,15 +358,21 @@ moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns init_hm nrpc1 nrpc2
   -- of unknown symbolic variables being returned in nrpc2, #SV. If for some constructor:
   --        D#1 > D#2 + #SV
   -- then there are not enough NRPCS (potentially) returning D in nrpc2 to match up to the NRPCs in nrpc1
-  , any (\(n, c1) -> c1 > HM.lookupDefault 0 n centers2 + symvar2) $ HM.toList centers1 = Left []
-  | otherwise = matchNRPCs init_hm (toListNRPC nrpc1) (toListNRPC nrpc2)
+  | any (\(n, c1) -> c1 > HM.lookupDefault 0 n centers_count2 + symvar2) $ HM.toList centers_count1 = Left []
+  | otherwise = matchNRPCs init_hm (zip centers1 $ toListNRPC nrpc1) (zip centers2 $ toListNRPC nrpc2)
   where
+    (centers_count1, centers1, _) = rhsCountCenters ns (expr_env s1) nrpc1
+    (centers_count2, centers2, symvar2) = rhsCountCenters ns (expr_env s2) nrpc2
+    
     matchNRPCs hm [] _ = Right hm
-    matchNRPCs hm ((NRPC _ eL_1 eR_1):ns1) ns2 = do
+    matchNRPCs hm ((center1, NRPC _ eL_1 eR_1):ns1) ns2 = do
         let m_match_rest = selectJusts
-                              (\(NRPC _ eL_2 eR_2) -> do
-                                    hm' <- moreRes hm eR_1 eR_2
-                                    moreRes hm' eL_1 eL_2)
+                              (\(center2, NRPC _ eL_2 eR_2) -> do
+                                    if isNothing center1 || center1 == center2
+                                      then do
+                                          hm' <- moreRes hm eR_1 eR_2
+                                          moreRes hm' eL_1 eL_2
+                                      else Nothing)
                            ns2
         case rights $ map (\(hm', rest) -> matchNRPCs hm' ns1 rest) m_match_rest of
             r:_ -> Right r
@@ -391,16 +397,17 @@ selectJusts p = sel [] []
 rhsCountCenters :: HS.HashSet Name
                 -> ExprEnv
                 -> NonRedPathConds
-                -> (HM.HashMap Name Int, Int) -- ^ (Mapping DCs to frequency, how many symvars?)
+                -> (HM.HashMap Name Int, [Maybe Name], Int) -- ^ (Mapping DCs to frequency, how many symvars?)
 rhsCountCenters ns eenv nrpcs =
   let
       nrpc_vars = map nrpc_rhs $ toListNRPC nrpcs
-      dc_count = mapMaybe (deepLookupCenterName ns eenv) $ mapMaybe toName nrpc_vars
+      app_centers = map (deepLookupCenterName ns eenv) $ map toName nrpc_vars
+      dc_app_centers = catMaybes app_centers
   in
-  (F.foldl' (\count n -> HM.insertWith (+) n 1 count) HM.empty dc_count, length nrpc_vars - length dc_count)
+  (F.foldl' (\count n -> HM.insertWith (+) n 1 count) HM.empty dc_app_centers, app_centers, length nrpc_vars - length dc_app_centers)
   where
     toName e
-      | Var (Id n _) <- appCenter e = Just n
+      | Var (Id n _) <- appCenter e = n
       | otherwise = error "rhsCountCenters: not var on RHS"
 
 deepLookupCenterName :: HS.HashSet Name -> ExprEnv -> Name -> Maybe Name
