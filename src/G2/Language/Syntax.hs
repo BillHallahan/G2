@@ -62,6 +62,10 @@ instance Hashable Name where
         n `hashWithSalt`
         m `hashWithSalt` i
 
+    hash (Name n m i _) =
+        fromIntegral i `hashWithSalt`
+        n `hashWithSalt` m
+
 -- | Pairing of a `Name` with a t`Type`
 data Id = Id !Name Type deriving (Show, Eq, Read, Generic, Data, Ord)
 
