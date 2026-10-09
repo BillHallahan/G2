@@ -52,6 +52,7 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , isData
                         , isLit
                         , isLam
+                        , isApp
                         , isADT
 
                         , replaceVar
@@ -353,6 +354,10 @@ isLit _ = False
 isLam :: Expr -> Bool
 isLam (Lam _ _ _) = True
 isLam _ = False
+
+isApp :: Expr -> Bool
+isApp (App _ _) = True
+isApp _ = False
 
 isADT :: Expr -> Bool
 isADT e

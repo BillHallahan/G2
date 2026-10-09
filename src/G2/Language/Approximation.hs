@@ -197,14 +197,15 @@ moreRestrictive' mr_cont m_gen_lemma lkp = go
                        , T.isPrimType . returnType $ typeOf tv1 e1'
                        , T.isPrimType $ typeOf tv1 e2
                        , (Prim _ _) <- inlineEquiv lkp s1 HS.empty e1'
-                       , isSWHNF $ (s2 { curr_expr = CurrExpr Evaluate e2 }) ->
+                       , isSWHNF (s2 { curr_expr = CurrExpr Evaluate e2 }) ->
                                         let (hm', hs) = hm
                                         in Right (hm', HS.insert (inlineEquiv lkp s1 HS.empty e1, inlineEquiv lkp s2 HS.empty e2) hs)
-          (_, App _ _) | e2' <- appCenter e2
+          (_, App _ _) | not (isApp e1)
+                       , e2' <- appCenter e2
                        , T.isPrimType . returnType $ typeOf tv2 e2'
                        , T.isPrimType $ typeOf tv1 e1
                        , (Prim _ _) <- inlineEquiv lkp s2 HS.empty e2'
-                       , isSWHNF $ (s1 { curr_expr = CurrExpr Evaluate e1 }) ->
+                       , isSWHNF (s1 { curr_expr = CurrExpr Evaluate e1 }) ->
                                         let (hm', hs) = hm
                                         in Right (hm', HS.insert (inlineEquiv lkp s1 HS.empty e1, inlineEquiv lkp s2 HS.empty e2) hs)
           -- We just compare the names of the DataCons, not the types of the DataCons.
