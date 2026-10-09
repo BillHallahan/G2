@@ -138,7 +138,12 @@ instance Hashable GenSeqFunc
 checkConstraintsPC :: SMTConverter con => KnownValues -> TV.TyVarEnv -> TypeEnv -> con -> [GenSeqFunc] -> PathConds -> IO (Result () () ())
 checkConstraintsPC kv tv tenv con gen_seq_fun pc = do
     let headers = toSMTHeaders con kv tv tenv gen_seq_fun pc
-    checkConstraints con headers
+    case any isFalse headers of
+        False -> checkConstraints con headers
+        True -> return $ UNSAT ()
+    where
+        isFalse (Assert (VBool False)) = True
+        isFalse _ = False
 
 checkConstraints :: SMTConverter con => con -> [SMTHeader] -> IO (Result () () ())
 checkConstraints = checkSat
