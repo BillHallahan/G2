@@ -707,7 +707,7 @@ testFileTests = testGroup "TestFiles"
                                         , ("takeWhile1", 20000, [Exactly 5])
                                         , ("find1", 20000, [AtLeast 3, AtMost 4])
                                         , ("findIndex1", 20000, [Exactly 3])
-                                        , ("findIndices1", 40000, [AtLeast 6, AtMost 8])
+                                        , ("findIndices1", 40000, [AtLeast 10, AtMost 12])
                                         , ("findIndices2", 20000, [Exactly 1])
                                         , ("or1", 20000, [Exactly 2])
                                         , ("and1", 20000, [Exactly 2])
