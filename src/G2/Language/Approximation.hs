@@ -361,8 +361,8 @@ moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns init_hm nrpc1 nrpc2
   | any (\(n, c1) -> c1 > HM.lookupDefault 0 n centers_count2 + symvar2) $ HM.toList centers_count1 = Left []
   | otherwise = matchNRPCs init_hm (zip centers1 $ toListNRPC nrpc1) (zip centers2 $ toListNRPC nrpc2)
   where
-    (centers_count1, centers1, _) = rhsCountCenters ns (expr_env s1) nrpc1
-    (centers_count2, centers2, symvar2) = rhsCountCenters ns (expr_env s2) nrpc2
+    (centers_count1, centers1, _) = rhsCountCenters (expr_env s1) nrpc1
+    (centers_count2, centers2, symvar2) = rhsCountCenters (expr_env s2) nrpc2
     
     matchNRPCs hm [] _ = Right hm
     matchNRPCs hm ((center1, NRPC _ eL_1 eR_1):ns1) ns2 = do
@@ -394,14 +394,13 @@ selectJusts p = sel [] []
                             (\r' -> let opts' = (r', reverse pre ++ xs):opts in sel (x:pre) opts' xs)
                             (p x)
 
-rhsCountCenters :: HS.HashSet Name
-                -> ExprEnv
+rhsCountCenters :: ExprEnv
                 -> NonRedPathConds
                 -> (HMS.HashMap Name Int, [Maybe Name], Int) -- ^ (Mapping DCs to frequency, how many symvars?)
-rhsCountCenters ns eenv nrpcs =
+rhsCountCenters eenv nrpcs =
   let
       nrpc_vars = map nrpc_rhs $ toListNRPC nrpcs
-      app_centers = map (deepLookupCenterName ns eenv) $ map toName nrpc_vars
+      app_centers = map (deepLookupCenterName eenv) $ map toName nrpc_vars
       dc_app_centers = catMaybes app_centers
       !cm = F.foldl' (\count n -> HMS.insertWith (+) n 1 count) HM.empty dc_app_centers
   in
@@ -411,14 +410,13 @@ rhsCountCenters ns eenv nrpcs =
       | Var (Id n _) <- appCenterThroughTicks e = n
       | otherwise = error "rhsCountCenters: not var on RHS"
 
-deepLookupCenterName :: HS.HashSet Name -> ExprEnv -> Name -> Maybe Name
-deepLookupCenterName ns eenv n_init = go n_init (HS.singleton n_init)
+deepLookupCenterName :: ExprEnv -> Name -> Maybe Name
+deepLookupCenterName eenv n_init = go n_init (HS.singleton n_init)
     where
         go n seen
             | Just (Var (Id n' _)) <- r
             , n' `notElem` seen = go n' (HS.insert n' seen)
             | Just (Data (DataCon {dc_name = n' })) <- r = Just n'
-            | n `elem` ns = Just n
             | otherwise = Nothing
             where
                 r = appCenterThroughTicks <$> E.lookup n eenv
