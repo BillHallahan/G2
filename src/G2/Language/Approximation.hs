@@ -74,7 +74,7 @@ type MRCont t l =  State t
 -------------------------------------------------------------------------------
 
 -- | Check is s1 is an approximation of s2 (if s2 is more restrictive than s1.)
-moreRestrictiveIncludingPCAndNRPC :: (Named t) =>
+moreRestrictiveIncludingPCAndNRPC ::
                    MRCont t l -- ^ For special case handling - what to do if we don't match elsewhere in moreRestrictive
                 -> Maybe (GenerateLemma t l)
                 -> Lookup t -- ^ How to lookup variable names
@@ -84,7 +84,6 @@ moreRestrictiveIncludingPCAndNRPC :: (Named t) =>
                 -> IO Bool
 moreRestrictiveIncludingPCAndNRPC mr_cont gen_lemma lkp ns s1 s2 = do
     let mr = moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns (HM.empty, HS.empty) True [] [] (getExpr s1) (getExpr s2)
-              --  >>= \hm -> moreRestrictiveStack mr_cont gen_lemma lkp s1 s2 ns hm (exec_stack s1) (exec_stack s2)
                >>= \hm' -> moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns hm' (non_red_path_conds s1) (non_red_path_conds s2)
     -- putStrLn $ "log_path s1 = " ++ show (log_path s1) ++ " " ++ show (num_steps s1)
     -- putStrLn $ "log_path s2 = " ++ show (log_path s2) ++ " " ++ show (num_steps s2)
