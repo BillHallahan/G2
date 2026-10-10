@@ -1751,14 +1751,15 @@ approximationHalter' stop_cond no_inline = mkSimpleHalter
                 --     putStrLn $ "approx halter log_path s = " ++ show (log_path s) ++ " " ++ show (num_steps s)
                 xs <- SM.gets ap_halter_states
                 let xs' = filter (\x -> num_steps x < num_steps s') xs
+                    approx_prepped_s = createApproxPreppedState s'
                 approx <- liftIO $ findM (\prev -> do
-                                                more_res_s <- moreRestrictiveIncludingPCAndNRPC
+                                                more_res_s <- moreRestrictiveIncludingPCAndNRPC'
                                                                 mr_cont
                                                                 Nothing
                                                                 lookupConcOrSymState
                                                                 no_inline
                                                                 prev
-                                                                s'
+                                                                approx_prepped_s
                                                 return $ more_res_s && stop_cond pr prev s
                                                 ) xs'
                 case approx of
