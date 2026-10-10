@@ -140,10 +140,6 @@ subVar' tv inLam mdl eenv tc is cse@(Case e _ _ as) =
         _ -> modifyChildren (subVar' tv inLam mdl eenv tc is) cse
 subVar' tv inLam em eenv tc is e = modifyChildren (subVar' tv inLam em eenv tc is) e
 
-isApp :: Expr -> Bool
-isApp (App _ _) = True
-isApp _ = False
-
 isCase :: Expr -> Bool
 isCase (Case {}) = True
 isCase _ = False

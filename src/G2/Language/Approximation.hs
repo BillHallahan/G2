@@ -4,6 +4,12 @@ module G2.Language.Approximation ( GenerateLemma
                                  , MRCont
                                  
                                  , moreRestrictiveIncludingPCAndNRPC
+                                 , moreRestrictiveIncludingPCAndNRPC'
+                                 
+                                 , createApproxPreppedState
+                                 , ApproxPreppedState
+                                 , apState
+
                                  , moreRestrictiveIncludingPC
                                  , moreRestrictive
                                  , moreRestrictive'
@@ -38,6 +44,7 @@ import Data.Either
 import qualified Data.Foldable as F
 import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashMap.Strict as HMS
 import Data.Maybe
 
 type GenerateLemma t l = State t -> State t -> (HM.HashMap Id Expr, HS.HashSet (Expr, Expr)) -> Expr -> Expr -> l
@@ -73,7 +80,7 @@ type MRCont t l =  State t
 -------------------------------------------------------------------------------
 
 -- | Check is s1 is an approximation of s2 (if s2 is more restrictive than s1.)
-moreRestrictiveIncludingPCAndNRPC :: (Named t) =>
+moreRestrictiveIncludingPCAndNRPC ::
                    MRCont t l -- ^ For special case handling - what to do if we don't match elsewhere in moreRestrictive
                 -> Maybe (GenerateLemma t l)
                 -> Lookup t -- ^ How to lookup variable names
@@ -81,11 +88,20 @@ moreRestrictiveIncludingPCAndNRPC :: (Named t) =>
                 -> State t -- ^ State 1
                 -> State t -- ^ State 2
                 -> IO Bool
-moreRestrictiveIncludingPCAndNRPC mr_cont gen_lemma lkp ns s1 s2 = do
+moreRestrictiveIncludingPCAndNRPC mr_cont gen_lemma lkp ns s1 s2 =
+  moreRestrictiveIncludingPCAndNRPC' mr_cont gen_lemma lkp ns (createApproxPreppedState s1) (createApproxPreppedState s2)
+
+moreRestrictiveIncludingPCAndNRPC' ::
+                   MRCont t l -- ^ For special case handling - what to do if we don't match elsewhere in moreRestrictive
+                -> Maybe (GenerateLemma t l)
+                -> Lookup t -- ^ How to lookup variable names
+                -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
+                -> ApproxPreppedState t -- ^ State 1
+                -> ApproxPreppedState t -- ^ State 2
+                -> IO Bool
+moreRestrictiveIncludingPCAndNRPC' mr_cont gen_lemma lkp ns aps1@(APS s1 _ _ _) aps2@(APS s2 _ _ _) = do
     let mr = moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns (HM.empty, HS.empty) True [] [] (getExpr s1) (getExpr s2)
-              --  >>= \hm -> moreRestrictiveStack mr_cont gen_lemma lkp s1 s2 ns hm (exec_stack s1) (exec_stack s2)
-               >>= \hm' -> moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns hm'
-                                    (stripAllTicks $ non_red_path_conds s1) (stripAllTicks $ non_red_path_conds s2)
+               >>= \hm' -> moreRestrictiveNRPC mr_cont gen_lemma lkp aps1 aps2 ns hm' (non_red_path_conds s1) (non_red_path_conds s2)
     -- putStrLn $ "log_path s1 = " ++ show (log_path s1) ++ " " ++ show (num_steps s1)
     -- putStrLn $ "log_path s2 = " ++ show (log_path s2) ++ " " ++ show (num_steps s2)
     -- putStrLn $ "mr = " ++ show mr
@@ -145,11 +161,19 @@ moreRestrictive' mr_cont m_gen_lemma lkp = go
           -- Handling concrete variables
           (Var i1, Var i2) | HS.member (idName i1) ns
                           , idName i1 == idName i2 -> Right hm
-          (Var (Id m _), _)
+          (Var i@(Id m _), _)
                     | (m, e2) `elem` n1 -> Right hm
                     | not $ HS.member m ns
-                    , Just (E.Conc e) <- lkp m s1 ->
+                    , Just (E.Conc e) <- v ->
                       go s1 s2 ns hm active ((m, e2):n1) n2 e e2
+                    | Just (E.Sym _) <- v ->
+                          let (hm', hs) = hm in
+                          case HM.lookup i hm' of
+                              Nothing -> Right (HM.insert i (stripAllTicks $ inlineEquiv lkp s2 ns e2) hm', hs)
+                              Just e | e == stripAllTicks (inlineEquiv lkp s2 ns e2) -> Right hm
+                                     | otherwise -> Left []
+                    where
+                      v = lkp m s1
           (_, Var (Id m _))
                     | (m, e1) `elem` n2 -> Right hm
                     | not $ HS.member m ns
@@ -160,12 +184,6 @@ moreRestrictive' mr_cont m_gen_lemma lkp = go
           (Var i1, Var i2) | HS.member (idName i1) ns -> Left []
                            | HS.member (idName i2) ns -> Left []
           -- Handling symbolic variables
-          (Var i, _) | Just (E.Sym _) <- lkp (idName i) s1 ->
-                          let (hm', hs) = hm in
-                          case HM.lookup i hm' of
-                              Nothing -> Right (HM.insert i (inlineEquiv lkp s2 ns e2) hm', hs)
-                              Just e | e == inlineEquiv lkp s2 ns e2 -> Right hm
-                                     | otherwise -> Left []
           (_, Var _) -> Left [] -- sym replaces non-sym
         
           (App f1 a1, App f2 a2) | Right hm_fa <- moreResFA -> Right hm_fa
@@ -175,8 +193,8 @@ moreRestrictive' mr_cont m_gen_lemma lkp = go
                                 , not (hasFuncType (typeOf tv1 e1) )
                                 , not (hasFuncType (typeOf tv2 e2) )
                                 , not active
-                                , Var (Id m1 _) <- appCenter (stripAllTicks e1)
-                                , Var (Id m2 _) <- appCenter (stripAllTicks e2)
+                                , Var (Id m1 _) <- appCenterThroughTicks e1
+                                , Var (Id m2 _) <- appCenterThroughTicks e2
                                 , nameOcc m1 == nameOcc m2
                                 , Left lems <- moreResFA ->
                                       Left $ (gen_lemma s1 s2 hm e1 e2):lems
@@ -195,14 +213,15 @@ moreRestrictive' mr_cont m_gen_lemma lkp = go
                        , T.isPrimType . returnType $ typeOf tv1 e1'
                        , T.isPrimType $ typeOf tv1 e2
                        , (Prim _ _) <- inlineEquiv lkp s1 HS.empty e1'
-                       , isSWHNF $ (s2 { curr_expr = CurrExpr Evaluate e2 }) ->
+                       , isSWHNF (s2 { curr_expr = CurrExpr Evaluate e2 }) ->
                                         let (hm', hs) = hm
                                         in Right (hm', HS.insert (inlineEquiv lkp s1 HS.empty e1, inlineEquiv lkp s2 HS.empty e2) hs)
-          (_, App _ _) | e2' <- appCenter e2
+          (_, App _ _) | not (isApp e1)
+                       , e2' <- appCenter e2
                        , T.isPrimType . returnType $ typeOf tv2 e2'
                        , T.isPrimType $ typeOf tv1 e1
                        , (Prim _ _) <- inlineEquiv lkp s2 HS.empty e2'
-                       , isSWHNF $ (s1 { curr_expr = CurrExpr Evaluate e1 }) ->
+                       , isSWHNF (s1 { curr_expr = CurrExpr Evaluate e1 }) ->
                                         let (hm', hs) = hm
                                         in Right (hm', HS.insert (inlineEquiv lkp s1 HS.empty e1, inlineEquiv lkp s2 HS.empty e2) hs)
           -- We just compare the names of the DataCons, not the types of the DataCons.
@@ -332,25 +351,31 @@ moreRestrictiveStack mr_cont gen_lemma lkp s1 s2 ns init_hm stck1 stck2
     | otherwise = Left []
 -}
 
+data ApproxPreppedState t = APS (State t) (HMS.HashMap Name Int) [Maybe Name] Int
+
+apState :: ApproxPreppedState t -> State t
+apState (APS s _ _ _) = s
+
+createApproxPreppedState :: State t -> ApproxPreppedState t
+createApproxPreppedState s =
+  let (center_count, centers, symvars) = rhsCountCenters (expr_env s) (non_red_path_conds s) in APS s center_count centers symvars
 
 moreRestrictiveNRPC :: MRCont t l
                     -> Maybe (GenerateLemma t l)
                     -> Lookup t
-                    -> State t
-                    -> State t
+                    -> ApproxPreppedState t
+                    -> ApproxPreppedState t
                     -> HS.HashSet Name
                     -> (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
                     -> NonRedPathConds
                     -> NonRedPathConds
                     -> Either [l] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns init_hm nrpc1 nrpc2
+moreRestrictiveNRPC mr_cont gen_lemma lkp (APS s1 centers_count1 centers1 _) (APS s2 centers_count2 centers2 symvar2) ns init_hm nrpc1 nrpc2
   | getNRPCUnique nrpc1 == getNRPCUnique nrpc2
   , not (nullNRPC nrpc1) || not (nullNRPC nrpc2) = Left []
   -- We are looking to match each nrpc in nrpc1 to an nrpc in nrpc2- this is clearly impossible
   -- if nrpc1 has more nrpcs then nrpc2
   | numNRPC nrpc1 > numNRPC nrpc2 = Left []
-  | let (centers1, _) = rhsCountCenters ns (expr_env s1) nrpc1
-  , let (centers2, symvar2) = rhsCountCenters ns (expr_env s2) nrpc2
   -- We are looking to match each NRPC in nrpc1 to an NRPC in nrpc2- this is clearly impossible
   -- if nrpc1 has more NRPCs returning a particular constructor then exist NRPCs returning that constructor in nrpc2.
   -- 
@@ -358,15 +383,18 @@ moreRestrictiveNRPC mr_cont gen_lemma lkp s1 s2 ns init_hm nrpc1 nrpc2
   -- of unknown symbolic variables being returned in nrpc2, #SV. If for some constructor:
   --        D#1 > D#2 + #SV
   -- then there are not enough NRPCS (potentially) returning D in nrpc2 to match up to the NRPCs in nrpc1
-  , any (\(n, c1) -> c1 > HM.lookupDefault 0 n centers2 + symvar2) $ HM.toList centers1 = Left []
-  | otherwise = matchNRPCs init_hm (toListNRPC nrpc1) (toListNRPC nrpc2)
-  where
+  | any (\(n, c1) -> c1 > HM.lookupDefault 0 n centers_count2 + symvar2) $ HM.toList centers_count1 = Left []
+  | otherwise = matchNRPCs init_hm (zip centers1 $ toListNRPC nrpc1) (zip centers2 $ toListNRPC nrpc2)
+  where    
     matchNRPCs hm [] _ = Right hm
-    matchNRPCs hm ((NRPC _ eL_1 eR_1):ns1) ns2 = do
+    matchNRPCs hm ((center1, NRPC _ eL_1 eR_1):ns1) ns2 = do
         let m_match_rest = selectJusts
-                              (\(NRPC _ eL_2 eR_2) -> do
-                                    hm' <- moreRes hm eR_1 eR_2
-                                    moreRes hm' eL_1 eL_2)
+                              (\(center2, NRPC _ eL_2 eR_2) -> do
+                                    if isNothing center1 || center1 == center2
+                                      then do
+                                          hm' <- moreRes hm eR_1 eR_2
+                                          moreRes hm' eL_1 eL_2
+                                      else Nothing)
                            ns2
         case rights $ map (\(hm', rest) -> matchNRPCs hm' ns1 rest) m_match_rest of
             r:_ -> Right r
@@ -388,32 +416,31 @@ selectJusts p = sel [] []
                             (\r' -> let opts' = (r', reverse pre ++ xs):opts in sel (x:pre) opts' xs)
                             (p x)
 
-rhsCountCenters :: HS.HashSet Name
-                -> ExprEnv
+rhsCountCenters :: ExprEnv
                 -> NonRedPathConds
-                -> (HM.HashMap Name Int, Int) -- ^ (Mapping DCs to frequency, how many symvars?)
-rhsCountCenters ns eenv nrpcs =
+                -> (HMS.HashMap Name Int, [Maybe Name], Int) -- ^ (Mapping DCs to frequency, how many symvars?)
+rhsCountCenters eenv nrpcs =
   let
-      nrpc_vars = map nrpc_rhs $ toListNRPC nrpcs
-      dc_count = mapMaybe (deepLookupCenterName ns eenv) $ mapMaybe toName nrpc_vars
+      app_centers = map (deepLookupCenterName eenv . toName . nrpc_rhs) $ toListNRPC nrpcs
+      dc_app_centers = catMaybes app_centers
+      !cm = F.foldl' (\count n -> HMS.insertWith (+) n 1 count) HM.empty dc_app_centers
   in
-  (F.foldl' (\count n -> HM.insertWith (+) n 1 count) HM.empty dc_count, length nrpc_vars - length dc_count)
+  (cm, app_centers, length app_centers - length dc_app_centers)
   where
     toName e
-      | Var (Id n _) <- appCenter e = Just n
+      | Var (Id n _) <- appCenterThroughTicks e = n
       | otherwise = error "rhsCountCenters: not var on RHS"
 
-deepLookupCenterName :: HS.HashSet Name -> ExprEnv -> Name -> Maybe Name
-deepLookupCenterName ns eenv n_init = go n_init (HS.singleton n_init)
+deepLookupCenterName :: ExprEnv -> Name -> Maybe Name
+deepLookupCenterName eenv n_init = go n_init (HS.singleton n_init)
     where
         go n seen
             | Just (Var (Id n' _)) <- r
             , n' `notElem` seen = go n' (HS.insert n' seen)
             | Just (Data (DataCon {dc_name = n' })) <- r = Just n'
-            | n `elem` ns = Just n
             | otherwise = Nothing
             where
-                r = appCenter . stripAllTicks <$> E.lookup n eenv
+                r = appCenterThroughTicks <$> E.lookup n eenv
 
 -- Note [Renaming in moreRestrictivePC]
 -- We do renaming of variables in s1 (the older state) in moreRestricivePC.  To see why this is needed: consider an “old state" with:

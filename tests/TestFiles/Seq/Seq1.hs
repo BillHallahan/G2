@@ -438,9 +438,16 @@ findIndex1 xs = case findIndex (\x -> x + 2 == 4) xs of
 
 findIndices1 :: [Int] -> Double
 findIndices1 xs = case findIndices (\x -> x * 2 == 10) xs of
-                      [1, 2, 3] -> 0.0
+                      (1:2:3:_) -> 0.75
+                      (1:_:_:_) -> 0.65
+                      (1:2:_) -> 0.5
+                      (1:_:_) -> 0.2
+                      (1:_) -> 0.0
+                      [_, _, _] -> 0.8
+                      (_:_:_:_) -> 0.9
                       [] -> 1.1
                       [2] -> 2.2
+                      [_] -> 2.7
                       _ -> 3.3
 
 findIndices2 :: [Double] -> [Int]
