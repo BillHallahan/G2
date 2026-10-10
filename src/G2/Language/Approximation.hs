@@ -5,8 +5,10 @@ module G2.Language.Approximation ( GenerateLemma
                                  
                                  , moreRestrictiveIncludingPCAndNRPC
                                  , moreRestrictiveIncludingPCAndNRPC'
+                                 
                                  , createApproxPreppedState
                                  , ApproxPreppedState
+                                 , apState
 
                                  , moreRestrictiveIncludingPC
                                  , moreRestrictive
@@ -87,19 +89,19 @@ moreRestrictiveIncludingPCAndNRPC ::
                 -> State t -- ^ State 2
                 -> IO Bool
 moreRestrictiveIncludingPCAndNRPC mr_cont gen_lemma lkp ns s1 s2 =
-  moreRestrictiveIncludingPCAndNRPC' mr_cont gen_lemma lkp ns s1 (createApproxPreppedState s2)
+  moreRestrictiveIncludingPCAndNRPC' mr_cont gen_lemma lkp ns (createApproxPreppedState s1) (createApproxPreppedState s2)
 
 moreRestrictiveIncludingPCAndNRPC' ::
                    MRCont t l -- ^ For special case handling - what to do if we don't match elsewhere in moreRestrictive
                 -> Maybe (GenerateLemma t l)
                 -> Lookup t -- ^ How to lookup variable names
                 -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
-                -> State t -- ^ State 1
+                -> ApproxPreppedState t -- ^ State 1
                 -> ApproxPreppedState t -- ^ State 2
                 -> IO Bool
-moreRestrictiveIncludingPCAndNRPC' mr_cont gen_lemma lkp ns s1 aps2@(APS s2 _ _ _) = do
+moreRestrictiveIncludingPCAndNRPC' mr_cont gen_lemma lkp ns aps1@(APS s1 _ _ _) aps2@(APS s2 _ _ _) = do
     let mr = moreRestrictive' mr_cont gen_lemma lkp s1 s2 ns (HM.empty, HS.empty) True [] [] (getExpr s1) (getExpr s2)
-               >>= \hm' -> moreRestrictiveNRPC mr_cont gen_lemma lkp s1 aps2 ns hm' (non_red_path_conds s1) (non_red_path_conds s2)
+               >>= \hm' -> moreRestrictiveNRPC mr_cont gen_lemma lkp aps1 aps2 ns hm' (non_red_path_conds s1) (non_red_path_conds s2)
     -- putStrLn $ "log_path s1 = " ++ show (log_path s1) ++ " " ++ show (num_steps s1)
     -- putStrLn $ "log_path s2 = " ++ show (log_path s2) ++ " " ++ show (num_steps s2)
     -- putStrLn $ "mr = " ++ show mr
@@ -351,6 +353,9 @@ moreRestrictiveStack mr_cont gen_lemma lkp s1 s2 ns init_hm stck1 stck2
 
 data ApproxPreppedState t = APS (State t) (HMS.HashMap Name Int) [Maybe Name] Int
 
+apState :: ApproxPreppedState t -> State t
+apState (APS s _ _ _) = s
+
 createApproxPreppedState :: State t -> ApproxPreppedState t
 createApproxPreppedState s =
   let (center_count, centers, symvars) = rhsCountCenters (expr_env s) (non_red_path_conds s) in APS s center_count centers symvars
@@ -358,14 +363,14 @@ createApproxPreppedState s =
 moreRestrictiveNRPC :: MRCont t l
                     -> Maybe (GenerateLemma t l)
                     -> Lookup t
-                    -> State t
+                    -> ApproxPreppedState t
                     -> ApproxPreppedState t
                     -> HS.HashSet Name
                     -> (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
                     -> NonRedPathConds
                     -> NonRedPathConds
                     -> Either [l] (HM.HashMap Id Expr, HS.HashSet (Expr, Expr))
-moreRestrictiveNRPC mr_cont gen_lemma lkp s1 (APS s2 centers_count2 centers2 symvar2) ns init_hm nrpc1 nrpc2
+moreRestrictiveNRPC mr_cont gen_lemma lkp (APS s1 centers_count1 centers1 _) (APS s2 centers_count2 centers2 symvar2) ns init_hm nrpc1 nrpc2
   | getNRPCUnique nrpc1 == getNRPCUnique nrpc2
   , not (nullNRPC nrpc1) || not (nullNRPC nrpc2) = Left []
   -- We are looking to match each nrpc in nrpc1 to an nrpc in nrpc2- this is clearly impossible
@@ -380,9 +385,7 @@ moreRestrictiveNRPC mr_cont gen_lemma lkp s1 (APS s2 centers_count2 centers2 sym
   -- then there are not enough NRPCS (potentially) returning D in nrpc2 to match up to the NRPCs in nrpc1
   | any (\(n, c1) -> c1 > HM.lookupDefault 0 n centers_count2 + symvar2) $ HM.toList centers_count1 = Left []
   | otherwise = matchNRPCs init_hm (zip centers1 $ toListNRPC nrpc1) (zip centers2 $ toListNRPC nrpc2)
-  where
-    (centers_count1, centers1, _) = rhsCountCenters (expr_env s1) nrpc1
-    
+  where    
     matchNRPCs hm [] _ = Right hm
     matchNRPCs hm ((center1, NRPC _ eL_1 eR_1):ns1) ns2 = do
         let m_match_rest = selectJusts
