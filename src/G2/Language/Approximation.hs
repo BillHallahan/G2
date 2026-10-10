@@ -334,7 +334,6 @@ moreRestrictiveStack mr_cont gen_lemma lkp s1 s2 ns init_hm stck1 stck2
     | otherwise = Left []
 -}
 
-
 moreRestrictiveNRPC :: MRCont t l
                     -> Maybe (GenerateLemma t l)
                     -> Lookup t
@@ -399,12 +398,11 @@ rhsCountCenters :: ExprEnv
                 -> (HMS.HashMap Name Int, [Maybe Name], Int) -- ^ (Mapping DCs to frequency, how many symvars?)
 rhsCountCenters eenv nrpcs =
   let
-      nrpc_vars = map nrpc_rhs $ toListNRPC nrpcs
-      app_centers = map (deepLookupCenterName eenv) $ map toName nrpc_vars
+      app_centers = map (deepLookupCenterName eenv . toName . nrpc_rhs) $ toListNRPC nrpcs
       dc_app_centers = catMaybes app_centers
       !cm = F.foldl' (\count n -> HMS.insertWith (+) n 1 count) HM.empty dc_app_centers
   in
-  (cm, app_centers, length nrpc_vars - length dc_app_centers)
+  (cm, app_centers, length app_centers - length dc_app_centers)
   where
     toName e
       | Var (Id n _) <- appCenterThroughTicks e = n
