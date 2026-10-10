@@ -458,14 +458,17 @@ executable Verify-QuickCheck
                        , filepath
                        , tasty
                        , tasty-quickcheck
+                       , tasty-hunit >= 0.10 && < 0.11
+                       , QuickCheck >= 2.12
                        , text
                        , unordered-containers >= 0.2 && < 0.3
   default-language:    Haskell2010
   ghc-options:         -threaded -Wall
                        -- -fexternal-interpreter -opti+RTS -opti-p
   -- ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
-  hs-source-dirs:      verify, verify/tests
+  hs-source-dirs:      verify, verify/tests2
   main-is:             QuickCheck.hs
+  cpp-options:         -DV_QUICKCHECK
 
 test-suite test-lh
   if flag(support-lh) && impl(ghc < 9.2)
