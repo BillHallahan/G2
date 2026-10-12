@@ -3,7 +3,7 @@
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 
-module ZenoWithFilter where
+module ZenoWithTakeQC where
 
 import Prelude
   ( Eq
@@ -148,8 +148,10 @@ drop Z xs = xs
 drop _ [] = []
 drop (S x) (_:xs) = drop x xs
 
+-- BUG
 take Z _ = []
 take _ [] = []
+take (S (S x)) (y:ys) = y : (take x ys)
 take (S x) (y:ys) = y : (take x ys)
 
 count :: Nat -> [Nat] -> Nat
@@ -177,10 +179,8 @@ dropWhile p (x:xs) =
     True -> dropWhile p xs
     _ -> x:xs
 
--- BUG:
 filter :: (a -> Bool) -> [a] -> [a]
 filter _ [] = []
-filter p [x] = [x]
 filter p (x:xs) =
   case p x of
     True -> x : (filter p xs)
@@ -367,9 +367,11 @@ prop_38 n xs
 prop_39 n x xs
   = (count n [x] + count n xs =:= count n (x:xs))
 
+-- Verified
 prop_40 xs
   = (take Z xs =:= [])
 
+-- Verified
 prop_41 n f xs
   = (take n (map f xs) =:= map f (take n xs))
 
@@ -449,7 +451,6 @@ prop_64 x xs
 prop_65 i m =
   proveBool (i < S (m + i))
 
--- This should always be True, but it's timing out
 prop_66 p xs
   = proveBool (len (filter p xs) <= len xs)
 
@@ -470,13 +471,14 @@ prop_71 x y xs
   = given (x === y =:= False)
   ( (elem x (ins y xs) =:= elem x xs) )
 
+-- This should generate a counterexample but it's timing out
 prop_72 i xs
   = (rev (drop i xs) =:= take (len xs - i) (rev xs))
 
--- I think this shloud always be true, bbut it's timing out
 prop_73 p xs
   = (rev (filter p xs) =:= filter p (rev xs))
 
+-- This should generate a counterexample but it's timing out
 prop_74 i xs
   = (rev (take i xs) =:= drop (len xs - i) (rev xs))
 
@@ -503,6 +505,7 @@ prop_80 n xs ys
 prop_81 n m xs {- ys -}
   = (take n (drop m xs) =:= drop m (take (n + m) xs))
 
+-- Verified
 prop_82 n xs ys
   = (take n (zip xs ys) =:= zip (take n xs) (take n ys))
 

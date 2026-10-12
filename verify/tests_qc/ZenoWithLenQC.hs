@@ -3,7 +3,7 @@
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 
-module ZenoWithIns where
+module ZenoWithLenQC where
 
 import Prelude
   ( Eq
@@ -133,9 +133,11 @@ delete n (x:xs) =
     True -> delete n xs
     False -> x : (delete n xs)
 
+-- BUG
 len :: [a] -> Nat
 len [] = Z
-len (_:xs) = S (len xs)
+len (x:x':[]) = S Z
+len (_:xs) = S (S (len xs))
 
 elem :: Nat -> [Nat] -> Bool
 elem _ [] = False
@@ -206,12 +208,11 @@ insort n (x:xs) =
     True -> n : x : xs
     _ -> x : (insort n xs)
 
--- BUG
 ins :: Nat -> [Nat] -> [Nat]
 ins n [] = [n]
 ins n (x:xs) =
   case n < x of
-    True -> x : xs
+    True -> n : x : xs
     _ -> x : (ins n xs)
 
 ins1 :: Nat -> [Nat] -> [Nat]
@@ -304,6 +305,7 @@ prop_18 i m
 prop_19 n xs
   = (len (drop n xs) =:= len xs - n)
 
+-- This will always be true, but it's timing out
 prop_20 xs
   = (len (sort xs) =:= len xs)
 
@@ -464,7 +466,6 @@ prop_70 m n
   = givenBool (m <= n)
   ( proveBool (m <= S n) )
 
--- Verified
 prop_71 x y xs
   = given (x === y =:= False)
   ( (elem x (ins y xs) =:= elem x xs) )

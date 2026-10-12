@@ -3,7 +3,7 @@
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 {-# LANGUAGE InstanceSigs #-}
 
-module Nat where
+module NatQC where
 
 import Prelude hiding ((+),(*),(-),(<),id)
 import qualified Test.Tasty.QuickCheck as QC

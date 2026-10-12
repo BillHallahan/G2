@@ -3,7 +3,7 @@
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 
-module Zeno where
+module ZenoQC where
 
 import Prelude
   ( Eq

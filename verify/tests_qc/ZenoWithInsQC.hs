@@ -3,7 +3,7 @@
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 
-module ZenoWithRev where
+module ZenoWithInsQC where
 
 import Prelude
   ( Eq
@@ -118,10 +118,9 @@ null _  = False
 [] ++ ys = ys
 (x:xs) ++ ys = x : (xs ++ ys)
 
--- BUG - It keeps on going
 rev :: [a] -> [a]
 rev [] = []
-rev (x:xs) = rev xs ++ [x] ++ [x]
+rev (x:xs) = rev xs ++ [x]
 
 zip [] _ = []
 zip _ [] = []
@@ -207,11 +206,12 @@ insort n (x:xs) =
     True -> n : x : xs
     _ -> x : (insort n xs)
 
+-- BUG
 ins :: Nat -> [Nat] -> [Nat]
 ins n [] = [n]
 ins n (x:xs) =
   case n < x of
-    True -> n : x : xs
+    True -> x : xs
     _ -> x : (ins n xs)
 
 ins1 :: Nat -> [Nat] -> [Nat]
@@ -403,7 +403,6 @@ prop_50 xs
 prop_51 xs x
   = (butlast (xs ++ [x]) =:= xs)
 
--- This should generate counterexample, but it's timing out
 prop_52 n xs
   = (count n xs =:= count n (rev xs))
 
@@ -465,6 +464,7 @@ prop_70 m n
   = givenBool (m <= n)
   ( proveBool (m <= S n) )
 
+-- Verified
 prop_71 x y xs
   = given (x === y =:= False)
   ( (elem x (ins y xs) =:= elem x xs) )
@@ -472,7 +472,6 @@ prop_71 x y xs
 prop_72 i xs
   = (rev (drop i xs) =:= take (len xs - i) (rev xs))
 
--- This should always be true, but it's timing out
 prop_73 p xs
   = (rev (filter p xs) =:= filter p (rev xs))
 
@@ -513,7 +512,6 @@ prop_84 xs ys zs
   = (zip xs (ys ++ zs) =:=
            zip (take (len ys) xs) ys ++ zip (drop (len ys) xs) zs)
 
--- This should generate counterexample, but it times out
 prop_85 xs ys
   = (len xs =:= len ys) ==>
     (zip (rev xs) (rev ys) =:= rev (zip xs ys))

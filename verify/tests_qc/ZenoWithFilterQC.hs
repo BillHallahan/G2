@@ -3,7 +3,7 @@
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 
-module ZenoWithTakeWhile where
+module ZenoWithFilterQC where
 
 import Prelude
   ( Eq
@@ -167,7 +167,7 @@ takeWhile :: (a -> Bool) -> [a] -> [a]
 takeWhile _ [] = []
 takeWhile p (x:xs) =
   case p x of
-    False -> x : (takeWhile p xs)
+    True -> x : (takeWhile p xs)
     _ -> []
 
 dropWhile :: (a -> Bool) -> [a] -> [a]
@@ -177,8 +177,10 @@ dropWhile p (x:xs) =
     True -> dropWhile p xs
     _ -> x:xs
 
+-- BUG:
 filter :: (a -> Bool) -> [a] -> [a]
 filter _ [] = []
+filter p [x] = [x]
 filter p (x:xs) =
   case p x of
     True -> x : (filter p xs)
@@ -447,6 +449,7 @@ prop_64 x xs
 prop_65 i m =
   proveBool (i < S (m + i))
 
+-- This should always be True, but it's timing out
 prop_66 p xs
   = proveBool (len (filter p xs) <= len xs)
 
@@ -470,6 +473,7 @@ prop_71 x y xs
 prop_72 i xs
   = (rev (drop i xs) =:= take (len xs - i) (rev xs))
 
+-- I think this shloud always be true, bbut it's timing out
 prop_73 p xs
   = (rev (filter p xs) =:= filter p (rev xs))
 

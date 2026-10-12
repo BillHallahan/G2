@@ -2,9 +2,8 @@
 {-# OPTIONS_GHC -Wno-missing-signatures #-}
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
-{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
-module ZenoWithDrop where
+module ZenoWithHeightQC where
 
 import Prelude
   ( Eq
@@ -21,7 +20,6 @@ import Prelude
   , (==)
   , ($)
   )
-
 #ifdef V_QUICKCHECK
 import qualified Test.Tasty.QuickCheck as QC
 import Test.Tasty.QuickCheck (Property)
@@ -147,7 +145,7 @@ elem n (x:xs) =
     False -> elem n xs
 
 drop Z xs = xs
-drop (S Z) xs = xs
+drop _ [] = []
 drop (S x) (_:xs) = drop x xs
 
 take Z _ = []
@@ -240,7 +238,7 @@ zipConcat x xs (y:ys) = (x, y) : zip xs ys
 
 height :: Tree a -> Nat
 height Leaf = Z
-height (Node l x r) = S (max (height l) (height r))
+height (Node l x r) = S (max (height l) (height Leaf))
 
 mirror :: Tree a -> Tree a
 mirror Leaf = Leaf
@@ -278,11 +276,9 @@ prop_09 i j k
 prop_10 m
   = (m - m =:= Z)
 
--- Verified
 prop_11 xs
   = (drop Z xs =:= xs)
 
--- This should be True, but it's timing out
 prop_12 n f xs
   = (drop n (map f xs) =:= map f (drop n xs))
 
@@ -415,7 +411,6 @@ prop_53 n xs
 prop_54 n m
   = ((m + n) - n =:= m)
 
--- This should be True but it's timing out
 prop_55 n xs ys
   = (drop n (xs ++ ys) =:= drop n xs ++ drop (n - len xs) ys)
 
@@ -425,7 +420,6 @@ prop_56 n m xs
 prop_57 n m xs
   = (drop n (take m xs) =:= take (m - n) (drop n xs))
 
--- This should be True but it's timing out
 prop_58 n xs ys
   = (drop n (zip xs ys) =:= zip (drop n xs) (drop n ys))
 
@@ -443,7 +437,6 @@ prop_62 xs x
   = givenBool (not (null xs))
   ( (last (x:xs) =:= last xs) )
 
--- Verified
 prop_63 n xs
   = givenBool (n < len xs)
   ( (last (drop n xs) =:= last xs) )
@@ -474,7 +467,6 @@ prop_71 x y xs
   = given (x === y =:= False)
   ( (elem x (ins y xs) =:= elem x xs) )
 
--- This should generate counter-example but it's times out
 prop_72 i xs
   = (rev (drop i xs) =:= take (len xs - i) (rev xs))
 

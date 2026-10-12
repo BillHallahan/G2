@@ -63,7 +63,7 @@ def main():
             avg_t = round(sum(t) / len(t), 1)
             avg_d = round(sum(d) / len(d), 1)
             prop_name = k.replace("_", "\\_")
-            if len(t) < 10:
+            if len(t) < run_limit:
                 table2 += key + "-" + prop_name + " & " + str(len(t)) + " & " + str(avg_t) + " & " +  str(avg_d) + r"\\ \hline" + "\n"
             print(prop_name + " & " + str(len(t)) + " & " + str(avg_t) + " & " +  str(avg_d) + r"\\ \hline")
     

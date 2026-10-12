@@ -1,9 +1,9 @@
-{-# LANGUAGE BangPatterns, CPP#-}
+{-# LANGUAGE BangPatterns, CPP #-}
 {-# OPTIONS_GHC -Wno-missing-signatures #-}
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 
-module ZenoWithDelete where
+module ZenoWithTakeWhileQC where
 
 import Prelude
   ( Eq
@@ -20,7 +20,6 @@ import Prelude
   , (==)
   , ($)
   )
-
 #ifdef V_QUICKCHECK
 import qualified Test.Tasty.QuickCheck as QC
 import Test.Tasty.QuickCheck (Property)
@@ -127,10 +126,8 @@ zip [] _ = []
 zip _ [] = []
 zip (x:xs) (y:ys) = (x, y) : (zip xs ys)
 
--- BUG:
 delete :: Nat -> [Nat] -> [Nat]
 delete _ [] = []
-delete (S (S Z)) [x] = [x] 
 delete n (x:xs) =
   case n === x of
     True -> delete n xs
@@ -170,7 +167,7 @@ takeWhile :: (a -> Bool) -> [a] -> [a]
 takeWhile _ [] = []
 takeWhile p (x:xs) =
   case p x of
-    True -> x : (takeWhile p xs)
+    False -> x : (takeWhile p xs)
     _ -> []
 
 dropWhile :: (a -> Bool) -> [a] -> [a]
@@ -456,7 +453,6 @@ prop_66 p xs
 prop_67 xs
   = (len (butlast xs) =:= len xs - S Z)
 
--- This should be true but it's timing out
 prop_68 n xs
   = proveBool (len (delete n xs) <= len xs)
 

@@ -1,24 +1,24 @@
 {-# OPTIONS_GHC -Wno-type-defaults -Wno-orphans #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, TypeApplications #-}
 
-module Main where
+module QuickCheck where
 
-import qualified Definitions as D
-import qualified Nat as N
-import qualified ZenoWithDelete as ZDelete
-import qualified ZenoWithDrop as ZDrop
-import qualified ZenoWithElem as ZElem
-import qualified ZenoWithFilter as ZFilter
-import qualified ZenoWithHeight as ZHeight
-import qualified ZenoWithIns as ZIns
-import qualified ZenoWithLen as ZLen
-import qualified ZenoWithMap as ZMap
-import qualified ZenoWithMirror as ZMirror
-import qualified ZenoWithRev as ZRev
-import qualified ZenoWithTake as ZTake
-import qualified ZenoWithTakeWhile as ZTakeWhile
-import qualified ZenoWithZip as ZZip
-import qualified ZenoBadProp as ZBP
+import qualified DefinitionsQC as D
+import qualified NatQC as N
+import qualified ZenoWithDeleteQC as ZDelete
+import qualified ZenoWithDropQC as ZDrop
+import qualified ZenoWithElemQC as ZElem
+import qualified ZenoWithFilterQC as ZFilter
+import qualified ZenoWithHeightQC as ZHeight
+import qualified ZenoWithInsQC as ZIns
+import qualified ZenoWithLenQC as ZLen
+import qualified ZenoWithMapQC as ZMap
+import qualified ZenoWithMirrorQC as ZMirror
+import qualified ZenoWithRevQC as ZRev
+import qualified ZenoWithTakeQC as ZTake
+import qualified ZenoWithTakeWhileQC as ZTakeWhile
+import qualified ZenoWithZipQC as ZZip
+import qualified ZenoBadPropQC as ZBP
 
 import Control.Monad
 import Test.Tasty
@@ -307,6 +307,9 @@ zenoBadProp =
         , myTestProperty "ZenoBadProp" "prop_85" (ZBP.prop_85 @Int @Int)
         ]
 
+-------------------------------------------------------------------------------
+-- QuickCheck
+-------------------------------------------------------------------------------
 instance Arbitrary D.Nat where
     arbitrary = frequency [(8, D.S <$> arbitrary), (1, return D.Z)]
 

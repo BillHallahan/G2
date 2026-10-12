@@ -2,8 +2,9 @@
 {-# OPTIONS_GHC -Wno-missing-signatures #-}
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
+{-# OPTIONS_GHC -Wno-incomplete-patterns #-}
 
-module ZenoWithElem where
+module ZenoWithDropQC where
 
 import Prelude
   ( Eq
@@ -20,6 +21,7 @@ import Prelude
   , (==)
   , ($)
   )
+
 #ifdef V_QUICKCHECK
 import qualified Test.Tasty.QuickCheck as QC
 import Test.Tasty.QuickCheck (Property)
@@ -137,17 +139,15 @@ len :: [a] -> Nat
 len [] = Z
 len (_:xs) = S (len xs)
 
--- BUG
 elem :: Nat -> [Nat] -> Bool
 elem _ [] = False
-elem (S (S Z)) [(S Z)] = True
 elem n (x:xs) =
   case n === x of
     True -> True
     False -> elem n xs
 
 drop Z xs = xs
-drop _ [] = []
+drop (S Z) xs = xs
 drop (S x) (_:xs) = drop x xs
 
 take Z _ = []
@@ -278,9 +278,11 @@ prop_09 i j k
 prop_10 m
   = (m - m =:= Z)
 
+-- Verified
 prop_11 xs
   = (drop Z xs =:= xs)
 
+-- This should be True, but it's timing out
 prop_12 n f xs
   = (drop n (map f xs) =:= map f (drop n xs))
 
@@ -327,20 +329,16 @@ prop_26 x xs ys
   = givenBool (x `elem` xs)
   ( proveBool (x `elem` (xs ++ ys)) )
 
--- Verified
 prop_27 x xs ys
   = givenBool (x `elem` ys)
   ( proveBool (x `elem` (xs ++ ys)) )
 
--- Verified
 prop_28 x xs
   = proveBool (x `elem` (xs ++ [x]))
 
--- Verified 
 prop_29 x xs
   = proveBool (x `elem` ins1 x xs)
 
--- Verified
 prop_30 x xs
   = proveBool (x `elem` ins x xs)
 
@@ -417,6 +415,7 @@ prop_53 n xs
 prop_54 n m
   = ((m + n) - n =:= m)
 
+-- This should be True but it's timing out
 prop_55 n xs ys
   = (drop n (xs ++ ys) =:= drop n xs ++ drop (n - len xs) ys)
 
@@ -426,6 +425,7 @@ prop_56 n m xs
 prop_57 n m xs
   = (drop n (take m xs) =:= take (m - n) (drop n xs))
 
+-- This should be True but it's timing out
 prop_58 n xs ys
   = (drop n (zip xs ys) =:= zip (drop n xs) (drop n ys))
 
@@ -443,6 +443,7 @@ prop_62 xs x
   = givenBool (not (null xs))
   ( (last (x:xs) =:= last xs) )
 
+-- Verified
 prop_63 n xs
   = givenBool (n < len xs)
   ( (last (drop n xs) =:= last xs) )
@@ -473,6 +474,7 @@ prop_71 x y xs
   = given (x === y =:= False)
   ( (elem x (ins y xs) =:= elem x xs) )
 
+-- This should generate counter-example but it's times out
 prop_72 i xs
   = (rev (drop i xs) =:= take (len xs - i) (rev xs))
 

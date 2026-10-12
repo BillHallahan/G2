@@ -3,7 +3,7 @@
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 
-module ZenoWithTake where
+module ZenoWithRevQC where
 
 import Prelude
   ( Eq
@@ -118,9 +118,10 @@ null _  = False
 [] ++ ys = ys
 (x:xs) ++ ys = x : (xs ++ ys)
 
+-- BUG - It keeps on going
 rev :: [a] -> [a]
 rev [] = []
-rev (x:xs) = rev xs ++ [x]
+rev (x:xs) = rev xs ++ [x] ++ [x]
 
 zip [] _ = []
 zip _ [] = []
@@ -148,10 +149,8 @@ drop Z xs = xs
 drop _ [] = []
 drop (S x) (_:xs) = drop x xs
 
--- BUG
 take Z _ = []
 take _ [] = []
-take (S (S x)) (y:ys) = y : (take x ys)
 take (S x) (y:ys) = y : (take x ys)
 
 count :: Nat -> [Nat] -> Nat
@@ -367,11 +366,9 @@ prop_38 n xs
 prop_39 n x xs
   = (count n [x] + count n xs =:= count n (x:xs))
 
--- Verified
 prop_40 xs
   = (take Z xs =:= [])
 
--- Verified
 prop_41 n f xs
   = (take n (map f xs) =:= map f (take n xs))
 
@@ -406,6 +403,7 @@ prop_50 xs
 prop_51 xs x
   = (butlast (xs ++ [x]) =:= xs)
 
+-- This should generate counterexample, but it's timing out
 prop_52 n xs
   = (count n xs =:= count n (rev xs))
 
@@ -471,14 +469,13 @@ prop_71 x y xs
   = given (x === y =:= False)
   ( (elem x (ins y xs) =:= elem x xs) )
 
--- This should generate a counterexample but it's timing out
 prop_72 i xs
   = (rev (drop i xs) =:= take (len xs - i) (rev xs))
 
+-- This should always be true, but it's timing out
 prop_73 p xs
   = (rev (filter p xs) =:= filter p (rev xs))
 
--- This should generate a counterexample but it's timing out
 prop_74 i xs
   = (rev (take i xs) =:= drop (len xs - i) (rev xs))
 
@@ -505,7 +502,6 @@ prop_80 n xs ys
 prop_81 n m xs {- ys -}
   = (take n (drop m xs) =:= drop m (take (n + m) xs))
 
--- Verified
 prop_82 n xs ys
   = (take n (zip xs ys) =:= zip (take n xs) (take n ys))
 
@@ -517,6 +513,7 @@ prop_84 xs ys zs
   = (zip xs (ys ++ zs) =:=
            zip (take (len ys) xs) ys ++ zip (drop (len ys) xs) zs)
 
+-- This should generate counterexample, but it times out
 prop_85 xs ys
   = (len xs =:= len ys) ==>
     (zip (rev xs) (rev ys) =:= rev (zip xs ys))

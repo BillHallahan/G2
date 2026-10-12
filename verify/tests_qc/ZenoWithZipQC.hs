@@ -3,7 +3,7 @@
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 
-module ZenoWithLen where
+module ZenoWithZipQC where
 
 import Prelude
   ( Eq
@@ -20,6 +20,9 @@ import Prelude
   , (==)
   , ($)
   )
+
+-- code here adapted from HipSpec.hs
+
 #ifdef V_QUICKCHECK
 import qualified Test.Tasty.QuickCheck as QC
 import Test.Tasty.QuickCheck (Property)
@@ -122,8 +125,10 @@ rev :: [a] -> [a]
 rev [] = []
 rev (x:xs) = rev xs ++ [x]
 
+-- BUG
 zip [] _ = []
 zip _ [] = []
+zip (x:x':xs) (y:y':ys) = (x, y) : (zip xs ys)
 zip (x:xs) (y:ys) = (x, y) : (zip xs ys)
 
 delete :: Nat -> [Nat] -> [Nat]
@@ -133,11 +138,9 @@ delete n (x:xs) =
     True -> delete n xs
     False -> x : (delete n xs)
 
--- BUG
 len :: [a] -> Nat
 len [] = Z
-len (x:x':[]) = S Z
-len (_:xs) = S (S (len xs))
+len (_:xs) = S (len xs)
 
 elem :: Nat -> [Nat] -> Bool
 elem _ [] = False
@@ -305,7 +308,6 @@ prop_18 i m
 prop_19 n xs
   = (len (drop n xs) =:= len xs - n)
 
--- This will always be true, but it's timing out
 prop_20 xs
   = (len (sort xs) =:= len xs)
 
@@ -380,12 +382,15 @@ prop_42 n x xs
 prop_43 p xs
   = (takeWhile p xs ++ dropWhile p xs =:= xs)
 
+-- This should definitely generate counterexample, xs = [1,1,1] ys = [1,1]
 prop_44 x xs ys
   = (zip (x:xs) ys =:= zipConcat x xs ys)
 
+-- This should generate counter example, xs = [1,1] ys = [1,1]
 prop_45 x y xs ys
   = (zip (x:xs) (y:ys) =:= (x, y) : zip xs ys)
 
+-- Verified
 prop_46 xs
   = (zip ([] :: [Nat]) xs =:= [])
 
@@ -505,14 +510,17 @@ prop_81 n m xs {- ys -}
 prop_82 n xs ys
   = (take n (zip xs ys) =:= zip (take n xs) (take n ys))
 
+-- This should definetly generate counterexample but it times out
 prop_83 xs ys zs
   = (zip (xs ++ ys) zs =:=
            zip xs (take (len xs) zs) ++ zip ys (drop (len xs) zs))
 
+-- This should definetly generate counterexample but it times out
 prop_84 xs ys zs
   = (zip xs (ys ++ zs) =:=
            zip (take (len ys) xs) ys ++ zip (drop (len ys) xs) zs)
 
+-- This should definetly generate counterexample but it times out
 prop_85 xs ys
   = (len xs =:= len ys) ==>
     (zip (rev xs) (rev ys) =:= rev (zip xs ys))

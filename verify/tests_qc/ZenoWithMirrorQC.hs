@@ -3,7 +3,7 @@
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 
-module ZenoWithMap where
+module ZenoWithMirrorQC where
 
 import Prelude
   ( Eq
@@ -159,10 +159,8 @@ count x (y:ys) =
     True -> S (count x ys)
     _ -> count x ys
 
--- BUG
 map :: (a -> b) -> [a] -> [b]
 map f [] = []
-map f [x] = []
 map f (x:xs) = (f x) : (map f xs)
 
 takeWhile :: (a -> Bool) -> [a] -> [a]
@@ -244,7 +242,7 @@ height (Node l x r) = S (max (height l) (height r))
 
 mirror :: Tree a -> Tree a
 mirror Leaf = Leaf
-mirror (Node l x r) = Node (mirror r) x (mirror l)
+mirror (Node l x r) = Node Leaf x (mirror l)
 
 
 
@@ -281,7 +279,6 @@ prop_10 m
 prop_11 xs
   = (drop Z xs =:= xs)
 
--- This should always be true, but it's timing out
 prop_12 n f xs
   = (drop n (map f xs) =:= map f (drop n xs))
 

@@ -8,7 +8,7 @@
     Definitions for the properties in Productive Use Of Failure
 
 -}
-module Definitions where
+module DefinitionsQC where
 
 import Prelude (Eq,Ord,Show(..),(.),iterate,(!!),return,Bool(..),(==))
 import qualified Test.Tasty.QuickCheck as QC

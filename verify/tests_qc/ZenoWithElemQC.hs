@@ -3,7 +3,7 @@
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 
-module ZenoWithHeight where
+module ZenoWithElemQC where
 
 import Prelude
   ( Eq
@@ -137,8 +137,10 @@ len :: [a] -> Nat
 len [] = Z
 len (_:xs) = S (len xs)
 
+-- BUG
 elem :: Nat -> [Nat] -> Bool
 elem _ [] = False
+elem (S (S Z)) [(S Z)] = True
 elem n (x:xs) =
   case n === x of
     True -> True
@@ -238,7 +240,7 @@ zipConcat x xs (y:ys) = (x, y) : zip xs ys
 
 height :: Tree a -> Nat
 height Leaf = Z
-height (Node l x r) = S (max (height l) (height Leaf))
+height (Node l x r) = S (max (height l) (height r))
 
 mirror :: Tree a -> Tree a
 mirror Leaf = Leaf
@@ -325,16 +327,20 @@ prop_26 x xs ys
   = givenBool (x `elem` xs)
   ( proveBool (x `elem` (xs ++ ys)) )
 
+-- Verified
 prop_27 x xs ys
   = givenBool (x `elem` ys)
   ( proveBool (x `elem` (xs ++ ys)) )
 
+-- Verified
 prop_28 x xs
   = proveBool (x `elem` (xs ++ [x]))
 
+-- Verified 
 prop_29 x xs
   = proveBool (x `elem` ins1 x xs)
 
+-- Verified
 prop_30 x xs
   = proveBool (x `elem` ins x xs)
 
