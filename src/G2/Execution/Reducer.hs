@@ -677,7 +677,7 @@ getNonRedForHigherOrder _ ng s
     | Just (s', _, _, ng1) <- createNonRed ng Focused s = Just (s', ng1)
     | otherwise = Nothing
 
-data ApproxPrevs t = AP { ap_nrpc_states :: [State t], ap_halter_states :: [State t]}
+data ApproxPrevs t = AP { ap_nrpc_states :: [State t], ap_halter_states :: [ApproxPreppedState t]}
 
 emptyApproxPrevs :: ApproxPrevs t
 emptyApproxPrevs = AP { ap_nrpc_states = [], ap_halter_states = [] }
@@ -685,7 +685,7 @@ emptyApproxPrevs = AP { ap_nrpc_states = [], ap_halter_states = [] }
 addApproxPrevs :: SM.MonadState (ApproxPrevs t) m => State t -> m ()
 addApproxPrevs s = do
     xs <- SM.gets ap_halter_states
-    SM.modify (\a -> a { ap_halter_states = s:xs })
+    SM.modify (\a -> a { ap_halter_states = createApproxPreppedState s:xs })
 
 -- | When a newly reached function application is approximated by a previously seen (and thus explored) function application,
 -- shift the new function application into the NRPCs.
@@ -1750,22 +1750,24 @@ approximationHalter' stop_cond no_inline = mkSimpleHalter
                 -- liftIO $ do
                 --     putStrLn $ "approx halter log_path s = " ++ show (log_path s) ++ " " ++ show (num_steps s)
                 xs <- SM.gets ap_halter_states
-                let xs' = filter (\x -> num_steps x < num_steps s') xs
+                let xs' = filter (\x -> num_steps (apState x) < num_steps s') xs
+                    approx_prepped_s = createApproxPreppedState s'
                 approx <- liftIO $ findM (\prev -> do
-                                                more_res_s <- moreRestrictiveIncludingPCAndNRPC
+                                                more_res_s <- moreRestrictiveIncludingPCAndNRPC'
                                                                 mr_cont
                                                                 Nothing
                                                                 lookupConcOrSymState
                                                                 no_inline
                                                                 prev
-                                                                s'
-                                                return $ more_res_s && stop_cond pr prev s
+                                                                approx_prepped_s
+                                                return $ more_res_s && stop_cond pr (apState prev) s
                                                 ) xs'
                 case approx of
                     Just approx' ->  do
+                        let approx'' = apState approx'
                         liftIO $ do
                             putStrLn $ "    !!! log_path s = " ++ show (log_path s) ++ " " ++ show (num_steps s) ++ "   " ++ show (getNRPCUnique . non_red_path_conds $ s)
-                            putStrLn $ "    !!! log_path approx = " ++ show (log_path approx') ++ " " ++ show (num_steps approx') ++ "   " ++ show (getNRPCUnique . non_red_path_conds $ approx')
+                            putStrLn $ "    !!! log_path approx = " ++ show (log_path approx'') ++ " " ++ show (num_steps approx'') ++ "   " ++ show (getNRPCUnique . non_red_path_conds $ approx'')
                             -- putStrLn $ "    !!! length nrpc s = " ++ show (length (non_red_path_conds s))
                             -- putStrLn $ "    !!! length nrpc approx = " ++ show (length (non_red_path_conds approx'))
                         return (Discard "approximationHalter'")
@@ -1774,7 +1776,7 @@ approximationHalter' stop_cond no_inline = mkSimpleHalter
                         --     putStrLn $ "    !!!modifying with " ++ show (log_path s') ++ " " ++ show (num_steps s)
                         --     putStrLn $ "    !!! stck s = " ++ show (exec_stack s)
                         --     putStrLn $ "    !!! stck s' = " ++ show (exec_stack s')
-                        SM.modify ((\app -> app { ap_halter_states = s':xs }))
+                        SM.modify ((\app -> app { ap_halter_states = approx_prepped_s:xs }))
                         return Continue
         -- stop _ _ s | log_path s == [1, 1, 1, 1]
         --            , num_steps s == 103

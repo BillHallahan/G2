@@ -52,6 +52,7 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , isData
                         , isLit
                         , isLam
+                        , isApp
                         , isADT
 
                         , replaceVar
@@ -64,6 +65,7 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , modifyLamTop
                         , nonDataFunctionCalls
                         , appCenter
+                        , appCenterThroughTicks
                         , mapArgs
                         , mkLams
                         , elimAsserts
@@ -353,6 +355,10 @@ isLam :: Expr -> Bool
 isLam (Lam _ _ _) = True
 isLam _ = False
 
+isApp :: Expr -> Bool
+isApp (App _ _) = True
+isApp _ = False
+
 isADT :: Expr -> Bool
 isADT e
     | Data _:_ <- unApp e = True
@@ -452,6 +458,12 @@ centerIsData _ = False
 appCenter :: Expr -> Expr
 appCenter (App a _) = appCenter a
 appCenter e = e
+
+appCenterThroughTicks :: Expr -> Expr
+appCenterThroughTicks e =
+    case appCenter e of
+        Tick _ e' -> appCenterThroughTicks e'
+        e' -> e'
 
 mapArgs :: (Expr -> Expr) -> Expr -> Expr
 mapArgs f (App e e') = App (mapArgs f e) (f e')

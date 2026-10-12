@@ -412,10 +412,6 @@ isInfixable _ _ = False
 isInfixableName :: Name -> Bool
 isInfixableName = not . T.any isAlphaNum . nameOcc
 
-isApp :: Expr -> Bool
-isApp (App _ _) = True
-isApp _ = False
-
 isChar :: Expr -> Bool
 isChar (App (Data (DataCon { dc_name = Name "C#" _ _ _ })) (Lit (LitChar _))) = True
 isChar _ = False

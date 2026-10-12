@@ -168,10 +168,6 @@ getBoolB :: Expr -> (Bool -> Bool) -> Bool
 getBoolB (Data (DataCon n _ _ _)) f = f (nameOcc n == "True")
 getBoolB _ _ = False
 
-isApp :: Expr -> Bool
-isApp (App _ _) = True
-isApp _ = False
-
 isError :: Expr -> Bool
 isError (Prim Error _) = True
 isError _ = False
