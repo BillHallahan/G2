@@ -1,7 +1,7 @@
 {-# OPTIONS_GHC -Wno-type-defaults -Wno-orphans #-}
-{-# LANGUAGE TypeApplications #-}
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, TypeApplications #-}
 
-module Main where
+module QuickCheck where
 
 import qualified Definitions as D
 import qualified Nat as N
@@ -290,6 +290,9 @@ zenoBadProp =
         , testProperty "prop_85" (ZBP.prop_85 @Int @Int)
         ]
 
+-------------------------------------------------------------------------------
+-- QuickCheck
+-------------------------------------------------------------------------------
 instance Arbitrary D.Nat where
     arbitrary = frequency [(8, D.S <$> arbitrary), (1, return D.Z)]
 

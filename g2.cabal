@@ -453,12 +453,16 @@ executable Verify-QuickCheck
                        , ZenoWithZip
                        , Definitions
                        , Nat
+                       , SmallCheck
+                       , QuickCheck
   -- other-extensions:
   build-depends:         base >= 4.8 && < 5
                        , containers
                        , filepath
+                       , smallcheck
                        , tasty
                        , tasty-quickcheck
+                       , tasty-smallcheck
                        , text
                        , unordered-containers >= 0.2 && < 0.3
   default-language:    Haskell2010
@@ -466,7 +470,7 @@ executable Verify-QuickCheck
                        -- -fexternal-interpreter -opti+RTS -opti-p
   -- ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
   hs-source-dirs:      verify, verify/tests
-  main-is:             QuickCheck.hs
+  main-is:             Prop.hs
 
 test-suite test-lh
   if flag(support-lh) && impl(ghc < 9.2)
