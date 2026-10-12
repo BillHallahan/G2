@@ -1,4 +1,4 @@
-{-# LANGUAGE CPP, OverloadedStrings #-}
+{-# LANGUAGE BangPatterns, CPP, OverloadedStrings #-}
 
 module G2.Translation.InjectSpecials
   ( specialTypes
@@ -20,16 +20,15 @@ _MAX_TUPLE = 62
 specialTypes :: UseSMTDC -> HM.HashMap Name AlgDataTy
 specialTypes use_smt_tuple = HM.fromList $ map (uncurry3 specialTypes') (specials use_smt_tuple) ++ mkPrimTuples _MAX_TUPLE
 
-specialTypes' :: (T.Text, Maybe T.Text, [Name]) -> [(T.Text, Maybe T.Text, [Type])] -> Bool -> (Name, AlgDataTy)
-specialTypes' (n, m, ns) dcn to_s = 
+specialTypes' :: (Name, [Name]) -> [(Name, [Type])] -> Bool -> (Name, AlgDataTy)
+specialTypes' (tn, ns) dcn to_s = 
     let
-        tn = Name n m 0 Nothing
         dc = map (specialDC ns tn) dcn
     in
     (tn, DataTyCon {bound_ids = map (flip Id TYPE) ns, data_cons = dc, adt_source = ADTSourceCode, to_smt = to_s})
 
-specialDC :: [Name] -> Name -> (T.Text, Maybe T.Text, [Type]) -> DataCon
-specialDC ns tn (n, m, ts) = 
+specialDC :: [Name] -> Name -> (Name, [Type]) -> DataCon
+specialDC ns tn (dc_n, ts) = 
     let
         tv = map (TyVar . flip Id TYPE) ns
 
@@ -37,7 +36,7 @@ specialDC ns tn (n, m, ts) =
         is = map (flip Id TYPE) ns
         t' = foldr TyForAll t is
     in
-    DataCon { dc_name = Name n m 0 Nothing, dc_type = t', dc_univ_tyvars = is, dc_exist_tyvars = [] }
+    DataCon { dc_name = dc_n, dc_type = t', dc_univ_tyvars = is, dc_exist_tyvars = [] }
 
 specialTypeNames :: HM.HashMap (T.Text, Maybe T.Text) Name
 specialTypeNames =
@@ -74,43 +73,33 @@ listTypeStr = "[]"
 listName :: Name
 listName = Name listTypeStr (Just "GHC.Types") 0 Nothing
 
-specials :: UseSMTDC -> [((T.Text, Maybe T.Text, [Name]), [(T.Text, Maybe T.Text, [Type])], Bool)]
+specials :: UseSMTDC -> [((Name, [Name]), [(Name, [Type])], Bool)]
 specials use_smt_tuples =
-           [ (( listTypeStr
-              , Just "GHC.Types", [aName])
-              , [ ("[]", Just "GHC.Types", [])
-                , (":", Just "GHC.Types", [aTyVar, mkFullAppedTyCon TV.empty listName [aTyVar] TYPE])]
+           [ (( Name listTypeStr (Just "GHC.Types") 0 Nothing, [aName])
+              , [ (Name "[]" (Just "GHC.Types") 1 Nothing, [])
+                , (Name ":" (Just "GHC.Types") 2 Nothing, [aTyVar, mkFullAppedTyCon TV.empty listName [aTyVar] TYPE])]
               , False
              )
-           -- , (("Int", Just "GHC.Types"), [("I#", Just "GHC.Types", [TyLitInt])])
-           -- , (("Float", Just "GHC.Types"), [("F#", Just "GHC.Types", [TyLitFloat])])
-           -- , (("Double", Just "GHC.Types"), [("D#", Just "GHC.Types", [TyLitDouble])])
-           -- , (("Char", Just "GHC.Types"), [("C#", Just "GHC.Types", [TyLitChar])])
-           -- , (("String", Just "GHC.Types"), [])
 
-           , (("Bool", Just "GHC.Types", [])
-             , [ ("False", Just "GHC.Types", [])
-               , ("True", Just "GHC.Types", [])]
+           , ((Name "Bool" (Just "GHC.Types") 3 Nothing, [])
+             , [ (Name "False" (Just "GHC.Types") 4 Nothing, [])
+               , (Name "True" (Just "GHC.Types") 5 Nothing, [])]
              , False)
-
-           -- , (("Ordering", Just "GHC.Types"), [ ("EQ", Just "GHC.Types", [])
-           --                                    , ("LT", Just "GHC.Types", [])
-           --                                    , ("GT", Just "GHC.Types", [])])
            ]
            ++
 #if MIN_VERSION_GLASGOW_HASKELL(9,10,0,0)
-           mkTuples use_smt_tuples "(" ")" (Just "GHC.Tuple") _MAX_TUPLE
+           mkTuples 6 use_smt_tuples "(" ")" (Just "GHC.Tuple") _MAX_TUPLE
 #elif MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
-           mkTuples use_smt_tuples "(" ")" (Just "GHC.Tuple.Prim") _MAX_TUPLE
+           mkTuples 6 use_smt_tuples "(" ")" (Just "GHC.Tuple.Prim") _MAX_TUPLE
 #else
-           mkTuples use_smt_tuples "(" ")" (Just "GHC.Tuple") _MAX_TUPLE
+           mkTuples 6 use_smt_tuples "(" ")" (Just "GHC.Tuple") _MAX_TUPLE
 #endif
            -- ++
            -- mkTuples "(#" "#)" (Just "GHC.Prim") _MAX_TUPLE
 
 
-mkTuples :: UseSMTDC -> T.Text -> T.Text -> Maybe T.Text -> Int -> [((T.Text, Maybe  T.Text, [Name]), [(T.Text, Maybe T.Text, [Type])], Bool)]
-mkTuples use_smt_dc ls rs m n
+mkTuples :: Unique -> UseSMTDC -> T.Text -> T.Text -> Maybe T.Text -> Int -> [((Name, [Name]), [(Name, [Type])], Bool)]
+mkTuples !unq use_smt_dc ls rs m n
                    | n < 0 = []
                    | otherwise =
                         let
@@ -128,7 +117,7 @@ mkTuples use_smt_dc ls rs m n
                             tv = map (TyVar . flip Id TYPE) ns
                         in
                         -- ((s, m, []), [(s, m, [])]) : mkTuples (n - 1)
-                        ((ty_n, m, ns), [(cons_n, m, tv)], use_smt_dc == UseSMTDC) : mkTuples use_smt_dc ls rs m (n - 1)
+                        ((Name ty_n m unq Nothing, ns), [(Name cons_n m (unq + 1) Nothing, tv)], use_smt_dc == UseSMTDC) : mkTuples (unq + 2) use_smt_dc ls rs m (n - 1)
 
 mkPrimTuples :: Int -> [(Name, AlgDataTy)]
 mkPrimTuples k =
