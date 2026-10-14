@@ -4,6 +4,7 @@ import subprocess
 from collections import Counter
 
 data = {}
+sc_data = {}
 
 exe_name = str(subprocess.run(["cabal", "exec", "which", "Verify-Quickcheck"], capture_output = True).stdout.decode('utf-8')).strip()
 
@@ -22,12 +23,33 @@ def read_output(out):
         time = float(match.group(3))
     return (results, failed, total, time)
 
-def read_sc_output(out):
+def print_sc():
+    row1 = r"\# of Passed & "
+    row2 = r"\# of Timeouts & "
+    row3 = r"\# of CEx & "
+    row4 = r"Avg. Time (s) & "
+    
+    header = " & "
+    for key, val in sc_data.items():
+        header += key + " & "
+        row1 += str(val[0]) + " & "
+        row2 += str(val[1]) + " & "
+        row3 += str(val[2]) + " & "
+        row4 += str(val[3]) + " & "
+
+    print(header)
+    print(row1)
+    print(row2)
+    print(row3)
+    print(row4)
+
+def read_sc_output(out, depth):
     pattern = r'Benchmark:\s*"([^"]+)"\s+Property:\s*"([^"]+)"\s+Status:\s*"([^"]+)"\s+Time:\s*([\d.eE+-]+)'
     results = re.findall(pattern, out)
     passed = []
     timeout = []
-    failed = 0
+    failed = []
+    total_time = 0
 
     for result in results:
         bench, prop, status, time = result
@@ -36,17 +58,20 @@ def read_sc_output(out):
         elif status == "TIMEOUT":
             timeout.append(result)
         else:
-            failed += 1
+            failed.append(result)
+            total_time += float(time)
 
-    print("Properties that Passed:")
-    for bench, prop, st, ti in passed:
-        prop_name = prop.replace("_", "\\_")
-        print(bench + " - " + prop_name + " & " + st)
+    avg_time = round(total_time/len(failed), 4)
+    key = "Depth " + str(depth)
+    sc_data[key] = [len(passed), len(timeout), len(failed), avg_time]
 
-    print("\nProperties that timed out")
-    for bench, prop, st, ti in timeout:
-        prop_name = prop.replace("_", "\\_")
-        print(bench + " - " + prop_name + " & " + st)
+    print("\nProperties that succeeded:")
+    print(passed)
+
+    print("\nProperties that timed out:")
+    print(timeout)
+
+    return (passed + timeout)
 
 
 def call_pbtt(time_limit, toolName, var_settings):
@@ -60,8 +85,9 @@ def call_pbtt(time_limit, toolName, var_settings):
     
 def call_smallcheck(time_limit, depth):
     out1 = call_pbtt(time_limit, "sc", ["--smallcheck-depth", str(depth)])
-    print("Running small check for depth " + str(depth))
-    read_sc_output(out1)
+    print("\nRunning small check for depth " + str(depth))
+    res = read_sc_output(out1, depth)
+    return res
 
 def call_quickcheck(time_limit):
     # Counter-example benchmarks
@@ -106,11 +132,19 @@ def call_quickcheck(time_limit):
 
 
 def main():
-    time_limit = 60
+    time_limit = 300
+    # Run QuickCheck
     call_quickcheck(time_limit)
-    depths = [3,4,5]
-    for depth in depths:
-        call_smallcheck(time_limit, depth)
+
+    # Run Smallcheck
+    out1 = call_smallcheck(time_limit, 3)
+    out2 = call_smallcheck(time_limit, 4)
+    out3 = call_smallcheck(time_limit, 5)
+
+    print_sc()
+
+
+
 
 
 if __name__ == "__main__":
