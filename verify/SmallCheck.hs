@@ -1,5 +1,5 @@
 {-# OPTIONS_GHC -Wno-type-defaults -Wno-orphans #-}
-{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, TypeApplications #-}
+{-# LANGUAGE FlexibleInstances, MultiParamTypeClasses, TypeApplications, FlexibleContexts #-}
 
 module SmallCheck where
 
@@ -22,7 +22,10 @@ import qualified ZenoBadProp as ZBP
 
 import Test.Tasty
 import Test.Tasty.SmallCheck
+import Test.Tasty.Ingredients.ConsoleReporter(consoleTestReporterWithHook)
+import Test.Tasty.Runners(Result(..), resultSuccessful)
 import Test.SmallCheck.Series
+import Data.List (isInfixOf)
 
 -- Pass:
 -- --min-duration-to-report 0s
@@ -30,7 +33,7 @@ import Test.SmallCheck.Series
 main :: IO ()
 main =
     defaultMainWithIngredients
-        defaultIngredients
+        [consoleTestReporterWithHook customPrint]
         . adjustOption (\_ -> mkTimeout (60 * 10^6))
         $ testGroup "All"[
           definitions
@@ -51,6 +54,22 @@ main =
         , zenoBadProp
         ]
 
+customPrint :: [TestName] -> Result -> IO Result
+customPrint names result = do
+    let prop = case names of
+                (n : _) -> n
+                []      -> "Unknown"
+
+        bench = case names of
+                _:n:_  -> n
+                _ -> "Unknown"
+
+        status
+            | "Timed out" `isInfixOf` resultDescription result = "TIMEOUT"
+            | resultSuccessful result = "PASS"
+            | otherwise = "FAIL"
+    putStrLn $ "\nBenchmark: " ++ show bench ++ " Property: " ++ show prop ++ " Status: " ++ show status ++ " Time: " ++ show (resultTime result)
+    return result
 
 definitions :: TestTree
 definitions =
