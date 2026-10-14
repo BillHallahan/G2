@@ -13,15 +13,19 @@ def read_output(out):
     total = 0
     time = 0.0
 
-    pattern = r"Benchmark:\s*(\S+)\s+Property:\s*(\S+)\s+Failed after\s+(\d+)\s+tests?,\s*Discarded:\s*(\d+)"
-    results = re.findall(pattern, out)
+    pattern1 = r"Benchmark:\s*(\S+)\s+Property:\s*(\S+)\s+Passed:\s*(\d+),\s*Discarded:\s*(\d+)"
+
+    pattern2 = r"Benchmark:\s*(\S+)\s+Property:\s*(\S+)\s+Failed after\s+(\d+)\s+tests?,\s*Discarded:\s*(\d+)"
+
+    resPass = re.findall(pattern1, out)
+    resFail = re.findall(pattern2, out)
 
     match = re.search(r"(\d+) out of (\d+) tests failed \(([\d.]+)s\)", out)
     if match:
         failed = int(match.group(1))
         total = int(match.group(2))
         time = float(match.group(3))
-    return (results, failed, total, time)
+    return (resFail, resPass, failed, total, time)
 
 def print_sc():
     row1 = r"\# of Passed & "
@@ -91,13 +95,21 @@ def call_smallcheck(time_limit, depth):
 
 def call_quickcheck(time_limit):
     # Counter-example benchmarks
-    run_limit = 10
+    run_limit = 100
     table3 = ""
+    total_time = 0
+    fail_count = 0
+    pass_count = 0
+    num_prop = 0
     for i in range(run_limit):
         output = call_pbtt(time_limit, "qc", [])
-        (res, failed_p, tot_p, time_taken) = read_output(output)
+        (resFail, resPass, failed_p, tot_p, time_taken) = read_output(output)
+        total_time += time_taken
+        fail_count += len(resFail)
+        pass_count += len(resPass)
+        num_prop = tot_p
         table3 += str(failed_p) + " & " + str(time_taken) + r"\\ \hline" + "\n"
-        for (bench, prop, tf, dis) in res:
+        for (bench, prop, tf, dis) in resFail:
             if bench in data:
                 ps = data[bench]
                 if prop in ps:
@@ -112,6 +124,13 @@ def call_quickcheck(time_limit):
                 temp = {}
                 temp[prop] = (tc_list, dis_list)
                 data[bench] = temp
+    
+    avg_fail = fail_count/(run_limit)
+    avg_pass = pass_count/(run_limit)
+    avg_time = round(total_time/run_limit, 2)
+
+    sc_data["QuickCheck"] = [avg_pass, 0, avg_fail, avg_time]
+    
     table2 = ""
     for key, val in data.items():
         header = r"\multicolumn{4}{l}{\textbf{"+ key + r"}}\\ \hline"
@@ -130,9 +149,13 @@ def call_quickcheck(time_limit):
     print("\n Table 3 shows the number of properties where Quickcheck found counterexample during each run ")
     print(table3)
 
+    print("Average pass: " + str(avg_pass))
+    print("Average fail: " + str(avg_fail))
+    print("Average time: " + str(avg_time))
+
 
 def main():
-    time_limit = 300
+    time_limit = 1800
     # Run QuickCheck
     call_quickcheck(time_limit)
 
@@ -142,9 +165,6 @@ def main():
     out3 = call_smallcheck(time_limit, 5)
 
     print_sc()
-
-
-
 
 
 if __name__ == "__main__":
