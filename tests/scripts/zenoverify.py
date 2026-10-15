@@ -346,7 +346,7 @@ def read_runnable_benchmarks(setpath, settings) :
     return lines
 
 def main():
-    # test_suite_general(verify_laws(), "verify/tests/NebulaTypeClasses.hs", "NebulaTypeClasses", 60)
+    test_suite_general(verify_laws(), "verify/tests/NebulaTypeClasses.hs", "NebulaTypeClasses", 60)
     test_suite_general(unmodified_theorems(), "verify/refute_tests_nebula/ZenoBadProp.hs", "ZenoBadProp", 60)
 
     setpath = os.path.join("verify/tests")
