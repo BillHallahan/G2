@@ -1,6 +1,5 @@
 {-# OPTIONS_GHC -Wno-missing-signatures #-}
 {-# OPTIONS_GHC -Wno-unused-matches #-}
-{-# OPTIONS_GHC -Wno-inline-rule-shadowing #-}
 
 module Nat where
 

@@ -2,7 +2,6 @@
 {-# OPTIONS_GHC -Wno-missing-signatures #-}
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
-{-# OPTIONS_GHC -Wno-inline-rule-shadowing #-}
 
 module ZenoWithHeight where
 
@@ -575,4 +574,3 @@ prop_82 :: Eq a => Eq b => Nat -> [a] -> [b] -> Bool
 prop_83 :: Eq a => Eq b => [a] -> [a] -> [b] -> Bool
 prop_84 :: Eq a => Eq a1 => [a] -> [a1] -> [a1] -> Bool
 prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
-
