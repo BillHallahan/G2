@@ -329,8 +329,37 @@ def verify_laws():
 
     return list_laws + zip_list_laws + nonempty_list_laws + tree_laws + maybe_laws + state_laws + reader_laws + tuple_laws + function_laws
 
+def read_runnable_benchmarks(setpath, settings) :
+    props = []
+    lines = []
+    file = os.path.join(setpath, "run_props.txt")
+    with open(file, 'r') as file :
+        for line in file:
+            stripped = line.rstrip('\n')
+            if stripped == "--":
+                lines.append(props)
+                props = []
+            else:
+                props.append((stripped, ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m"
+                                        , "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "xs", "ys", "zs"]))
+        lines.append(props)
+    return lines
+
 def main():
-    test_suite_general(verify_laws(), "verify/tests/NebulaTypeClasses.hs", "NebulaTypeClasses", 60)
+    # test_suite_general(verify_laws(), "verify/tests/NebulaTypeClasses.hs", "NebulaTypeClasses", 60)
+    # test_suite_general(unmodified_theorems(), "verify/tests/ZenoBadProp.hs", "ZenoBadProp", 60)
+
+    setpath = os.path.join("verify/tests")
+    run_bench = read_runnable_benchmarks(setpath, [])
+    for benchmark in run_bench :
+        (filename, setting) = benchmark[0]
+        print("\nBenchmark : " + filename + "\n")
+        props = []
+        for (thm, res) in benchmark[1:]:
+            thm = thm.replace("prop_", "p")
+            props.append((thm, ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m"
+                               , "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "xs", "ys", "zs"]))
+        test_suite_general(props, "verify/tests/" + filename + ".hs", str(filename), 60)
 
     # t = 180
     # test_suite_csv("ZenoUnaltered", unmodified_theorems(), t)

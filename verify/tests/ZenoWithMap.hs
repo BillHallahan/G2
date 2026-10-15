@@ -2,6 +2,7 @@
 {-# OPTIONS_GHC -Wno-missing-signatures #-}
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
+{-# OPTIONS_GHC -Wno-inline-rule-shadowing #-}
 
 module ZenoWithMap where
 
@@ -577,3 +578,91 @@ prop_82 :: Eq a => Eq b => Nat -> [a] -> [b] -> Bool
 prop_83 :: Eq a => Eq b => [a] -> [a] -> [b] -> Bool
 prop_84 :: Eq a => Eq a1 => [a] -> [a1] -> [a1] -> Bool
 prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
+
+{-# RULES
+"p01" forall n xs . take n xs ++ drop n xs = xs
+"p02" forall n xs ys . count n xs + count n ys = count n (xs ++ ys)
+"p03" forall n xs ys . count n xs <= count n (xs ++ ys) = True
+"p04" forall n xs . count n (n : xs) = S (count n xs)
+"p05" forall n x xs . prop_05 n x xs = True
+"p06" forall n m . n - (n + m) = Z
+"p07" forall n m . (n + m) - n = m
+"p08" forall k m n . (k + m) - (k + n) = m - n
+"p09" forall i j k . (i - j) - k = i - (j + k)
+"p10" forall m . m - m = Z
+"p11" forall xs . drop Z xs = xs
+"p12" forall f n xs . drop n (map f xs) = map f (drop n xs)
+"p13" forall n x xs . drop (S n) (x : xs) = drop n xs
+"p14" forall p xs ys . filter p (xs ++ ys) = (filter p xs) ++ (filter p ys)
+"p15" forall x xs . len (ins x xs) = S (len xs)
+"p16" forall x xs . prop_16 x xs = True
+"p17" forall n . n <= Z = n === Z
+"p18" forall i m . proveBool (i < (i + m)) = True
+"p19" forall n xs . len (drop n xs) = len xs - n
+"p20" forall xs . len (sort xs) = len xs
+"p21" forall n m . prop_21 n m = True
+"p22" forall a b c . max (max a b) c = max a (max b c)
+"p23" forall a b . max a b = max b a
+"p24" forall a b . (max a b) === a = b <= a
+"p25" forall a b . (max a b) === b = a <= b
+"p26" forall x xs ys . prop_26 x xs ys = True
+"p27" forall x xs ys . prop_27 x xs ys = True
+"p28" forall x xs . prop_28 x xs = True
+"p29" forall x xs . prop_29 x xs = True
+"p30" forall x xs . prop_30 x xs = True
+"p31" forall a b c . min (min a b) c = min a (min b c)
+"p32" forall a b . min a b = min b a
+"p33" forall a b . min a b === a = a <= b
+"p34" forall a b . min a b === b = b <= a
+"p35" forall xs . dropWhile (\_ -> False) xs = xs
+"p36" forall xs . takeWhile (\_ -> True) xs = xs
+"p37" forall x xs . prop_37 x xs = True
+"p38" forall n xs . count n (xs ++ [n]) = S (count n xs)
+"p39" forall n x xs . count n [x] + count n xs = count n (x:xs)
+"p40" forall xs . take Z xs = []
+"p41" forall f n xs . take n (map f xs) = map f (take n xs)
+"p42" forall n x xs . take (S n) (x:xs) = x : (take n xs)
+"p43" forall p xs . takeWhile p xs ++ dropWhile p xs = xs
+"p44" forall x xs ys . zip (x:xs) ys = zipConcat x xs ys
+"p45" forall x y xs ys . zip (x:xs) (y:ys) = (x, y) : zip xs ys
+"p46" forall xs . zip [] xs = []
+"p47" forall a . height (mirror a) = height a
+"p48" forall xs . prop_48 xs = True
+"p49" forall xs ys . butlast (xs ++ ys) = butlastConcat xs ys
+"p50" forall xs . butlast xs = take (len xs - S Z) xs
+"p51" forall x xs . butlast (xs ++ [x]) = xs
+"p52" forall n xs . count n xs = count n (rev xs)
+"p53" forall n xs . count n xs = count n (sort xs)
+"p54" forall n m . (m + n) - n = m
+"p55" forall n xs ys . drop n (xs ++ ys) = drop n xs ++ drop (n - len xs) ys
+"p56" forall n m xs . drop n (drop m xs) = drop (n + m) xs
+"p57" forall n m xs . drop n (take m xs) = take (m - n) (drop n xs)
+"p58" forall n xs ys . drop n (zip xs ys) = zip (drop n xs) (drop n ys)
+"p59" forall xs ys . prop_59 xs ys = True
+"p60" forall xs ys . prop_60 xs ys = True
+"p61" forall xs ys . last (xs ++ ys) = lastOfTwo xs ys
+"p62" forall xs x . prop_62 xs x = True
+"p63" forall n xs . prop_63 n xs = True
+"p64" forall x xs . last (xs ++ [x]) = x
+"p65" forall i m . prop_65 i m = True
+"p66" forall p xs . prop_66 p xs = True
+"p67" forall xs . len (butlast xs) = len xs - S Z
+"p68" forall n xs . prop_68 n xs = True
+"p69" forall n m . prop_69 n m = True
+"p70" forall m n . prop_70 m n = True
+"p71" forall x y xs . prop_71 x y xs = True
+"p72" forall i xs . rev (drop i xs) = take (len xs - i) (rev xs)
+"p73" forall p xs . rev (filter p xs) = filter p (rev xs)
+"p74" forall i xs . rev (take i xs) = drop (len xs - i) (rev xs)
+"p75" forall n m xs . count n xs + count n [m] = count n (m : xs)
+"p76" forall n m xs . prop_76 n m xs = True
+"p77" forall x xs . prop_77 x xs = True
+"p78" forall xs . prop_78 xs = True
+"p79" forall m n k . (S m - n) - S k = (m - n) - k
+"p80" forall n xs ys . take n (xs ++ ys) = take n xs ++ take (n - len xs) ys
+"p81" forall n m xs . take n (drop m xs) = drop m (take (n + m) xs)
+"p82" forall n xs ys . take n (zip xs ys) = zip (take n xs) (take n ys)
+"p83" forall xs ys zs . zip (xs ++ ys) zs = zip xs (take (len xs) zs) ++ zip ys (drop (len xs) zs)
+"p84" forall xs ys zs . zip xs (ys ++ zs) = zip (take (len ys) xs) ys ++ zip (drop (len ys) xs) zs
+"p85" forall xs ys . prop_85 xs ys = True
+  #-}
