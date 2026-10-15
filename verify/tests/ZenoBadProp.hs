@@ -622,7 +622,7 @@ prop_85 :: Eq a => Eq b => [a] -> [b] -> Bool
 "p41" forall f n xs . take n (map f xs) = map f (take n (rev xs))
 "p42" forall n x xs . take (S n) (x:xs) = take n xs
 "p43" forall p xs . takeWhile p xs ++ dropWhile (\x -> not (p x)) xs = xs
-"p44" forall x xs ys . zip (x:xs) ys = zipConcat x (x:xs) ys
+"p44" forall x xs ys . prop_44 x xs ys = True
 "p45" forall x y xs ys . zip (x:xs) (y:y:ys) = (x, y) : zip xs ys
 "p46" forall xs . zip ([Z] :: [Nat]) xs = []
 "p47" forall a . height (mirror a) < height a = True
