@@ -77,15 +77,3 @@ sub_assoc x y z = x - (y - z) === (x - y) - z
 not_trans x y z = x < y === True ==> y < z === True ==> x < z === False
 
 sub_comm  x y   = x - y === y - x
-
-{-# RULES
-"plus_idem" forall x . x + x = x
-"plus_not_idem" forall x . plus_not_idem x = True
-"plus_inf" forall x . plus_inf x = True
-"plus_ninf" forall x . plus_ninf x = True
-"mul_idem" forall x . x * x  = x
-"silly" forall x y z . x * (y + z) =(x * y) + z
-"sub_assoc" forall x y z . x - (y - z) = (x - y) - z
-"not_trans" forall x y z . not_trans x y z = True
-"sub_comm" forall x y . x - y = y - x
-  #-}

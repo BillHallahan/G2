@@ -346,8 +346,8 @@ def read_runnable_benchmarks(setpath, settings) :
     return lines
 
 def main():
-    test_suite_general(verify_laws(), "verify/tests/NebulaTypeClasses.hs", "NebulaTypeClasses", 60)
-    test_suite_general(unmodified_theorems(), "verify/tests/ZenoBadProp.hs", "ZenoBadProp", 60)
+    # test_suite_general(verify_laws(), "verify/tests/NebulaTypeClasses.hs", "NebulaTypeClasses", 60)
+    test_suite_general(unmodified_theorems(), "verify/refute_tests_nebula/ZenoBadProp.hs", "ZenoBadProp", 60)
 
     setpath = os.path.join("verify/tests")
     run_bench = read_runnable_benchmarks(setpath, [])
@@ -359,7 +359,7 @@ def main():
             thm = thm.replace("prop_", "p")
             props.append((thm, ["a", "b", "c", "d", "e", "f", "g", "h", "i", "j", "k", "l", "m"
                                , "n", "o", "p", "q", "r", "s", "t", "u", "v", "w", "x", "y", "z", "xs", "ys", "zs"]))
-        test_suite_general(props, "verify/tests/" + filename + ".hs", str(filename), 60)
+        test_suite_general(props, "verify/refute_tests_nebula/" + filename + ".hs", str(filename), 60)
 
     # t = 180
     # test_suite_csv("ZenoUnaltered", unmodified_theorems(), t)

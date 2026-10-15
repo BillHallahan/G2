@@ -286,16 +286,3 @@ prop_rot_inj0   n m ys xs = rotate n (xs :: [Nat]) === rotate m ys ==> n === m
 
 prop_rot_uhhhw1 xs ys =                             rotate (length (xs :: [Nat])) (xs ++ ys) === xs ++ ys ==> xs === ys
 prop_rot_uhhhw2 xs ys = length (xs :: [Nat]) === length ys ==>                                                xs === ys
-
-{-# RULES
-"prot_bogus" forall n xs . rotate n (xs :: [Nat]) = xs
-"plen_bs" forall xs ys . length (xs ++ ys) = length (xs ::[Nat])
-"pdrop_idem" forall n xs . drop n (drop n (xs :: [Nat])) = drop n xs
-"pdrop_invol" forall n xs . drop n (drop n (xs :: [Nat])) = xs
-"pdrop_inj1" forall n m xs . prop_drop_inj1 n m xs = True
-"pdrop_inj2" forall n xs ys . prop_drop_inj2 n xs ys = True
-"punion_comm" forall xs ys . xs `union` ys = ys `union` xs
-"prot_inj0" forall n m ys xs . prop_rot_inj0   n m ys xs = True
-"prot_uhhhw1" forall xs ys . prop_rot_uhhhw1 xs ys = True
-"prot_uhhhw2" forall xs ys . prop_rot_uhhhw2 xs ys = True
-  #-}
