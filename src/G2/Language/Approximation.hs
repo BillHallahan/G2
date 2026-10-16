@@ -301,7 +301,6 @@ inlineEquiv lkp s ns v@(Var (Id n _))
     | Just (E.Conc e) <- cs = inlineEquiv lkp s (HS.insert n ns) e
     where
         cs = lkp n s
-inlineEquiv lkp s ns (Tick _ e) = inlineEquiv lkp s ns e
 inlineEquiv lkp s ns e = modifyChildren (inlineEquiv lkp s ns) e
 
 
