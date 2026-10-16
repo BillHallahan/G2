@@ -719,7 +719,7 @@ stripAllTicks :: ASTContainer m Expr => m -> m
 stripAllTicks = modifyASTs stripTicks
 
 stripTicks :: Expr -> Expr
-stripTicks (Tick _ e) = e
+stripTicks (Tick _ e) = stripTicks e
 stripTicks e = e
 
 inlineVars :: ASTContainer c Expr => ExprEnv -> c -> c
