@@ -57,10 +57,9 @@ instance Ord Name where
 
 -- | Disregards the Span
 instance Hashable Name where
-    hashWithSalt s (Name n m i _) =
-        s `hashWithSalt`
-        n `hashWithSalt`
-        m `hashWithSalt` i
+    hashWithSalt s (Name _ _ i _) = s `hashWithSalt` i
+
+    hash (Name _ _ i _) = fromIntegral i
 
 -- | Pairing of a `Name` with a t`Type`
 data Id = Id !Name Type deriving (Show, Eq, Read, Generic, Data, Ord)

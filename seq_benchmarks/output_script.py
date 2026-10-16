@@ -26,7 +26,13 @@ def calculate_avg_time(arr):
     t_uk = 0
     t_st = 0
 
-    for (n, r, t, st, sats, unsats, unk) in arr:
+    for val in arr:
+
+        if val[1] == "EOther" :
+            return (0,0,0,0,0,0,0,0, 0, 0)
+        
+        (n, r, t, st, sats, unsats, unk) = val
+        
         if r == "EUnknown" :
             unknowns += 1
         elif r == "ECounterexample":
@@ -141,9 +147,11 @@ def read_output(logsDirPath):
                             else:
                                 if "False" in benchmarks:
                                     updateDictionary(func_def_false, solver, tuple(data))
+                                    updateDict(f_prop_tbl, name, time_taken)
+                                    
                                 else:
                                     updateDictionary(func_def_true, solver, tuple(data))
-
+                                    # updateDict(t_prop_tbl, name, time_taken)
     # func_def_false = removeDuplicates(func_def_false)
     func_def_true = removeDuplicates(func_def_true)
 
@@ -220,6 +228,6 @@ def read_output(logsDirPath):
 
     print()
 
-current_path = os.path.join(os.getcwd(), "seq_benchmarks/SeqProperties/")
+current_path = os.path.join(os.getcwd(), "/SeqProperties")
 print(current_path)
-read_output(current_path)
+read_output("/g2/seq_benchmarks/SeqProperties")
