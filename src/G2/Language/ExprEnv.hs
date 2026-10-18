@@ -98,16 +98,16 @@ concOrSymToExpr (Conc e) = e
 concOrSymToExpr (Sym i) = Var i
 
 -- | Maps `Name`s to `Expr`s.  Tracks `Type`s of symbolic variables. 
-newtype ExprEnv = ExprEnv (M.HashMap Name ConcOrSym)
+newtype ExprEnv = ExprEnv (M.HashMap UnqName ConcOrSym)
                   deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable ExprEnv
 
 {-# INLINE unwrapExprEnv #-}
-unwrapExprEnv :: ExprEnv -> M.HashMap Name ConcOrSym
+unwrapExprEnv :: ExprEnv -> M.HashMap UnqName ConcOrSym
 unwrapExprEnv = coerce
 
-toHashMap :: ExprEnv -> M.HashMap Name Expr
+toHashMap :: ExprEnv -> M.HashMap UnqName Expr
 toHashMap eenv =
     M.map(\e -> case e of
                     Conc e' -> e'
@@ -119,11 +119,11 @@ empty = ExprEnv M.empty
 
 -- | Constructs an `ExprEnv` with a single `Expr`.
 singleton :: Name -> Expr -> ExprEnv
-singleton n e = ExprEnv $ M.singleton n (Conc e)
+singleton n e = ExprEnv $ M.singleton (UN n) (Conc e)
 
 -- | Constructs an `ExprEnv` from a list of `Name` and `Expr` pairs.
 fromList :: [(Name, Expr)] -> ExprEnv
-fromList = ExprEnv . M.fromList . Pre.map (\(n, e) -> (n, Conc e))
+fromList = ExprEnv . M.fromList . Pre.map (\(n, e) -> (UN n, Conc e))
 
 -- | Is the `ExprEnv` empty?
 null :: ExprEnv -> Bool
@@ -135,19 +135,19 @@ size = M.size . unwrapExprEnv
 
 -- | Is the given `Name` bound in the `ExprEnv`?
 member :: Name -> ExprEnv -> Bool
-member n = M.member n . unwrapExprEnv
+member n = M.member (UN n) . unwrapExprEnv
 
 -- | Lookup the `Expr` with the given `Name`.
 -- Returns `Nothing` if the `Name` is not in the `ExprEnv`.
 lookup :: Name -> ExprEnv -> Maybe Expr
 lookup n (ExprEnv smap) = 
-    case M.lookup n smap of
+    case M.lookup (UN n) smap of
         Just (Conc expr) -> Just expr
         Just (Sym i) -> Just $ Var i
         Nothing -> Nothing
 
 lookupConcOrSym :: Name -> ExprEnv -> Maybe ConcOrSym
-lookupConcOrSym  n (ExprEnv smap) = M.lookup n smap
+lookupConcOrSym  n (ExprEnv smap) = M.lookup (UN n) smap
 
 -- | Lookup the `Expr` with the given `Name`.
 -- If the name is bound to a @Var@, recursively searches that @Vars@ name.
@@ -201,10 +201,10 @@ isSymbolic n eenv =
 
 occLookup :: TV.TyVarEnv -> T.Text -> Maybe T.Text -> ExprEnv -> Maybe Expr
 occLookup tv n m (ExprEnv eenv) = 
-    let ex = L.find (\(Name n' m' _ _, _) -> n == n' && (m == m' || m' == Just "PrimDefs")) -- TODO: The PrimDefs exception should not be here! 
+    let ex = L.find (\(UN (Name n' m' _ _), _)-> n == n' && (m == m' || m' == Just "PrimDefs")) -- TODO: The PrimDefs exception should not be here! 
            . M.toList . M.mapMaybe (\case (Conc e) -> Just e; _ -> Nothing) $ eenv
     in
-    fmap (\(n', e) -> Var $ Id n' (typeOf tv e)) ex
+    fmap (\(UN n', e) -> Var $ Id n' (typeOf tv e)) ex
 
 lookupNameMod :: T.Text -> Maybe T.Text -> ExprEnv -> Maybe (Name, Expr)
 lookupNameMod ns ms =
@@ -216,7 +216,7 @@ nameModMap = M.fromList . L.map (\(n@(Name n' m _ _), e) -> ((n', m), (n, e))) .
 -- | Looks  up a `Name` in the `ExprEnv`.  Crashes if the `Name` is not found.
 (!) :: ExprEnv -> Name -> Expr
 (!) (ExprEnv env') n =
-    case M.lookup n env' of
+    case M.lookup (UN n) env' of
         Just (Conc e) -> e
         Just (Sym i) -> Var i
         Nothing -> error $ "ExprEnv.!: Given key is not an element of the expr env" ++ show n
@@ -224,16 +224,16 @@ nameModMap = M.fromList . L.map (\(n@(Name n' m _ _), e) -> ((n', m), (n, e))) .
 -- | Inserts a new `Expr` into the `ExprEnv`, at the given `Name`.
 -- If the `Name` already exists in the `ExprEnv`, the `Expr` is replaced.
 insert :: Name -> Expr -> ExprEnv -> ExprEnv
-insert n e = ExprEnv . M.insert n (Conc e) . unwrapExprEnv
+insert n e = ExprEnv . M.insert (UN n) (Conc e) . unwrapExprEnv
 
 insertSymbolic :: Id -> ExprEnv -> ExprEnv
-insertSymbolic i = ExprEnv. M.insert (idName i) (Sym i) . unwrapExprEnv
+insertSymbolic i = ExprEnv. M.insert (UN (idName i)) (Sym i) . unwrapExprEnv
 
 insertExprs :: [(Name, Expr)] -> ExprEnv -> ExprEnv
 insertExprs kvs scope = foldr (uncurry insert) scope kvs
 
 alter :: (Maybe ConcOrSym -> Maybe ConcOrSym) -> Name -> ExprEnv -> ExprEnv
-alter f n = ExprEnv . M.alter f n . unwrapExprEnv
+alter f n = ExprEnv . M.alter f (UN n) . unwrapExprEnv
 
 difference :: ExprEnv -> ExprEnv -> ExprEnv
 difference (ExprEnv m1) (ExprEnv m2) =
@@ -243,7 +243,7 @@ difference (ExprEnv m1) (ExprEnv m2) =
 union :: ExprEnv -> ExprEnv -> ExprEnv
 union (ExprEnv eenv) (ExprEnv eenv') = ExprEnv $ eenv `M.union` eenv'
 
-union' :: M.HashMap Name Expr -> ExprEnv -> ExprEnv
+union' :: M.HashMap UnqName Expr -> ExprEnv -> ExprEnv
 union' m (ExprEnv eenv) = ExprEnv (M.map Conc m `M.union` eenv)
 
 -- | Get the union of two `ExprEnv`.  If names overlap, use the passed function to get an `ConcOrSym`.
@@ -262,7 +262,7 @@ unionWithM f (ExprEnv m1) (ExprEnv m2) =
 
 unionWithNameM :: Monad m => (Name -> ConcOrSym -> ConcOrSym -> m ConcOrSym) -> ExprEnv -> ExprEnv -> m ExprEnv
 unionWithNameM f (ExprEnv m1) (ExprEnv m2) =
-    return . ExprEnv =<< (Trav.sequence $ M.unionWithKey (\n x y -> do
+    return . ExprEnv =<< (Trav.sequence $ M.unionWithKey (\(UN n) x y -> do
                                                                     x' <- x
                                                                     y' <- y
                                                                     f n x' y') 
@@ -277,7 +277,7 @@ map :: (Expr -> Expr) -> ExprEnv -> ExprEnv
 map f = mapWithKey (\_ -> f)
 
 -- | Maps a function with an arbitrary return type over all `Expr` in the `ExprEnv`, to get a `Data.HashMap`.
-map' :: (Expr -> a) -> ExprEnv -> M.HashMap Name a
+map' :: (Expr -> a) -> ExprEnv -> M.HashMap UnqName a
 map' f = mapWithKey' (\_ -> f)
 
 mapConc :: (Expr -> Expr) -> ExprEnv -> ExprEnv
@@ -289,21 +289,21 @@ mapConc f = mapConcWithKey (\_ -> f)
 mapWithKey :: (Name -> Expr -> Expr) -> ExprEnv -> ExprEnv
 mapWithKey f (ExprEnv env) = ExprEnv $ M.mapWithKey f' env
     where
-        f' :: Name -> ConcOrSym -> ConcOrSym
-        f' n (Conc e) = Conc $ f n e
-        f' n s@(Sym i) = 
+        f' :: UnqName -> ConcOrSym -> ConcOrSym
+        f' (UN n) (Conc e) = Conc $ f n e
+        f' (UN n) s@(Sym i) = 
             case f n (Var i) of
                 Var i' -> Sym i'
                 _ -> s
 
-mapWithKey' :: (Name -> Expr -> a) -> ExprEnv -> M.HashMap Name a
-mapWithKey' f = M.mapWithKey f . toExprMap
+mapWithKey' :: (Name -> Expr -> a) -> ExprEnv -> M.HashMap UnqName a
+mapWithKey' f = M.mapWithKey (\(UN n) -> f n) . toExprMap
 
 mapConcWithKey :: (Name -> Expr -> Expr) -> ExprEnv -> ExprEnv
 mapConcWithKey f (ExprEnv env) = ExprEnv $ M.mapWithKey f' env
     where
-        f' :: Name -> ConcOrSym -> ConcOrSym
-        f' n (Conc e) = Conc $ f n e
+        f' :: UnqName -> ConcOrSym -> ConcOrSym
+        f' (UN n) (Conc e) = Conc $ f n e
         f' _ s@(Sym _) = s
 
 mapConcOrSym :: (ConcOrSym -> ConcOrSym) -> ExprEnv -> ExprEnv
@@ -315,9 +315,9 @@ mapConcOrSymWithKey f (ExprEnv env) = ExprEnv $ M.mapWithKey f' env
         g :: ConcOrSym -> ConcOrSym
         g (Conc e) = Conc e
         g (Sym i) = Sym i
-        f' :: Name -> ConcOrSym -> ConcOrSym
-        f' n (Conc e) = g $ f n $ Conc e
-        f' n (Sym i) = g $ f n $ Sym i
+        f' :: UnqName -> ConcOrSym -> ConcOrSym
+        f' (UN n) (Conc e) = g $ f n $ Conc e
+        f' (UN n) (Sym i) = g $ f n $ Sym i
 
 mapM :: Monad m => (Expr -> m Expr) -> ExprEnv -> m ExprEnv
 mapM f eenv = return . ExprEnv =<< Pre.mapM f' (unwrapExprEnv eenv)
@@ -329,16 +329,15 @@ mapM f eenv = return . ExprEnv =<< Pre.mapM f' (unwrapExprEnv eenv)
                 Var i' -> return $ Sym i'
                 _ -> return s
 
-
 mapWithKeyM :: Monad m => (Name -> Expr -> m Expr) -> ExprEnv -> m ExprEnv
 mapWithKeyM f eenv = return . ExprEnv . M.fromList =<< Pre.mapM (uncurry f') (toList eenv)
     where
-        f' n (Conc e) = return . (n,) . Conc =<< f n e
-        f' n s@(Sym i) = do
+        f' (UN n) (Conc e) = return . (UN n,) . Conc =<< f n e
+        f' (UN n) s@(Sym i) = do
             e' <- f n (Var i)
             case e' of
-                Var i' -> return $ (n, Sym i')
-                _ -> return (n, s)
+                Var i' -> return $ (UN n, Sym i')
+                _ -> return (UN n, s)
 
 filter :: (Expr -> Bool) -> ExprEnv -> ExprEnv
 filter p = filterWithKey (\_ -> p) 
@@ -346,9 +345,9 @@ filter p = filterWithKey (\_ -> p)
 filterWithKey :: (Name -> Expr -> Bool) -> ExprEnv -> ExprEnv
 filterWithKey p (ExprEnv env') = ExprEnv $ M.filterWithKey p' env'
     where
-        p' :: Name -> ConcOrSym -> Bool
-        p' n (Conc e) = p n e
-        p' n (Sym i) = p n (Var i)
+        p' :: UnqName -> ConcOrSym -> Bool
+        p' (UN n) (Conc e) = p n e
+        p' (UN n) (Sym i) = p n (Var i)
 
 filterConcOrSym :: (ConcOrSym -> Bool) -> ExprEnv -> ExprEnv
 filterConcOrSym p = filterConcOrSymWithKey (\_ -> p) 
@@ -356,9 +355,9 @@ filterConcOrSym p = filterConcOrSymWithKey (\_ -> p)
 filterConcOrSymWithKey :: (Name -> ConcOrSym -> Bool) -> ExprEnv -> ExprEnv
 filterConcOrSymWithKey p (ExprEnv env') = ExprEnv $ M.filterWithKey p' env'
     where
-        p' :: Name -> ConcOrSym -> Bool
-        p' n (Conc e) = p n (Conc e)
-        p' n (Sym i) = p n (Sym i)
+        p' :: UnqName -> ConcOrSym -> Bool
+        p' (UN n) (Conc e) = p n (Conc e)
+        p' (UN n) (Sym i) = p n (Sym i)
 
 -- | Returns a new `ExprEnv`, which contains only the symbolic values.
 filterToSymbolic :: ExprEnv -> ExprEnv
@@ -371,7 +370,7 @@ funcsOfType :: TV.TyVarEnv -> Type -> ExprEnv -> [Name]
 funcsOfType tv t = keys . filter (\e -> t == typeOf tv e)
 
 keys :: ExprEnv -> [Name]
-keys = M.keys . unwrapExprEnv
+keys = coerce . M.keys . unwrapExprEnv
 
 symbolicIds :: ExprEnv -> [Id]
 symbolicIds = mapMaybe (\e -> case e of
@@ -386,24 +385,25 @@ elems = concs . M.elems . unwrapExprEnv
 higherOrderExprs :: TV.TyVarEnv -> ExprEnv -> [Type]
 higherOrderExprs tv eenv = concatMap (higherOrderFuncs . typeOf tv ) (elems eenv)
 
-toList :: ExprEnv -> [(Name, ConcOrSym)]
+toList :: ExprEnv -> [(UnqName, ConcOrSym)]
 toList = M.toList . unwrapExprEnv
 
 -- | Creates a list of Name to Expr coorespondences
 -- Loses information about names that are mapped to the same value
 toExprList :: ExprEnv -> [(Name, Expr)]
 toExprList env@(ExprEnv env') =
-    M.toList
-    . M.mapWithKey (\k _ -> env ! k) $ env'
+      coerce
+    . M.toList
+    . M.mapWithKey (\(UN k) _ -> env ! k) $ env'
 
 fromExprList :: [(Name, Expr)] -> ExprEnv
-fromExprList = ExprEnv . M.fromList . L.map (\(n, e) -> (n, Conc e))
+fromExprList = ExprEnv . M.fromList . L.map (\(n, e) -> (UN n, Conc e))
 
-fromExprMap :: M.HashMap Name Expr -> ExprEnv
+fromExprMap :: M.HashMap UnqName Expr -> ExprEnv
 fromExprMap = ExprEnv . M.map Conc
 
-toExprMap :: ExprEnv -> M.HashMap Name Expr
-toExprMap env = M.mapWithKey (\k _ -> env ! k) $ unwrapExprEnv env
+toExprMap :: ExprEnv -> M.HashMap UnqName Expr
+toExprMap env = M.mapWithKey (\(UN k) _ -> env ! k) $ unwrapExprEnv env
 
 getIdFromName :: ExprEnv -> Name -> Maybe Id
 getIdFromName eenv name = 

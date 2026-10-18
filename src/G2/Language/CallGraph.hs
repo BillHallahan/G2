@@ -27,7 +27,7 @@ getCallGraph eenv =
         funcs = E.keys eenv
     
         (g, nfv', vert') = graphFromEdges
-            . map (\(n, e) -> 
+            . map (\(UN n, e) -> 
                         let
                             clls = filter (\n' -> n' `elem` funcs) . map idName $ varIds e
                         in

@@ -412,7 +412,7 @@ mergeExtractedG2s (g2:g2s) =
 ----------------
 -- Translating the individual components in CoreSyn, etc into G2 Core
 
-mkBinds :: Maybe ModBreaks -> CoreBind -> G2.NamesM (HM.HashMap G2.Name G2.Expr)
+mkBinds :: Maybe ModBreaks -> CoreBind -> G2.NamesM (HM.HashMap G2.UnqName G2.Expr)
 mkBinds mb (NonRec var expr) = do
     (n, e) <- mkBindTuple mb var expr
     return $ HM.singleton n e
@@ -420,11 +420,11 @@ mkBinds mb (Rec ves) =
     HM.fromList <$> mapM (uncurry (mkBindTuple mb)) ves
 
 {-# INLINE mkBindTuple #-}
-mkBindTuple :: Monad m => Maybe ModBreaks -> Var -> CoreExpr -> G2.NamesT m (G2.Name, G2.Expr)
+mkBindTuple :: Monad m => Maybe ModBreaks -> Var -> CoreExpr -> G2.NamesT m (G2.UnqName, G2.Expr)
 mkBindTuple mb var expr = do
     i <- mkIdLookup var
     e <- mkExpr mb expr
-    return $ (G2.idName i, e)
+    return $ (G2.UN $ G2.idName i, e)
 
 mkExpr :: Monad m => Maybe ModBreaks -> CoreExpr -> G2.NamesT m G2.Expr
 mkExpr _ (Var var) = return . G2.Var =<< mkIdLookup var
@@ -828,7 +828,7 @@ availInfoNames (AvailTC n ns _) = mkName n:map mkName ns
 
 -- | absVarLoc'
 -- Switches all file paths in Var namesand Ticks to be absolute
-absVarLoc :: HM.HashMap G2.Name G2.Expr -> IO (HM.HashMap G2.Name G2.Expr)
+absVarLoc :: HM.HashMap G2.UnqName G2.Expr -> IO (HM.HashMap G2.UnqName G2.Expr)
 absVarLoc = mapM absVarLoc'
         
 absVarLoc' :: G2.Expr -> IO G2.Expr

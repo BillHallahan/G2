@@ -70,6 +70,8 @@ import Text.Read
 import qualified G2.Language.TyVarEnv as TV
 import qualified G2.Language.PolyArgMap as PM
 
+import Data.Coerce
+
 data Clean = Cleaned | Dirty deriving Eq
 
 mkIdHaskell :: PrettyGuide -> Id -> T.Text
@@ -899,6 +901,7 @@ prettyEEnv tv pg@(PG {env_ordering=e_ord}) cexpr estack eenv = T.intercalate "\n
                    . map (uncurry printFunc)
                    . (case e_ord of Ordered -> reorder
                                     Unordered -> id)
+                   . coerce
                    . E.toList $ eenv
     where
         printFunc n e = mkNameHaskell pg n <> " :: " <> mkTypeHaskellPG pg (concOrSymType tv eenv e)

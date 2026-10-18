@@ -102,7 +102,7 @@ emptyCgGutsClosure =
 
 data ExtractedG2 = ExtractedG2
   { exg2_mod_names :: [Maybe T.Text]
-  , exg2_binds :: HM.HashMap G2.Name G2.Expr
+  , exg2_binds :: HM.HashMap G2.UnqName G2.Expr
   , exg2_tycons :: HM.HashMap G2.Name G2.AlgDataTy
   , exg2_classes :: [(G2.Name, G2.Id, [G2.Id], [(G2.Type, G2.Id)])]
   , exg2_axioms :: [(G2.Name, G2.Axiom)]

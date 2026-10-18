@@ -545,17 +545,17 @@ unitName = find ((==) "Unit" . nameOcc) . HM.keys
 unitName = find ((==) "()" . nameOcc) . HM.keys
 #endif
 
-replaceFromPD :: HM.HashMap Name AlgDataTy -> Name -> Expr -> Expr
-replaceFromPD pt n e =
+replaceFromPD :: HM.HashMap Name AlgDataTy -> UnqName -> Expr -> Expr
+replaceFromPD pt (UN n) e =
     let
         e' = fmap snd $ find ((==) (nameOcc n) . fst) (primDefs pt)
     in
     maybe e id e'
 
-addPrimsToBase :: HM.HashMap Name AlgDataTy -> HM.HashMap Name Expr -> HM.HashMap Name Expr
+addPrimsToBase :: HM.HashMap Name AlgDataTy -> HM.HashMap UnqName Expr -> HM.HashMap UnqName Expr
 addPrimsToBase pt prims = HM.mapWithKey (replaceFromPD pt) prims
 
-mergeProgs :: HM.HashMap Name Expr -> HM.HashMap Name Expr -> HM.HashMap Name Expr
+mergeProgs :: HM.HashMap UnqName Expr -> HM.HashMap UnqName Expr -> HM.HashMap UnqName Expr
 mergeProgs prog prims = prog `HM.union` prims
 
 -- The prog is used to change the names of types in the prog' and primTys

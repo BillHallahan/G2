@@ -138,7 +138,7 @@ infixr 0 ==>
 -- from previously compiled modules.  We also need to avoid reusing the same
 -- names.  We use `compiledModules` to store both previously compiled modules
 -- and existing Expression/Type Name maps.
-compiledModules :: IORef (Maybe ([CommandLineOption], ExtractedG2, NameMap, TypeNameMap, S.Set L.Name))
+compiledModules :: IORef (Maybe ([CommandLineOption], ExtractedG2, NameMap, TypeNameMap, S.Set L.UnqName))
 compiledModules = unsafePerformIO $ newIORef Nothing
 {-# NOINLINE compiledModules #-}
 
@@ -363,7 +363,7 @@ logEquivTime (Just log_folder) mod_name entry ver_res time stats = do
 ------------------------------------------------------------------------------
 
 -- | Set up an initial extracted G2 with the base library and the functions from the module currently being compiled.
-loadExtractedG2 :: [CommandLineOption] -> Config -> HscEnv -> ModGuts -> CoreM (NameMap, TypeNameMap, ExtractedG2, S.Set L.Name)
+loadExtractedG2 :: [CommandLineOption] -> Config -> HscEnv -> ModGuts -> CoreM (NameMap, TypeNameMap, ExtractedG2, S.Set L.UnqName)
 loadExtractedG2 cmd_lne config env modguts = do
     -- We want simpl to be False so the simplifier does not run, because
     -- this plugin gets inserted into the simplifier.  Thus, running the simplifier
@@ -402,7 +402,7 @@ getBinderAnnotations nm tm modguts = do
     return $ deepseq anns anns
 
 -- | Add relevant functions from the imports into the ExtractedG2.
-setUpImports :: SM.MonadIO m => Config -> [CommandLineOption] -> NameMap -> TypeNameMap -> HscEnv -> ExtractedG2 -> S.Set L.Name -> Seq.Seq L.Name -> m (NameMap, TypeNameMap, ExtractedG2)
+setUpImports :: SM.MonadIO m => Config -> [CommandLineOption] -> NameMap -> TypeNameMap -> HscEnv -> ExtractedG2 -> S.Set L.UnqName -> Seq.Seq L.Name -> m (NameMap, TypeNameMap, ExtractedG2)
 setUpImports config cmd_lne nm tm env ex_g2 prev_explored rel_names = do
     (imports_exg2, (imports_nm, import_tnm)) <- SM.runStateT (loadImports env (exg2_binds ex_g2) prev_explored rel_names) (nm, tm)
     let adj_funcs_exg2 = adjustFunctions config imports_nm imports_exg2
@@ -413,7 +413,7 @@ setUpImports config cmd_lne nm tm env ex_g2 prev_explored rel_names = do
     return (imports_nm, import_tnm, injected_exg2)
 
 -- Based on https://dl.acm.org/doi/pdf/10.1145/3495272
-loadImports :: SM.MonadIO m => HscEnv -> HM.HashMap L.Name L.Expr -> S.Set L.Name -> Seq.Seq L.Name -> NamesT m ExtractedG2
+loadImports :: SM.MonadIO m => HscEnv -> HM.HashMap L.UnqName L.Expr -> S.Set L.UnqName -> Seq.Seq L.Name -> NamesT m ExtractedG2
 loadImports env local_binds prev_explored ns = do
     external_package_state <- liftIO $ hscEPS env
     let all_ids = nonDetNameEnvElts $ eps_PTE external_package_state
@@ -428,7 +428,7 @@ loadImports env local_binds prev_explored ns = do
 
     -- Compute bindings. The total number of binds is (very) large. As an optimization, we only convert binds
     -- that are actually relevant to the function(s) we are symbolically executing.
-    rel_binds <- convertRelBinds local_binds all_imp_binds prev_explored (S.fromList $ F.toList ns) []
+    rel_binds <- convertRelBinds local_binds all_imp_binds prev_explored (S.fromList . coerce $ F.toList ns) []
     binds <- mapM (uncurry (mkBindTuple Nothing)) rel_binds
     
     tycons <- mapM T.mkTyCon all_tys
@@ -446,21 +446,22 @@ loadImports env local_binds prev_explored ns = do
 
 -- | Compute bindings that are actually relevant to the passed list of "relevant names".
 convertRelBinds :: SM.MonadIO m =>
-                    HM.HashMap L.Name L.Expr
+                    HM.HashMap L.UnqName L.Expr
                 -> [(GHC.Id, CoreExpr)]
-                -> S.Set L.Name -- ^ Previously explored/loaded names
-                -> S.Set L.Name -- ^ Relevant names
+                -> S.Set L.UnqName -- ^ Previously explored/loaded names
+                -> S.Set L.UnqName -- ^ Relevant names
                 -> [(GHC.Id, CoreExpr)]
                 -> NamesT m [(GHC.Id, CoreExpr)]
 convertRelBinds local_binds binds = go
     where
+        go :: Monad m => S.Set L.UnqName -> S.Set L.UnqName -> [(GHC.Id, CoreExpr)] -> NamesT m [(GHC.Id, CoreExpr)]
         go _ to_explore rel | S.null to_explore = return rel
         go explored to_explore so_far_rel
             | n `notElem` explored = do
                 -- Find relevent bindings from the imports
-                rel_binds <- filterM (\(i, _) -> liftM2 (==) (valNameLookup $ varName i) (return n)) binds
+                rel_binds <- filterM (\(i, _) -> liftM2 (==) (fmap UN . valNameLookup $ varName i) (return n)) binds
                 let n_rel_call = S.toList . mconcat $ map (relVar . snd) rel_binds
-                n_rel_call_g2 <- mapM (valNameLookup . varName) n_rel_call
+                n_rel_call_g2 <- mapM (fmap UN . valNameLookup . varName) n_rel_call
 
                 -- Find relevant local bindings to search deeper for needed imports
                 let local_names = maybe S.empty topVarNames $ HM.lookup n local_binds
@@ -473,10 +474,10 @@ convertRelBinds local_binds binds = go
             where
                 (n, ns) = fromJust $ S.minView to_explore
 
-topVarNames :: L.Expr -> S.Set L.Name
+topVarNames :: L.Expr -> S.Set L.UnqName
 topVarNames = go HS.empty
     where
-        go bound (L.Var (Id n _)) | n `notElem` bound = S.singleton n
+        go bound (L.Var (Id n _)) | n `notElem` bound = S.singleton (UN n)
         go bound (L.Lam _ (Id b _) e) = go (HS.insert b bound) e
         go bound (L.Let kvs e) =
             let

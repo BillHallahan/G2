@@ -146,10 +146,10 @@ adjustAssert f m nm exg2 =
 adjustFunction :: (T.Text, Maybe T.Text) -> NameMap -> G2.Expr -> ExtractedG2 -> ExtractedG2
 adjustFunction fname@(_, Just _) nm e exg2@(ExtractedG2 { exg2_binds = binds}) =
     case HM.lookup fname nm of
-        Just sym_n -> exg2 { exg2_binds = HM.insert sym_n e binds }
+        Just sym_n -> exg2 { exg2_binds = HM.insert (UN sym_n) e binds }
         Nothing -> exg2
 adjustFunction (n, Nothing) _ e exg2@(ExtractedG2 { exg2_binds = binds}) =
-    case find (\b -> nameOcc b == n) (HM.keys binds) of
+    case find (\(UN b) -> nameOcc b == n) (HM.keys binds) of
         Just sym_n -> exg2 { exg2_binds = HM.insert sym_n e binds }
         Nothing -> exg2
 

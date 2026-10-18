@@ -61,6 +61,17 @@ instance Hashable Name where
 
     hash (Name _ _ i _) = fromIntegral i
 
+-- | A `Name` where equality, ordering, hashing depend purely on Unique
+newtype UnqName = UN Name deriving (Show, Read, Generic, Data)
+
+instance Hashable UnqName
+
+instance Eq UnqName where
+    UN (Name _ _ i1 _) == UN (Name _ _ i2 _) = i1 == i2
+
+instance Ord UnqName where
+    UN (Name _ _ i1 _) `compare` UN (Name _ _ i2 _) = i1 `compare` i2
+
 -- | Pairing of a `Name` with a t`Type`
 data Id = Id !Name Type deriving (Show, Eq, Read, Generic, Data, Ord)
 

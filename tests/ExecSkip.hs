@@ -25,8 +25,8 @@ execSkipTests =
     , testCase "reachesSym Memoization 3" $ assertBool "Memoization lookup updates ReachesSym to NotReachesSym" reachesSymLookup3
     ]
 
-name :: T.Text -> Name
-name n = Name n Nothing 0 Nothing
+name :: T.Text -> Unique -> Name
+name n i = Name n Nothing i Nothing
 
 -------------------------------------------------------------------------------
 -- checkDelayability Memoization Tests
@@ -43,7 +43,7 @@ isExec = not . isSkip
 execSkipLookup1 :: Bool
 execSkipLookup1 =
     let
-        x = name "x"
+        x = name "x" 0
         
         eenv = E.fromList [ (x, error "looked up definition") ]
         e = Var (Id x TyLitInt)
@@ -57,10 +57,10 @@ execSkipLookup1 =
 execSkipLookup2 :: Bool
 execSkipLookup2 =
     let
-        x = name "x"
-        y = name "y"
-        z = name "z"
-        f = name "f"
+        x = name "x" 0
+        y = name "y" 1
+        z = name "z" 2
+        f = name "f" 3
 
         err_e = Let (error "looking too deep") (error "looking too deep")
         
@@ -81,10 +81,10 @@ execSkipLookup2 =
 execSkipLookup3 :: Bool
 execSkipLookup3 =
     let
-        x = name "x"
-        y = name "y"
-        z = name "z"
-        f = name "f"
+        x = name "x" 0
+        y = name "y" 1
+        z = name "z" 2
+        f = name "f" 3
 
         -- Do checks with x
         err_e = Let (error "looking too deep") (error "looking too deep")
@@ -119,7 +119,7 @@ execSkipLookup3 =
 reachesSymLookup1 :: Bool
 reachesSymLookup1 =
     let
-        x = name "x"
+        x = name "x" 0
         
         eenv = E.fromList [ (x, error "looked up definition") ]
         e = Var (Id x TyLitInt)
@@ -131,10 +131,10 @@ reachesSymLookup1 =
 reachesSymLookup2 :: Bool
 reachesSymLookup2 =
     let
-        x = name "x"
-        y = name "y"
-        z = name "z"
-        f = name "f"
+        x = name "x" 0
+        y = name "y" 1
+        z = name "z" 2
+        f = name "f" 3
 
         err_e = Let (error "looking too deep") (error "looking too deep")
         
@@ -153,10 +153,10 @@ reachesSymLookup2 =
 reachesSymLookup3 :: Bool
 reachesSymLookup3 =
     let
-        x = name "x"
-        y = name "y"
-        z = name "z"
-        f = name "f"
+        x = name "x" 0
+        y = name "y" 1
+        z = name "z" 2
+        f = name "f" 3
 
         -- Do checks with x
         err_e = Let (error "looking too deep") (error "looking too deep")

@@ -256,6 +256,17 @@ instance Named Name where
         case HM.lookupDefault n n hm of
             Name n' m' i _ -> Name n' m' i l
 
+instance Named UnqName where
+    {-# INLINE names #-}
+    names (UN n) = S.singleton n
+    {-# INLINE rename #-}
+    rename old (Name nn nm ni _) un@(UN n@(Name _ _ _ l)) = if old == n then UN (Name nn nm ni l) else un
+    {-# INLINE renames #-}
+    renames hm (UN n@(Name _ _ _ l)) =
+        case HM.lookupDefault n n hm of
+            Name n' m' i _ -> UN (Name n' m' i l)
+
+
 instance Named Id where
     {-# INLINE names #-}
     names (Id n t) = n S.<| names t
