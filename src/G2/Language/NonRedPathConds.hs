@@ -100,7 +100,6 @@ instance Hashable NonRedPathConds
 -- required to fully reduce the state.  If they were, they would have been switched to focused NRPCs by the `adjustFocusReducer`.
 -- As such, the `adjustFocusReducer` also wipes out the NRPCs if the state's expression is false and all are unfocused. 
 
-
 -- | Is evaluation of the NRPC being forced? I.e. does evaluation of the state definitely evaluate the NRPC expression(s).
 -- See Note [NRPC Focus] and `Focus`.
 data GenFocus n = Focused
