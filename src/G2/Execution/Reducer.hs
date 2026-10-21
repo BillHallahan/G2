@@ -473,9 +473,9 @@ nonRedLibFuncs exec_names no_nrpc_names
 nonRedPathsReducer :: (MonadIO m, Solver solver) =>
                         solver
                       -> Config
-                      -> Reducer m (Int, ReachabilityTable) t
+                      -> Reducer m Int t
 nonRedPathsReducer solver config =
-    (mkSimpleReducer (\_ -> (0, HM.empty))
+    (mkSimpleReducer (\_ -> 0)
         (nonRedPathCons solver config))
         { onAccept = \s b nrpc_count -> do
             if print_num_nrpc config
@@ -483,8 +483,8 @@ nonRedPathsReducer solver config =
                 else return ()
             return (s, b) }
 
-nonRedPathCons :: (MonadIO m, Solver solver )=> solver -> Config -> RedRules m (Int, ReachabilityTable) t
-nonRedPathCons solver config rv@(nrpc_count, reach_tbl)
+nonRedPathCons :: (MonadIO m, Solver solver )=> solver -> Config -> RedRules m Int t
+nonRedPathCons solver config rv@(nrpc_count)
                 s@(State { curr_expr = CurrExpr _ ce
                          , expr_env = eenv})
                 b@(Bindings { name_gen = ng })
@@ -493,10 +493,10 @@ nonRedPathCons solver config rv@(nrpc_count, reach_tbl)
     , E.isSymbolic n' eenv
     , Just (s'@(State { curr_expr = CurrExpr _ _ }), _, NRPC { nrpc_lhs = left, nrpc_rhs = right }, ng') <- createNonRedForCase ng Focused s = 
         do
-            (num_paths, reach_tbl') <- liftIO $ paths HS.empty left right s' (b {name_gen = ng'}) solver reach_tbl
+            (num_paths, reach_tbl') <- liftIO $ paths HS.empty left right s' (b {name_gen = ng'}) solver (reach_table s)
             when (print_paths config) $ liftIO . putStrLn $ "Paths count: " ++ show num_paths -- ++ " : expression is:" ++ show left
             if num_paths > 1 
-                then return (Finished, [(s', (nrpc_count + 1, reach_tbl'))], b {name_gen = ng'})
+                then return (Finished, [(s' {reach_table = reach_tbl'}, nrpc_count + 1)], b {name_gen = ng'})
                 else return (Finished, [(s, rv)], b)
     -- Removing the Tick so standard reducer can reduce case expression. 
     -- This is to avoid adding a case expression again and again in the nrpc set

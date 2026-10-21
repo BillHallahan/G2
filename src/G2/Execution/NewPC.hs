@@ -86,11 +86,11 @@ reduceNewPC discard_unknown_states config bindings solver simplifier ng (SplitSt
 
                 in return (ng'', [first_s { expr_env = eenv', exec_stack = new_stack, global_lit_table_pc = glob_pc' }])
             Nothing -> return (ng, [])
-    -- | Nrpc <- paths_nrpc config = do
-    --     (ng', sds) <- mapAccumMaybeM (\ng' sd -> getValidStateAndDiffs discard_unknown_states solver simplifier ng' state sd) ng state_diffs
-    --     let (states, sds') = unzip sds
-    --         updatedStates = getUpdatedStates states sds' bindings
-    --     return (ng', updatedStates)
+    | Nrpc <- paths_nrpc config = do
+        (ng', sds) <- mapAccumMaybeM (\ng' sd -> getValidStateAndDiffs discard_unknown_states solver simplifier ng' state sd) ng state_diffs
+        let (states, sds') = unzip sds
+        updatedStates <- getUpdatedStates states sds' bindings
+        return (ng', updatedStates)
     | otherwise =
         mapAccumMaybeM (\ng' sd -> reduceStateDiff discard_unknown_states solver simplifier ng' state sd) ng state_diffs
     where
@@ -184,35 +184,34 @@ reduceNewPC discard_unknown_states config bindings solver simplifier ng (SplitSt
 
         wrap diff = LitTableFrame (Diff diff (path_conds state)) True
 
-        getUpdatedStates :: [State t] -> [StateDiff] -> Bindings -> [State t]
-        getUpdatedStates [] _ _ = []
-        getUpdatedStates _ [] _ = []
-        getUpdatedStates (st:sts) (state_diff:sds) b = 
+        getUpdatedStates :: [State t] -> [StateDiff] -> Bindings -> IO [State t]
+        getUpdatedStates [] _ _ = return []
+        getUpdatedStates _ [] _ = return []
+        getUpdatedStates (st:sts) (state_diff:sds) b = do
             let
                 nrpcs = toListNRPC $ non_red_path_conds st
-                st' = compareNrpcAndConcs (new_conc_entries state_diff) nrpcs st b
-            in 
-                (st': getUpdatedStates sts sds b)
+            st' <- compareNrpcAndConcs (new_conc_entries state_diff) nrpcs st b
+            stail <- getUpdatedStates sts sds b
+            return (st': stail)
         
-        compareNrpcAndConcs :: [(Name, Expr)] -> [NRPC] -> State t -> Bindings -> State t
-        compareNrpcAndConcs [] _ nrpc_state _ = nrpc_state
-        compareNrpcAndConcs _ [] nrpc_state _ = nrpc_state
+        compareNrpcAndConcs :: [(Name, Expr)] -> [NRPC] -> State t -> Bindings -> IO (State t)
+        compareNrpcAndConcs [] _ nrpc_state _ = return nrpc_state
+        compareNrpcAndConcs _ [] nrpc_state _ = return nrpc_state
         compareNrpcAndConcs c@((nm, _):cvs) (np:nrpcs) nrpc_state b = 
             let nrpc_r = nrpc_rhs np
-                nrpc_l = nrpc_lhs np
                 nrpc_state' = case nrpc_r of
                         Var (Id n _) -> if nm == n 
                             then 
-                                (
-                                    let s' = callNrpcPathsUpdateState nrpc_l nrpc_r nrpc_state b 
-                                        nrpcs' = toListNRPC $ non_red_path_conds s'
-                                    in compareNrpcAndConcs cvs nrpcs' s' b
+                                ( do
+                                    s' <- callNrpcPathsUpdateState np nrpc_state b 
+                                    let nrpcs' = toListNRPC $ non_red_path_conds s'
+                                    compareNrpcAndConcs cvs nrpcs' s' b
                                 )
                             else compareNrpcAndConcs c nrpcs nrpc_state b
                         _ -> error $ "compareNrpcAndConcs: bad right hand side NRPC expr " ++ show nrpc_r
             in nrpc_state'
 
-        callNrpcPathsUpdateState nrpc_l nrpc_r nrp_state b = getUpdatedStateIfPathsChanged H.empty nrpc_l nrpc_r nrp_state b solver
+        callNrpcPathsUpdateState nrpc nrp_state b = getUpdatedStateIfPathsChanged H.empty nrpc nrp_state b solver
 
 getValidStateAndDiffs :: (Solver solver, Simplifier simplifier)
                   => DiscardUnknownStates

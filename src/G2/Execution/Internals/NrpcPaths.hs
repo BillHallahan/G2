@@ -19,9 +19,6 @@ import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as S
 import G2.Solver
 
-
-type ReachabilityTable = HM.HashMap Name Bool
-
 paths :: Solver solver => HS.HashSet Name -> Expr -> Expr -> State t -> Bindings -> solver -> ReachabilityTable -> IO (Int, ReachabilityTable)
 paths seen_funcs nrpc_e_lhs nrpc_e_rhs
         s@(State {expr_env = eenv, path_conds = originalPc})
@@ -215,20 +212,27 @@ reachabilityCheck' seen ng eenv e
 threshold :: Int
 threshold = 1
 
-getUpdatedStateIfPathsChanged :: Solver solver => HS.HashSet Name -> Expr -> Expr -> State t -> Bindings -> solver -> State t
-getUpdatedStateIfPathsChanged _ _ _ s _ _ = 
-    let
+getUpdatedStateIfPathsChanged :: Solver solver => HS.HashSet Name -> NRPC -> State t -> Bindings -> solver -> IO (State t)
+getUpdatedStateIfPathsChanged _ np s b solver = do
+    let nrpc_r = nrpc_rhs np
+        nrpc_l = nrpc_lhs np
+        reach_tbl = reach_table s
         -- Call paths here
-        path = 0
-    in 
-        if path > threshold then updateState s else s
+    (path, reach_tbl') <- paths HS.empty nrpc_r nrpc_l s b solver reach_tbl
+    
+    let s' = s {reach_table = reach_tbl'}
+     
+    if path > threshold then updateState np s' else return s
 
-updateState :: State t -> State t
-updateState s@(State {curr_expr = c_e
-                    , exec_stack = stck}) = 
-    let
-        -- frame = 
-        -- stck' = S.push 
+updateState :: NRPC -> State t -> IO (State t)
+updateState np s@(State {curr_expr = c_e
+                    , exec_stack = stck}) = do
+    let nrpc_r = nrpc_rhs np
+        nrpc_l = nrpc_lhs np
+        frame = CurrExprFrame (EnsureEq nrpc_l) c_e
+        s' = s {
+            curr_expr = CurrExpr Evaluate nrpc_r, 
+            exec_stack = S.push frame stck,
+            non_red_path_conds = deleteNRPC np (non_red_path_conds s)}
 
-
-    in s
+    return s'

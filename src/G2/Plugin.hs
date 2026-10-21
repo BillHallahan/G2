@@ -608,16 +608,6 @@ callPrimIgnoringEq nm n =
         Just prim_n -> L.Lam TypeL ty_i . L.Lam TermL eq_i $ L.App (L.Var (Id prim_n TyUnknown)) (L.Var ty_i)
         Nothing -> error "callPrim: primitive not found"
 
-callPrimIgnoringEq :: NameMap -> TX.Text -> L.Expr 
-callPrimIgnoringEq nm n =
-    let
-        ty_i = Id (Name "a" Nothing 0 Nothing) TYPE
-        eq_i = Id (Name "e" Nothing 0 Nothing) TYPE
-    in
-    case HM.lookup (n, Just "GHC.Prim") nm of
-        Just prim_n -> L.Lam TypeL ty_i . L.Lam TermL eq_i $ L.App (L.Var (Id prim_n TyUnknown)) (L.Var ty_i)
-        Nothing -> error "callPrim: primitive not found"
-
 ------------------------------------------------------------------------------
 -- Functions for use in plugins
 ------------------------------------------------------------------------------

@@ -88,6 +88,7 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , forcing_var :: Bool -- ^ Are we currently forcing deep evaluation of a variable? See Note [Forcing Sharing] in G2.Execution.Rules
 
                      , track :: t
+                     , reach_table :: ReachabilityTable
                      } deriving (Show, Eq, Read, Generic, Data)
 
 type EEDiff = [(Name, Expr)] -- concrete values to insert in ExprEnv
@@ -150,6 +151,8 @@ data CurrExpr = CurrExpr EvalOrReturn Expr
               deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable CurrExpr
+
+type ReachabilityTable = HM.HashMap Name Bool
 
 -- | Gets the `Expr` represented by a state.
 getExpr :: State t -> Expr
