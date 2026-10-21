@@ -243,7 +243,7 @@ def test_suite_general(fname_in, suite, time_limit, var_settings):
     total_ver_time = 0
     total_cex_time = 0
 
-    with Pool(processes=8) as pool:
+    with Pool(processes=4) as pool:
         arg_suite = [(fname_in, time_limit, var_settings, s) for (s, _) in suite]
         for (thm, res) in pool.imap(run_theorem, arg_suite):
             print(thm)
@@ -253,16 +253,18 @@ def test_suite_general(fname_in, suite, time_limit, var_settings):
                 print("Verified - " + str(runTime))
                 verified += 1
                 total_ver_time += float(process_output(res))
-            if "Counterexample" in res:
+            elif "Counterexample" in res:
                 print("Counterexample - " + str(runTime))
                 cex += 1
                 total_cex_time += float(process_output(res))
-            if "Timeout" in res:
+            elif "Timeout" in res:
                 print("Timeout")
                 timeout +=1
-            if "error" in res:
+            elif "error" in res:
                 print("error")
                 timeout +=1
+            else:
+                print("unhandled")
 
     print("\n")
     return (verified, cex, timeout, total_ver_time, total_cex_time, result)

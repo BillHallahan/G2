@@ -341,8 +341,8 @@ instance Simplifier LitConc where
                 where
                     t' = tyVarSubst tv_env t
 
-            concAppropEEnv _ _ (Just (E.ExprObj e)) = Just . E.ExprObj $ e
-            concAppropEEnv t e _ = Just . E.ExprObj $ concApprop t e
+            concAppropEEnv _ _ (Just (E.Conc e)) = Just . E.Conc $ e
+            concAppropEEnv t e _ = Just . E.Conc $ concApprop t e
 
             concApprop t e
                 | t' == T.tyInt kv = concInt e

@@ -552,13 +552,13 @@ evalPrimADT2 _ _ _ kv _ Or e1 e2
     | Just b1 <- toBool kv e1
     , Just b2 <- toBool kv e2 = Just $ mkBool kv (b1 || b2)
 
-evalPrimADT2 _ _ _ kv _ Eq l1 l2 = do
-    xs <- toExprList kv l1
-    ys <- toExprList kv l2
+evalPrimADT2 eenv _ _ kv _ Eq l1 l2 = do
+    xs <- toConcRedExprList kv eenv l1
+    ys <- toConcRedExprList kv eenv l2
     return $ mkBool kv (xs == ys)
-evalPrimADT2 _ _ _ kv _ Neq l1 l2 = do
-    xs <- toExprList kv l1
-    ys <- toExprList kv l2
+evalPrimADT2 eenv _ _ kv _ Neq l1 l2 = do
+    xs <- toConcRedExprList kv eenv l1
+    ys <- toConcRedExprList kv eenv l2
     return $ mkBool kv (xs /= ys)
 
 evalPrimADT2 _ tenv _ kv _ StrAppend xs ys = do

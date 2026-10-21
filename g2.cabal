@@ -288,6 +288,7 @@ library
 
   default-language:    Haskell2010
   ghc-options:         -Wall
+                       -- -O2
                        -- -O1
                        -fno-ignore-asserts
                        -- -ddump-rule-rewrites
@@ -431,7 +432,8 @@ executable Verify
                        , unordered-containers >= 0.2 && < 0.3
   default-language:    Haskell2010
   ghc-options:         -threaded -Wall
-                       -- -fexternal-interpreter -opti+RTS -opti-p
+                       -- -fexternal-interpreter
+                       -- -opti+RTS -opti-p
   -- ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
   hs-source-dirs:      verify
   main-is:             Main.hs
@@ -453,20 +455,43 @@ executable Verify-QuickCheck
                        , ZenoWithZip
                        , Definitions
                        , Nat
+                       , ZenoBadPropQC
+                       , ZenoWithDeleteQC
+                       , ZenoWithDropQC
+                       , ZenoWithElemQC
+                       , ZenoWithFilterQC
+                       , ZenoWithHeightQC
+                       , ZenoWithInsQC
+                       , ZenoWithLenQC
+                       , ZenoWithMapQC
+                       , ZenoWithMirrorQC
+                       , ZenoWithRevQC
+                       , ZenoWithTakeQC
+                       , ZenoWithTakeWhileQC
+                       , ZenoWithZipQC
+                       , DefinitionsQC
+                       , NatQC
+                       , SmallCheck
+                       , QuickCheck
   -- other-extensions:
   build-depends:         base >= 4.8 && < 5
                        , containers
                        , filepath
+                       , smallcheck
                        , tasty
                        , tasty-quickcheck
+                       , tasty-smallcheck
+                       , tasty-hunit >= 0.10 && < 0.11
+                       , QuickCheck >= 2.12
                        , text
                        , unordered-containers >= 0.2 && < 0.3
   default-language:    Haskell2010
   ghc-options:         -threaded -Wall
                        -- -fexternal-interpreter -opti+RTS -opti-p
   -- ghc-prof-options:    -fprof-auto "-with-rtsopts=-p"
-  hs-source-dirs:      verify, verify/tests
-  main-is:             QuickCheck.hs
+  hs-source-dirs:      verify, verify/tests, verify/tests_qc
+  main-is:             Prop.hs
+  cpp-options:         -DV_QUICKCHECK
 
 test-suite test-lh
   if flag(support-lh) && impl(ghc < 9.2)

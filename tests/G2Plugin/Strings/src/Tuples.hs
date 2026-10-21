@@ -5,7 +5,7 @@ module Tuples where
 import G2.Plugin
 import G2.Plugin.Unsafe
 
-{-# ANN module ("--smt-tuples --smt-adts A")
+{-# ANN module ("--smt-lists --smt-strings --smt-tuples --smt-adts A")
     #-}
 
 {-# ANN appTuple (SMTEquivIs "smtAppTuple")

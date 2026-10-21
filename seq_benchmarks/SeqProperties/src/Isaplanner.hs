@@ -34,9 +34,10 @@ import Prelude
   )
 
 import G2.Plugin
+import G2.Plugin.Prim
 import G2.Plugin.Unsafe
 
-{-# ANN module ("--smt-tuples --higher-order uninterpreted --time 300")
+{-# ANN module ("--smt-tuples --higher-order uninterpreted")
     #-}
 
 -- code here adapted from HipSpec.hs
@@ -110,7 +111,7 @@ rev (x:xs) = rev xs ++ [x]
 revSMT :: [a] -> [a]
 revSMT = smtReverse
 
-{-# ANN zip (SMTEquivIsWithConfig "zipSMT" "--smt-timeout 20")
+{-# ANN zip (SMTEquivIs "zipSMT")
     #-}
 zip :: [Nat] -> [Nat] -> [(Nat, Nat)]
 zip [] _ = []
@@ -210,7 +211,7 @@ takeWhileSMT p xs =
         -1 -> xs
         _ -> smtExtract xs 0 n
 
-{-# ANN dropWhile (SMTEquivIsWithConfig "dropWhileSMT" "--smt-timeout 20")
+{-# ANN dropWhile (SMTEquivIs "dropWhileSMT")
   #-}
 dropWhile :: (Nat -> Bool) -> [Nat] -> [Nat]
 dropWhile _ [] = []
@@ -407,11 +408,6 @@ prop_13 n x xs
   | n >= 0 = (drop (1 + n) (x : xs) =:= drop n xs)
   | otherwise = True
 
-{-# ANN prop_13_false Prop #-}
-prop_13_false :: Nat -> Nat -> [Nat] -> Bool
-prop_13_false n x xs
-  = (drop (1 + n) (x : xs) =:= drop n xs)
-
 {-# ANN prop_14 Prop #-}
 prop_14 :: (Nat -> Bool) -> [Nat] -> [Nat] -> Bool
 prop_14 p xs ys
@@ -438,11 +434,6 @@ prop_18 i m
 {-# ANN prop_19 Prop #-}
 prop_19 :: Nat -> [Nat] -> Bool
 prop_19 n xs = (len (drop n xs) =:= if n <= len xs then len xs - (max 0 n) else 0)
-
-{-# ANN prop_19_false Prop #-}
-prop_19_false :: Nat -> [Nat] -> Bool
-prop_19_false n xs
-  = (len (drop n xs) =:= len xs - n)
 
 {-# ANN prop_20 Prop #-}
 prop_20 :: [Nat] -> Bool
@@ -553,11 +544,6 @@ prop_42 n x xs
   | n >= 1 = (take n (x:xs) =:= x : (take (n - 1) xs))
   | otherwise = True
 
-{-# ANN prop_42_false Prop #-}
-prop_42_false :: Nat -> Nat -> [Nat] -> Bool
-prop_42_false n x xs
-  = (take n (x:xs) =:= x : (take (n - 1) xs))
-
 {-# ANN prop_43 Prop #-}
 prop_43 :: (Nat -> Bool) -> [Nat] -> Bool
 prop_43 p xs
@@ -628,21 +614,11 @@ prop_56 n m xs
   | n >= 0, m >= 0 = (drop n (drop m xs) =:= drop (n + m) xs)
   | otherwise = True
 
-{-# ANN prop_56_false Prop #-}
-prop_56_false :: Nat -> Nat -> [Nat] -> Bool
-prop_56_false n m xs
-  = (drop n (drop m xs) =:= drop (n + m) xs)
-
 {-# ANN prop_57 Prop #-}
 prop_57 :: Nat -> Nat -> [Nat] -> Bool
 prop_57 n m xs
   | n >= 0, m >= 0 = (drop n (take m xs) =:= take (m - n) (drop n xs))
   | otherwise = True
-
-{-# ANN prop_57_false Prop #-}
-prop_57_false :: Nat -> Nat -> [Nat] -> Bool
-prop_57_false n m xs
-  = (drop n (take m xs) =:= take (m - n) (drop n xs))
 
 {-# ANN prop_58 Prop #-}
 prop_58 :: Nat -> [Nat] -> [Nat] -> Bool
@@ -696,11 +672,6 @@ prop_67 :: [Nat] -> Bool
 prop_67 xs
   | len xs > 0 = (len (butlast xs) =:= len xs - 1)
   | otherwise = True
-
-{-# ANN prop_67_false Prop #-}
-prop_67_false :: [Nat] -> Bool
-prop_67_false xs
-  = (len (butlast xs) =:= len xs - 1)
 
 {-# ANN prop_68 Prop #-}
 prop_68 :: Nat -> [Nat] -> Bool
@@ -773,11 +744,6 @@ prop_81 :: Nat -> Nat -> [Nat] -> Bool
 prop_81 n m xs {- ys -}
   | n >= 0, m >= 0 = (take n (drop m xs) =:= drop m (take (n + m) xs))
   | otherwise = True
-
-{-# ANN prop_81_false Prop #-}
-prop_81_false :: Nat -> Nat -> [Nat] -> Bool
-prop_81_false n m xs {- ys -}
-  = (take n (drop m xs) =:= drop m (take (n + m) xs))
 
 {-# ANN prop_82 Prop #-}
 prop_82 :: Nat -> [Nat] -> [Nat] -> Bool

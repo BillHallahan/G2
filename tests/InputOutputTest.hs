@@ -214,14 +214,6 @@ checkInputOutputsSymFuncConstraintsSubPathReturnsTrue src tests = do
         src
         tests
 
--- TODO: Need a better way to check output of paths function
-checkInputOutputOfPaths :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
-checkInputOutputOfPaths src tests = do
-    checkInputOutput'
-        (do config <- mkConfigTestIO; return (config {higherOrderSolver = SingleFunc, paths_nrpc = Nrpc, timeLimit = 60 }))
-        src
-        tests
-
 checkInputOutputsInstType :: FilePath -> [(String, Int, [Reqs String])] -> TestTree
 checkInputOutputsInstType src tests = do
     checkInputOutput'

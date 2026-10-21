@@ -2,6 +2,9 @@ module Regex where
 
 import G2.Plugin
 
+{-# ANN module ("--smt-lists --smt-strings")
+    #-}
+
 {-# ANN isNum (SMTEquivIsWithConfig "smtIsNum" "--smt cvc5")
     #-}
 isNum :: String -> Bool

@@ -12,6 +12,8 @@ import TypeclassCode.Tree
 import TypeclassCode.Reader
 import TypeclassCode.State
 
+import qualified TypeclassCode.NebulaListSemigroupAssociativity as LSA
+import qualified TypeclassCode.NebulaNonEmptySemigroupAssociativity as NSA
 import qualified TypeclassCode.NebulaListApplicative as LA
 import qualified TypeclassCode.NebulaNonEmptyMonad as MN
 import qualified TypeclassCode.NebulaTuple as TM
@@ -110,8 +112,8 @@ monoidRightIdentityListRHS = monoidRightIdentityRHS @[Int]
 monoidLeftIdentityLHSList = monoidLeftIdentityLHS @[Int]
 monoidLeftIdentityRHSList = monoidLeftIdentityRHS @[Int]
 
-semigroupAssociativityLHSList = semigroupAssociativityLHS @[Int]
-semigroupAssociativityRHSList = semigroupAssociativityRHS @[Int]
+semigroupAssociativityLHSList x y z = x LSA.++ (y LSA.++ z)
+semigroupAssociativityRHSList x y z = (x LSA.++ y) LSA.++ z
 
 monoidConcatenationLHSList = monoidConcatenationLHS @[Int]
 monoidConcatenationRHSList = monoidConcatenationRHS @[Int]
@@ -167,8 +169,8 @@ monadAssociativityRHSList = monadAssociativityRHS @[]
 -- NonEmpty
 -------------------------------------------------------------------------------
 
-semigroupAssociativityLHSNonEmpty = semigroupAssociativityLHS @(NonEmpty Int)
-semigroupAssociativityRHSNonEmpty = semigroupAssociativityRHS @(NonEmpty Int)
+semigroupAssociativityLHSNonEmpty x y z = x NSA.<> (y NSA.<> z)
+semigroupAssociativityRHSNonEmpty x y z = (x NSA.<> y) NSA.<> z
 
 fmapIdLHSNonEmpty xs = fmapIdLHS @NonEmpty
 fmapIdRHSNonEmpty xs = fmapIdRHS @NonEmpty
