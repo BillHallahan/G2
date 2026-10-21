@@ -252,7 +252,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr _argTys config =
 
     , reached_fc_ticks = []
     , log_path = []
-    }
+    , reach_table = HM.empty }
     , Bindings {
       fixed_inputs = f_i
     , arb_value_gen = arbValueInit
