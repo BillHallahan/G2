@@ -60,6 +60,7 @@ import qualified G2.Language.PolyArgMap as PM
 
 import Control.Exception
 import Control.Monad.Extra
+import qualified Control.Monad.State.Strict as SM
 import Data.Foldable as F
 import Data.Maybe
 
@@ -162,8 +163,9 @@ getValidStates config no_inline solver simplifier ng new_pc = do
               --
               -- TODO: Could this be more efficient? Currently calculates the set of variables involved in the function constraints
               -- every time we do this check
-              let fc_names = symbolicVarsInline no_inline (expr_env s_) (sym_func_constraints s_)
-            , null $ fc_names `HS.intersection` new_names = return (ng_, Just s_)
+            --   let fc_names = symbolicVarsInline no_inline (expr_env s_) (sym_func_constraints s_)
+            -- , null $ fc_names `HS.intersection` new_names = return (ng_, Just s_)
+            not $ containsSymVar no_inline new_names (expr_env s_) (sym_func_constraints s_) = return (ng_, Just s_)
             | solving_sym_func_constraints s_ == InitialRun = do
                 r <- checkFunctionConstraints (log_fc_solver config) solver simplifier no_inline s_ ng_
                 case r of
@@ -175,6 +177,28 @@ getValidStates config no_inline solver simplifier ng new_pc = do
                         return (ng', s'')
                     FCUnsat -> return (ng_, Nothing)
             | otherwise = return (ng_, Just s_)
+
+containsSymVar :: ASTContainer c Expr =>
+                      HS.HashSet Name -- ^ Names to not inline
+                   -> HS.HashSet Name -- ^ Symbolic variable names to look for, return True if one of these names is present
+                   -> E.ExprEnv
+                   -> c
+                   -> Bool
+containsSymVar exclude look_for eenv e =
+    SM.evalState (foldM (\b e' -> case b of True -> return True; False -> containsSymVar' look_for eenv e') False $ containedASTs e) exclude
+
+containsSymVar' :: HS.HashSet Name -> ExprEnv -> Expr -> SM.State (HS.HashSet Name) Bool
+containsSymVar' look_for eenv (Var (Id n _)) = do
+    seen <- SM.get
+    case n `HS.member` seen of
+        True -> return False
+        False -> case E.lookupConcOrSym n eenv of
+                        Just (E.Conc e) -> do
+                            SM.modify' (HS.insert n)
+                            containsSymVar' look_for eenv e
+                        Just (E.Sym _) -> return (n `elem` look_for)
+                        Nothing -> return False
+containsSymVar' look_for eenv e = foldM (\b e' -> case b of True -> return True; False -> containsSymVar' look_for eenv e') False $ children e
 
 -- Note [Forcing Sharing]
 -- The force primitive allows forcing deep evaluation of a value. Suppose we have the following heap mapping:
