@@ -98,7 +98,8 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , renameLamVars
 
                         , inlineVars
-                        , inlineVarsExcluding) where
+                        , inlineVarsExcluding
+                        , symbolicVarsInline) where
 
 import G2.Data.Utils
 import G2.Language.AST
@@ -114,6 +115,7 @@ import G2.Language.TypeEnv
 import G2.Language.TyVarEnv
 import G2.Language.Primitives
 
+import qualified Control.Monad.State.Lazy as SM
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Data.Semigroup
@@ -733,6 +735,23 @@ inlineVars' seen eenv (Var (Id n _))
     | not (n `HS.member` seen)
     , Just (E.Conc e) <- E.lookupConcOrSym n eenv = inlineVars' (HS.insert n seen) eenv e
 inlineVars' seen eenv e = modifyChildren (inlineVars' seen eenv) e
+
+symbolicVarsInline :: ASTContainer c Expr =>
+                      HS.HashSet Name -- ^ Names to not inline
+                   -> E.ExprEnv
+                   -> c
+                   -> HS.HashSet Name
+symbolicVarsInline exclude eenv e = SM.execState (mapM_ (symbolicVarsInline' exclude eenv) $ containedASTs e) HS.empty
+
+symbolicVarsInline' :: HS.HashSet Name -> ExprEnv -> Expr -> SM.State (HS.HashSet Name) ()
+symbolicVarsInline' seen eenv (Var (Id n _)) =
+    case n `HS.member` seen of
+        True -> return ()
+        False -> case E.lookupConcOrSym n eenv of
+                        Just (E.Conc e) -> symbolicVarsInline' (HS.insert n seen) eenv e
+                        Just (E.Sym _) -> SM.modify' (HS.insert n)
+                        Nothing -> return ()
+symbolicVarsInline' seen eenv e = mapM_ (symbolicVarsInline' seen eenv) $ children e
 
 -- Rename bound variables in lambda functions in the same way each time,
 -- somewhat similar to De Bruijn indices but implemented slightly differently
