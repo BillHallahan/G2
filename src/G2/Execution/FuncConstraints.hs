@@ -116,7 +116,7 @@ redFuncConstraint _ _ _ fc_count s@(State { curr_expr = CurrExpr Evaluate (Var (
                                           , solving_sym_func_constraints = solving_sfc }) b 
     -- See Note [Evaluating fc_!!_ret variables]
     | nameOcc n == nameOcc fcRetName = do
-        let fcs' = HM.map (concatMap adjustFC) fcs
+        let fcs' = mapFC (concatMap adjustFC) fcs
             
             new_pre = getPreConds solving_sfc
 
@@ -163,7 +163,7 @@ addFuncConstraints s@(State { expr_env = eenv
                     
                     , fc_split_on = fmap (const NoSplit) es }
             
-            sym_fc' = addFC n fc sym_fc
+            sym_fc' = insertFC n fc sym_fc
             eenv' = E.insertSymbolic ret_id eenv
             s' = s { curr_expr = CurrExpr Return (Var ret_id)
                    , expr_env = eenv'
@@ -189,9 +189,6 @@ allApplyFrames stck = go [] stck stck
                     | Just (ApplyFrame ae, stck') <- Stck.pop pop_stck = go (ae:aes) stck' stck'
                     | Just (UpdateFrame _, stck') <- Stck.pop pop_stck = go aes stck' stck_top_ups
                     | otherwise = (reverse aes, stck_top_ups)
-
-addFC :: Name -> FuncConstraint -> FuncConstraints -> FuncConstraints
-addFC n fc = HM.insertWith (++) n [fc]
 
 ------------------------------------------------------------------------------
 -- Unifying equal function constraints
@@ -313,7 +310,7 @@ unifyFuncConstraints :: (Solver solver, Simplifier simplifier, MonadIO m) =>
                      -> State t
                      -> NameGenT m (Maybe (State t)) -- ^ A state with function constraints unified, or Nothing if the function constraints are contradictory
 unifyFuncConstraints solver simplifier no_inline s@(State { sym_func_constraints = fcs }) = do
-    (rs, rfcs) <- mapAccumM (\may_s fc -> do
+    (rs, rfcs) <- mapAccumFCM (\may_s fc -> do
                         case may_s of
                             Just s_ -> do
                                 unif_r <- unifyFCList solver simplifier no_inline s_ fc
@@ -375,7 +372,7 @@ adjustFromJoinedFunc (JF { top_name = tn, joined_id = j_id, joined_vars = vs })
 unifyReturnFuncs :: Monad m => StateNGT t m [JoinedFuncs]
 unifyReturnFuncs = do
     fcs <- getFCsStateNG
-    unifyRT [] $ HM.toList fcs
+    unifyRT [] $ toListFC fcs
 
 unifyRT :: Monad m => [JoinedFuncs] -> [(Name, [FuncConstraint])] -> StateNGT t m [JoinedFuncs]
 unifyRT joined_funcs [] = return joined_funcs
@@ -397,7 +394,7 @@ walkReturns fcs_for_func_n fcs@(first_fc:_) = do
             let ns = map (\fc -> case fc_ret fc of
                             Var (Id n _) -> n
                             _ -> error "walkReturns: expectedVar") fcs'
-                all_ns_fc = map (fromMaybe []) $ map (flip HM.lookup func_cons_set) ns
+                all_ns_fc = map (fromMaybe []) $ map (flip lookupFC func_cons_set) ns
                 updated_fc = concat $ zipWith
                                 (\ret_fc f_fcs ->
                                     map (\f_fc -> f_fc { fc_args = fc_args ret_fc ++ fc_args f_fc
@@ -407,8 +404,8 @@ walkReturns fcs_for_func_n fcs@(first_fc:_) = do
 
             join_f <- freshSeededIdN (Name "join_f" Nothing 0 Nothing) (mkTyFun $ map (typeOf tv_env) (fc_args first_fc) ++ [t])
             insertSymbolicE join_f
-            let func_cons_set' = HM.insert (idName join_f) updated_fc
-                               $ foldl' (flip HM.delete) func_cons_set ns
+            let func_cons_set' = insertListFC (idName join_f) updated_fc
+                               $ foldl' (flip deleteFC) func_cons_set ns
                                
             putFCsStateNG func_cons_set'
             return ( [ (idName join_f, updated_fc) ]
@@ -555,8 +552,8 @@ checkFunctionConstraints fc_logging solver simplifier no_inline s ng = do
                     ((is, fc'), (s'', !ng3)) <- runStateNGT (do
                         let fcs = sym_func_constraints s
                         -- Add extra calls to higher order functions
-                        added_higher_fcs <- mapM (uncurry addHigherOrderCalls) $ HM.toList fcs
-                        let fc_higher_reassembled = HM.fromList added_higher_fcs
+                        added_higher_fcs <- mapM (uncurry addHigherOrderCalls) $ toListFC fcs
+                        let fc_higher_reassembled = fromListFC added_higher_fcs
 
                         -- Gather unreduced expressions in the function constraints, and set up state to reduce them
                         fc_wrapper <- addWrappersToFC fc_higher_reassembled
@@ -735,14 +732,14 @@ collectNonReducedVars fcs = do
     return . concatMap (
                     concatMap (concatMap (collect HS.empty []) . fc_args)
              )
-           $ HM.elems fcs
+           $ elemsFC fcs
     where
         isWHNFCase (Case (Var (Id n _)) _ _ [Alt _ _, Alt _ _]) = nameOcc n == whnfBrOccName
         isWHNFCase _ = False
 
 addWrappersToFC :: Monad m => FuncConstraints -> StateNGT t m FuncConstraints
 addWrappersToFC =
-    mapM (
+    mapFCM (
             mapM (\fc -> do
                 as' <- SM.evalStateT (mapM addVarWrappers $ fc_args fc) HS.empty
                 return $ fc { fc_args = map fst as' }
@@ -906,7 +903,7 @@ startSolveFC solver simplifier no_inline n fcs = do
             putStrLn "------------------------"
             putStrLn "Initial FCs:"
             T.putStrLn . addTab $ prettyFuncConstraints pg fcs
-    let all_whnf_preconds = HS.fromList . mapMaybe varName . concatMap fc_preconds . concat $ HM.elems fcs
+    let all_whnf_preconds = HS.fromList . mapMaybe varName . concatMap fc_preconds . concat $ elemsFC fcs
     solveFC solver simplifier all_whnf_preconds no_inline n fcs
     where
         varName e | [_, Var (Id vn _), _] <- unApp e, nameOcc vn == whnfBrOccName = Just vn
@@ -926,9 +923,9 @@ solveFC solver simplifier all_whnf_preconds no_inline !n fcs = do
     case lit_val_sol of
         True -> return (SatFC fcs)
         False -> do
-            fcs_nosingle <- return . HM.mapMaybe id =<< HM.traverseWithKey solveSingleton fcs
+            fcs_nosingle <- return . filterFC (not . null) =<< traverseWithKeyFC solveSingleton fcs
 
-            fcs_simp_pieces <- concatMapM (uncurry simplifyReturns) $ HM.toList fcs_nosingle
+            fcs_simp_pieces <- concatMapM (uncurry simplifyReturns) $ toListFC fcs_nosingle
             let fc_simp_reassembled = HM.fromListWith (++) fcs_simp_pieces
 
             -- Replace ADT symbolic variables with case expressions
@@ -952,7 +949,7 @@ solveFC solver simplifier all_whnf_preconds no_inline !n fcs = do
             let fc_unfold_split_whnf_reassembled = HM.fromListWith (++) split_whnf_pieces
 
             elim_non_whnf <- concatMapM (uncurry (elimAllNonWHNFOrEquiv no_inline)) $ HM.toList fc_unfold_split_whnf_reassembled
-            let elim_non_whnf_reassembled = HM.fromListWith (++) elim_non_whnf
+            let elim_non_whnf_reassembled = fromListFC elim_non_whnf
 
             prog <- getProgress
             end_of_loop_time <- liftIO $ getTime Realtime
@@ -968,8 +965,8 @@ solveFC solver simplifier all_whnf_preconds no_inline !n fcs = do
 
 -- | If we only have a single function constraint for a given function, we instantiate
 -- to a constant function returning the appropriate value.
-solveSingleton :: MonadIO m => Name -> [FuncConstraint] -> FCState t m (Maybe [FuncConstraint])
-solveSingleton _ [] = return Nothing
+solveSingleton :: MonadIO m => Name -> [FuncConstraint] -> FCState t m [FuncConstraint]
+solveSingleton _ [] = return []
 solveSingleton n [fc@(FC { fc_args = as, fc_ret = r })] = do
     tv_env <- tyVarEnv
 
@@ -980,9 +977,9 @@ solveSingleton n [fc@(FC { fc_args = as, fc_ret = r })] = do
         pg <- getPrettyGuide
         liftIO $ do
             T.putStrLn . addHalfTab $ "REMOVE SINGLETON FC:"
-            T.putStrLn . addTab $ prettyFuncConstraints pg $ HM.singleton n [fc]
-    return Nothing
-solveSingleton _ xs = return $ Just xs
+            T.putStrLn . addTab $ prettyFuncConstraints pg $ singletonFC n [fc]
+    return []
+solveSingleton _ xs = return xs
 
 -- | If all function constraints for a particular function return the same constructor,
 -- split into separate function constraints for each argument to that constructor
@@ -1715,7 +1712,7 @@ solveLitVals solver simplifier fcs = do
                             insertE n lam_cse
                     
                     return fc_pcs
-            ) (HM.toList fcs_split)
+            ) (toListFC fcs_split)
     (s, _) <- SM.get
     -- r <- liftIO $ check solver s pcs'
     ng <- nameGen
@@ -1779,8 +1776,8 @@ unifyAllRetSymVars fcs@(fc_first:_) = do
 splitReturns :: MonadIO m => FuncConstraints -> FCState t m FuncConstraints
 splitReturns fcs = do
     resetProgress
-    split <- concatMapM (uncurry splitReturns') $ HM.toList fcs
-    let fcs' = HM.fromListWith (++) split
+    split <- concatMapM (uncurry splitReturns') $ toListFC fcs
+    let fcs' = fromListFC split
 
     prog <- getProgress
     case prog of
@@ -1943,7 +1940,7 @@ adjustForFuncArg s@(State { known_values = kv
         eenv'' = E.insertSymbolic pr . E.insertSymbolic f1 . E.insertSymbolic f2 $ eenv'
 
         -- Adjust func constraints
-        m_fc_fn = HM.lookup fn fcs
+        m_fc_fn = lookupFC fn fcs
         fc_fn = fromMaybe [] $ m_fc_fn
 
         new_fc_pred = FC { fc_preconds = getPreConds solving_sfc
@@ -1953,9 +1950,9 @@ adjustForFuncArg s@(State { known_values = kv
         adj_fc_pred = map (\fc -> fc { fc_ret = Data dc_false}) fc_fn
         fc_pred = new_fc_pred:adj_fc_pred
 
-        fcs' = HM.insert (idName pr) fc_pred
-             $ HM.delete fn fcs
-        fcs'' = fromMaybe fcs' $ fmap (flip (HM.insert (idName f2)) fcs') m_fc_fn
+        fcs' = insertListFC (idName pr) fc_pred
+             $ deleteFC fn fcs
+        fcs'' = fromMaybe fcs' $ fmap (flip (insertListFC (idName f2)) fcs') m_fc_fn
 
     return $ (s { expr_env = eenv'', sym_func_constraints = fcs'', fc_state_type = FuncArg }, idName f1)
 
@@ -2091,8 +2088,8 @@ logFCListToFCList :: MonadIO m => Name -> [FuncConstraint] -> [FuncConstraint] -
 logFCListToFCList n init_fcs up_fcs = do
     updateFCPrettyGuide (init_fcs, up_fcs)
     pg <- getPrettyGuide
-    let init_fcs_hm = HM.singleton n init_fcs
-    let up_fcs_hm = HM.singleton n up_fcs
+    let init_fcs_hm = singletonFC n init_fcs
+    let up_fcs_hm = singletonFC n up_fcs
     liftIO $ do
         T.putStrLn . addHalfTab $ "IN FC:"
         T.putStrLn . addTab $ prettyFuncConstraints pg init_fcs_hm
@@ -2103,8 +2100,8 @@ logFCListToNameFCList :: MonadIO m => Name -> [FuncConstraint] -> [(Name, [FuncC
 logFCListToNameFCList n init_fcs up_fcs = do
     updateFCPrettyGuide (init_fcs, up_fcs)
     pg <- getPrettyGuide
-    let init_fcs_hm = HM.singleton n init_fcs
-    let up_fcs_hm = HM.fromListWith (++) up_fcs
+    let init_fcs_hm = singletonFC n init_fcs
+    let up_fcs_hm = fromListFC up_fcs
     liftIO $ do
         T.putStrLn . addHalfTab $ "IN FC:"
         T.putStrLn . addTab $ prettyFuncConstraints pg init_fcs_hm

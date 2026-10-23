@@ -223,7 +223,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr _argTys config =
     , path_conds = PC.fromList []
     , non_red_path_conds = empty_nrpc
     
-    , sym_func_constraints = HM.empty
+    , sym_func_constraints = emptyFC
     , solving_sym_func_constraints = InitialRun
     , fc_state_type = PostCall
 

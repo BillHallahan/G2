@@ -174,7 +174,7 @@ pushCaseAppArgIn' e = e
 addFCToExprEnv :: State t -> State t
 addFCToExprEnv s =
     let
-        eenv' = F.foldl' go (expr_env s) (concatMap (\(n, fc) -> map (n,) fc) . HM.toList $ sym_func_constraints s)
+        eenv' = F.foldl' go (expr_env s) (concatMap (\(n, fc) -> map (n,) fc) . toListFC $ sym_func_constraints s)
     in
     s { expr_env = eenv' }
     where
