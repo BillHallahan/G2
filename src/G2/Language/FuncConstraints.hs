@@ -23,6 +23,7 @@ module G2.Language.FuncConstraints ( FuncConstraints
                                    , singletonFC
                                    , fromListFC ) where
 
+import G2.Data.Utils
 import G2.Language.AST
 import G2.Language.Naming
 import G2.Language.Syntax
@@ -33,7 +34,6 @@ import qualified Data.HashMap.Lazy as HM
 import GHC.Generics (Generic)
 import Data.Coerce
 import Data.Data (Data)
-import Data.Traversable
 
 -- | Constraints on higher order functions
 data FuncConstraint =
