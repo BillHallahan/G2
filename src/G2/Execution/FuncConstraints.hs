@@ -1912,6 +1912,7 @@ addFuncArgStates' err_memo_table s@(State { curr_expr = CurrExpr _ ce, expr_env 
 
 adjustForFuncArg :: State t -> Name -> [Expr] -> Type -> NameGenM (State t, Name)
 adjustForFuncArg s@(State { known_values = kv
+                          , curr_expr = ce
                           , expr_env = eenv
                           , sym_func_constraints = fcs
                           , solving_sym_func_constraints = solving_sfc
@@ -1927,16 +1928,32 @@ adjustForFuncArg s@(State { known_values = kv
     lam_is <- freshIdsN (map (typeOf tv_env) es_ce)
     let lam_vars = map Var lam_is
     bindee <- freshIdN ty_bool
+
+    fn_no_assume <- freshNameN
+    let ce' = rename fn fn_no_assume ce
     
-    let alts = [ Alt (DataAlt dc_true []) (mkApp $ Var f1:lam_vars)
-               , Alt (DataAlt dc_false []) (mkApp $ Var f2:lam_vars) ] 
-        cse = Case
-                (mkApp $ Var pr:lam_vars)
-                bindee
-                ty_bool
-                alts
-        lam_cse = mkLams (map (TermL,) lam_is) cse
-        eenv' = E.insert fn lam_cse eenv
+    -- We rewrite the symbolic function `f xs` to:
+    --     case f_pred xs of
+    --         True -> f_1 xs
+    --         False -> f_2 xs
+    -- where f_pred, f_1 ,and f_2 are fresh symbolic functions. We force the immediate evaluation to go down the true
+    -- branch, and all other evaluation to go down the false branch. Then f_1 can explore the behavior of `xs`, and f_2
+    -- can be used to solve any other needed constraints.
+    --
+    -- Forcing of evaluation of existing function constraints is done by rewriting of existing function constraints.
+    -- Forcing of future reductions of f is done by adding an "assume False" before the call to `f_1`.
+    -- Note that this means that in the unrolling of `f_1 xs`, evaluation will stop if `f_1 xs` is again evaluated.
+    -- This does not lose completeness because of an approximation like argument (if `f_1 xs` can error, it does not
+    -- need to evaluate `f_1 xs` again before doing so, as this would simply result in an infinite loop.)
+    let alts wrap = [ Alt (DataAlt dc_true []) (wrap . mkApp $ Var f1:lam_vars)
+                    , Alt (DataAlt dc_false []) (mkApp $ Var f2:lam_vars) ] 
+        cse wrap = Case
+                      (mkApp $ Var pr:lam_vars)
+                      bindee
+                      ty_bool
+                    $ alts wrap
+        lam_cse wrap = mkLams (map (TermL,) lam_is) $ cse wrap
+        eenv' = E.insert fn_no_assume (lam_cse id) $ E.insert fn (lam_cse (Assume Nothing (mkFalse kv))) eenv
         eenv'' = E.insertSymbolic pr . E.insertSymbolic f1 . E.insertSymbolic f2 $ eenv'
 
         -- Adjust func constraints
@@ -1954,7 +1971,10 @@ adjustForFuncArg s@(State { known_values = kv
              $ deleteFC fn fcs
         fcs'' = fromMaybe fcs' $ fmap (flip (insertListFC (idName f2)) fcs') m_fc_fn
 
-    return $ (s { expr_env = eenv'', sym_func_constraints = fcs'', fc_state_type = FuncArg }, idName f1)
+    return $ (s { curr_expr = ce'
+                , expr_env = eenv''
+                , sym_func_constraints = fcs''
+                , fc_state_type = FuncArg }, idName f1)
 
 addFuncArgStates'' :: State t -> Name -> [Expr] -> Type -> Int -> Expr -> NameGenM (State t)
 addFuncArgStates'' s@(State { curr_expr = CurrExpr _ ce
