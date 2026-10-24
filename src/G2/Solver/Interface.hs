@@ -101,7 +101,7 @@ subModel s@(State { expr_env = eenv
         
         sv = subVar tvnv False m eenv tc sub
     in
-    stripAllTicks $ untilEq (tyVarSubst tvnv . simplifyLams . pushCaseAppArgIn) sv
+    stripAllTicks . elimAssume $ untilEq (tyVarSubst tvnv . simplifyLams . pushCaseAppArgIn) sv
     where
         toVars n = case E.lookup n eenv of
                                 Just e@(Lam _ _ _) -> Just . Var $ Id n (typeOf tvnv e)
@@ -174,7 +174,7 @@ pushCaseAppArgIn' e = e
 addFCToExprEnv :: State t -> State t
 addFCToExprEnv s =
     let
-        eenv' = F.foldl' go (expr_env s) (concatMap (\(n, fc) -> map (n,) fc) . HM.toList $ sym_func_constraints s)
+        eenv' = F.foldl' go (expr_env s) (concatMap (\(n, fc) -> map (n,) fc) . toListFC $ sym_func_constraints s)
     in
     s { expr_env = eenv' }
     where
@@ -183,3 +183,9 @@ addFCToExprEnv s =
             , Just (E.Sym _) <- E.deepLookupConcOrSym n eenv =
                 E.insert n (mkApp $ Var (Id fc_n TyUnknown):fc_args fc) eenv
             | otherwise = eenv
+
+elimAssume :: ASTContainer c Expr => c -> c
+elimAssume = modifyASTs go
+    where
+        go (Assume _ _ e) = e
+        go e = e

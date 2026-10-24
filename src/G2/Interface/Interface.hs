@@ -223,7 +223,7 @@ initStateFromSimpleState s m_mod useAssert mkCurr _argTys config =
     , path_conds = PC.fromList []
     , non_red_path_conds = empty_nrpc
     
-    , sym_func_constraints = HM.empty
+    , sym_func_constraints = emptyFC
     , solving_sym_func_constraints = InitialRun
     , fc_state_type = PostCall
 
@@ -343,6 +343,11 @@ type RHOStack m t = SM.StateT (ApproxPrevs t)
                           -> (RHOStack IO ()) (Processed (ExecRes ()) (State ()), Bindings)
     #-}
 
+fileNamer :: State t -> FilePath
+fileNamer s = case fc_state_type s of
+                    PostCall -> "state" ++ show (length $ rules s)
+                    FuncArg -> "state_fa" ++ show (length $ rules s)
+
 {-# SPECIALIZE 
     initRedHaltOrd :: (Solver solver, Simplifier simplifier) =>
                       State ()
@@ -376,7 +381,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
     time_logger <- acceptTimeLogger
     (time_halter, io_timed_out) <- stdTimerHalter (fromInteger . toInteger $ timeLimit config) (min_found config)
 
-    m_logger <- fmap SomeReducer <$> getLimLogger config defPrettyTrack
+    m_logger <- fmap SomeReducer <$> getLimLogger' fileNamer config defPrettyTrack
 
     on_acc_hpc_red <- onAcceptHpcReducer s mod_name
 
