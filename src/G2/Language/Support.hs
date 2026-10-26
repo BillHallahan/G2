@@ -4,6 +4,7 @@
 
 module G2.Language.Support
     ( module G2.Language.AST
+    , module G2.Language.FuncConstraints
     , module G2.Language.NonRedPathConds
     , module G2.Language.Support
     , module G2.Language.TypeEnv
@@ -21,6 +22,7 @@ module G2.Language.Support
 import G2.Language.AST
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Families
+import G2.Language.FuncConstraints
 import G2.Language.KnownValues
 import G2.Language.MutVarEnv
 import G2.Language.Naming
@@ -225,47 +227,6 @@ data CEAction = EnsureEq Expr -- ^ `EnsureEq focus e1` means that we should chec
               deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable CEAction
-
--- | Constraints on higher order functions
-data FuncConstraint =
-    FC { fc_preconds :: [Expr]
-       , fc_args :: [Expr]
-       , fc_ret :: Expr
-
-       , fc_split_on :: [FCSplitOn] -- ^ Used during solver- have we used a predicate to split the ith argument?
-       }
-       deriving (Eq, Show, Read, Generic, Data)
-
-instance Hashable FuncConstraint
-
-data FCSplitOn = Split | NoSplit
-                 deriving (Eq, Show, Read, Generic, Data)
-
-instance Hashable FCSplitOn
-
-
-data FCStatus = InitialRun -- ^ Not yet to solving function constraints
-              | SolvingFCs VarLitEqualities -- ^ In the process of solving function constraints. Generated constraints
-                                       -- should be preconditionde on the list of Ids and Lits being equal.
-              | SolvedFCs -- ^ Function constraints have been solved
-              deriving (Eq, Show, Read, Generic, Data)
-
-instance Hashable FCStatus
-
-type VarLitEqualities = [(Id, Lit)]
-
--- data FuncRec = FR { func_name :: Name, func_constraints :: [FuncConstraint] }
---                deriving (Eq, Show, Read, Generic, Data)
-
--- instance Hashable FuncRec
-
-type FuncConstraints = HM.HashMap Name [FuncConstraint]
-
-data FCStateType = PostCall
-                 | FuncArg
-                 deriving (Eq, Show, Read, Generic, Data)
-
-instance Hashable FCStateType
 
 -- | A model is a mapping of symbolic variable names to `Expr`@s@,
 -- typically produced by a solver. 
@@ -611,27 +572,6 @@ instance Named Frame where
     renames hm (AssumeFrame e) = AssumeFrame (renames hm e)
     renames hm (AssertFrame is e) = AssertFrame (renames hm is) (renames hm e)
     renames hm (LitTableFrame ltc up) = LitTableFrame (renames hm ltc) up
-
-instance Named FuncConstraint where
-    names fc = names (fc_preconds fc) <> names (fc_args fc) <> names (fc_ret fc)
-    rename old new fc = fc { fc_preconds = rename old new (fc_preconds fc)
-                           , fc_args = rename old new (fc_args fc)
-                           , fc_ret = rename old new (fc_ret fc) }
-    renames hm fc = fc { fc_preconds = renames hm (fc_preconds fc)
-                       , fc_args = renames hm (fc_args fc)
-                       , fc_ret = renames hm (fc_ret fc) }
-
-instance ASTContainer FuncConstraint Expr where
-    modifyContainedASTs f fc = fc { fc_preconds = map f (fc_preconds fc)
-                                  , fc_args = map f (fc_args fc)
-                                  , fc_ret = f (fc_ret fc) }
-    containedASTs fc = containedASTs (fc_preconds fc) <> containedASTs (fc_args fc) <> containedASTs (fc_ret fc)
-
-instance ASTContainer FuncConstraint Type where
-    modifyContainedASTs f fc = fc { fc_preconds = modifyContainedASTs f (fc_preconds fc)
-                                  , fc_args = modifyContainedASTs f (fc_args fc)
-                                  , fc_ret = modifyContainedASTs f (fc_ret fc) }
-    containedASTs fc = containedASTs (fc_preconds fc) <> containedASTs (fc_args fc) <> containedASTs (fc_ret fc)
 
 instance Named Handle where
     names (HandleInfo { h_start = s, h_pos = p }) = names s <> names p

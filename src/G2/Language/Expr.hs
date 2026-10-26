@@ -98,7 +98,8 @@ module G2.Language.Expr ( module G2.Language.Casts
                         , renameLamVars
 
                         , inlineVars
-                        , inlineVarsExcluding) where
+                        , inlineVarsExcluding
+                        , symbolicVarsInline) where
 
 import G2.Data.Utils
 import G2.Language.AST
@@ -114,6 +115,8 @@ import G2.Language.TypeEnv
 import G2.Language.TyVarEnv
 import G2.Language.Primitives
 
+import Control.Monad
+import qualified Control.Monad.State.Lazy as SM
 import qualified Data.HashSet as HS
 import qualified Data.Map as M
 import Data.Semigroup
@@ -733,6 +736,27 @@ inlineVars' seen eenv (Var (Id n _))
     | not (n `HS.member` seen)
     , Just (E.Conc e) <- E.lookupConcOrSym n eenv = inlineVars' (HS.insert n seen) eenv e
 inlineVars' seen eenv e = modifyChildren (inlineVars' seen eenv) e
+
+symbolicVarsInline :: ASTContainer c Expr =>
+                      HS.HashSet Name -- ^ Names to not inline
+                   -> E.ExprEnv
+                   -> c
+                   -> HS.HashSet Name
+symbolicVarsInline exclude eenv e =
+    SM.evalState (foldM (\hm e' -> HS.union hm <$> symbolicVarsInline' eenv e') HS.empty $ containedASTs e) exclude
+
+symbolicVarsInline' :: ExprEnv -> Expr -> SM.State (HS.HashSet Name) (HS.HashSet Name)
+symbolicVarsInline' eenv (Var (Id n _)) = do
+    seen <- SM.get
+    case n `HS.member` seen of
+        True -> return HS.empty
+        False -> case E.lookupConcOrSym n eenv of
+                        Just (E.Conc e) -> do
+                            SM.modify' (HS.insert n)
+                            symbolicVarsInline' eenv e
+                        Just (E.Sym _) -> return $ HS.singleton n
+                        Nothing -> return HS.empty
+symbolicVarsInline' eenv e = foldM (\hm e' -> HS.union hm <$> symbolicVarsInline' eenv e') HS.empty $ children e
 
 -- Rename bound variables in lambda functions in the same way each time,
 -- somewhat similar to De Bruijn indices but implemented slightly differently
