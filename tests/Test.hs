@@ -1012,7 +1012,7 @@ extensionTests = testGroup "Extensions"
                                                                         , ("exampleExpr5", 400, [Exactly 1])
                                                                         
                                                                         -- Symbolic GADTs
-                                                                        , ("eval", 250, [AtLeast 60])
+                                                                        , ("eval", 200, [AtLeast 60])
 
                                                                         , ("vecTail", 1000, [AtLeast 1])
                                                                         , ("vecLength", 1000, [AtLeast 10])
