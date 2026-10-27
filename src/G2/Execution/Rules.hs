@@ -378,15 +378,19 @@ evalApp s@(State { expr_env = eenv
         ( RuleReturnAppSWHNF
         , newPCEmpty $ s { curr_expr = CurrExpr Return (App e1 e2) }
         , ng)
-    | otherwise =
+    -- Push all arguments onto the stack
+    | c:es <- unApp e1 =
         let
-            frame = ApplyFrame e2
-            stck' = S.push frame stck
+            e2_frame = ApplyFrame e2
+            es_frame = map ApplyFrame es
+            stck' = foldl' (flip S.push) stck $ e2_frame:reverse es_frame
         in
         ( RuleEvalApp e2
-        , newPCEmpty $ s { curr_expr = CurrExpr Evaluate e1
+        , newPCEmpty $ s { curr_expr = CurrExpr Evaluate c
                          , exec_stack = stck' }
         , ng)
+    | otherwise = error "evalApp: unhandled"
+
     where
         getTickish (Tick t e) = t:getTickish e
         getTickish _ = []
