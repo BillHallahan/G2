@@ -45,7 +45,7 @@ tests = testGroup "All Tests"
         , smtSynthTestHeight "tests_seq_gen/tests/Test.hs" "f19"
         , smtSynthTestHeight "tests_seq_gen/tests/Test.hs" "@@"
 
-        , smtSynthTestHeight "tests_seq_gen/tests/TestInt.hs" "f1"
+        , smtSynthTestHeightExcluding "tests_seq_gen/tests/TestInt.hs" "f1" ["ite", "seq.indexof", "seq.replace_all", "seq.suffixof"]
 
         , smtSynthTestWithEqCheck "tests_seq_gen/tests/TestFloat.hs" "f1" "seq-gen/FloatEq.hs" "eqFloatList"
 
@@ -98,11 +98,18 @@ getSeqGenConfigDir fle = do
 smtSynthTestHeight :: T.Text -- ^ File
                    -> T.Text -- ^ Function
                    -> TestTree
-smtSynthTestHeight fle = smtSynthTestWithConfig (do
+smtSynthTestHeight fle func = smtSynthTestHeightExcluding fle func []
+
+smtSynthTestHeightExcluding :: T.Text -- ^ File
+                            -> T.Text -- ^ Function
+                            -> [String]
+                            -> TestTree
+smtSynthTestHeightExcluding fle func exclude = smtSynthTestWithConfig (do
                                         synth_config@(SynthConfig { g2_config = config }) <- getSeqGenConfigDir fle
                                         let config' = config { smt = [ConCVC5], steps = 2000 }
                                         return . adjustContConfig $ synth_config { checking = ADTHeight
-                                                                                 , g2_config = config' }) fle
+                                                                                 , excluded_funcs = exclude
+                                                                                 , g2_config = config' }) fle func
 
 smtSynthTestVerify :: T.Text -- ^ File
                    -> T.Text -- ^ Function
