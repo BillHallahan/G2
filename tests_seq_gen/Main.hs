@@ -45,7 +45,7 @@ tests = testGroup "All Tests"
         , smtSynthTestHeight "tests_seq_gen/tests/Test.hs" "f19"
         , smtSynthTestHeight "tests_seq_gen/tests/Test.hs" "@@"
 
-        , smtSynthTestHeightExcluding "tests_seq_gen/tests/TestInt.hs" "f1" ["ite", "seq.indexof", "seq.replace_all", "seq.suffixof"]
+        , smtSynthTestHeightExcluding "tests_seq_gen/tests/TestInt.hs" "f1" ["ite", "seq.at", "seq.indexof", "seq.replace", "str.replace_all", "seq.replace_all", "seq.rev", "seq.suffixof"]
 
         , smtSynthTestWithEqCheck "tests_seq_gen/tests/TestFloat.hs" "f1" "seq-gen/FloatEq.hs" "eqFloatList"
 
