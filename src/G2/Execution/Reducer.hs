@@ -2332,17 +2332,17 @@ logRedRuleNum (StateDiscarded _) _ [] = do
     liftIO . putStrLn $ "# Red Rules: " ++ show n
 logRedRuleNum _ _ _ = return ()
 
-allOfHeightTerminated :: MonadIO m => Config -> Name -> State t -> IO (AnalyzeStates m rt t)
+allOfHeightTerminated :: MonadIO m => Config -> Name -> State t -> IO (AnalyzeStates m (ExecRes t) t)
 allOfHeightTerminated config func_name init_s = do
     init_time <- liftIO $ getTime Realtime
     curr_height_io <- newIORef (0 :: Int)
 
     let vs = HS.fromList . map idName . E.symbolicIds $ expr_env init_s
-        file_name = "logs/" ++ T.unpack (nameOcc func_name) ++ symb_func ++ ".txt"
-    file_exists <- doesFileExist file_name
+        file_name = "logs/" ++ T.unpack (nameOcc func_name) ++ symb_func
+    file_exists <- doesFileExist (file_name ++ ".txt")
     let file_name' = if not file_exists
                         then file_name
-                        else "logs_second/" ++ T.unpack (nameOcc func_name) ++ symb_func ++ ".txt"
+                        else "logs_second/" ++ T.unpack (nameOcc func_name) ++ symb_func
 
     return $ analysis file_name' init_time curr_height_io vs
     where
@@ -2359,9 +2359,10 @@ allOfHeightTerminated config func_name init_s = do
                 Var (Id n _) -> E.isSymbolic n (expr_env s)
                 _ -> False
 
-        analysis file_name init_time curr_height_io vs analysis_event _ all_states 
+        analysis file_name_pre init_time curr_height_io vs analysis_event processed all_states 
             | worthAnalyzing analysis_event = do
-                let ms = map (\curr_s -> sum $ (HS.toList $ HS.map (flip adtSum curr_s) vs)) all_states
+                let calcHeight curr_s = sum $ (HS.toList $ HS.map (flip adtSum curr_s) vs)
+                let ms = map calcHeight all_states
                     m = case ms of
                             [] -> -1
                             _:_ -> minimum ms
@@ -2371,7 +2372,12 @@ allOfHeightTerminated config func_name init_s = do
                     let diff = diffTimeSpec accept_time init_time
                         diff_secs = (fromInteger (toNanoSecs diff)) / (10 ^ (9 :: Int) :: Double)
                     liftIO $ writeIORef curr_height_io m
-                    liftIO . appendFile file_name $ "(" ++ show diff_secs ++ "," ++ show (m - 1) ++ ")" -- "Up to height " ++ show (m - 1) ++ ": "
+                    let file_name = file_name_pre ++ ".txt"
+                    liftIO . appendFile file_name $ "(" ++ show diff_secs ++ "," ++ show (m - 1) ++ ")"
+
+                    let acc_dis_states = filter (\s -> calcHeight s == m - 1) $ map final_state (accepted processed) ++ discarded processed
+                        num_add_dis_file = file_name_pre ++ "_state_count.txt"
+                    liftIO . appendFile num_add_dis_file $ "(" ++ show (length acc_dis_states + 1) ++ "," ++ show (m - 1) ++ ")"
             | otherwise = return ()
 
 --------
@@ -2503,7 +2509,8 @@ runReducer red hal ord solve_r analyze init_state init_bindings = do
                                 runReducer' pr s_h b' xs'
                             [] -> do
                                 onDiscard red "Reducer empty" xs s r_val
-                                runReducerListSwitching pr xs b'
+                                let pr' = pr { discarded = s:discarded pr}
+                                runReducerListSwitching pr' xs b'
 
         {-# INLINABLE switchState #-}
         switchState :: (Monad m, Ord b)
