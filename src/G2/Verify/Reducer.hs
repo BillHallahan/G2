@@ -425,11 +425,13 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
     where
         red _ s@(State { curr_expr = CurrExpr _ ce
                        , expr_env = eenv
+                       , exec_stack = stck
                        , type_env = tenv
                        , known_values = kv
                        , type_classes = tc 
                        , tyvar_env = tvnv }) b@(Bindings { name_gen = ng })
-            | (App (Var (Id n raw_ty_fun)) ar) <- stripNRBT ce
+            | (Var (Id n raw_ty_fun)) <- stripNRBT ce
+            , Just (ApplyFrame ar, stck') <- Stck.pop stck
             , let ty_fun = tyVarSubst tvnv raw_ty_fun
             , E.isSymbolic n eenv =
                 let
@@ -452,8 +454,8 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
                             eenv2 = E.insertSymbolic const_body
                                   $ E.insert n func_body2 eenv
                             
-                            s1 = s { curr_expr = CurrExpr Evaluate (App func_body1 ar), expr_env = eenv1 }
-                            s2 = s { curr_expr = CurrExpr Evaluate (App func_body2 ar), expr_env = eenv2 }
+                            s1 = s { curr_expr = CurrExpr Evaluate (App func_body1 ar), expr_env = eenv1, exec_stack = stck' }
+                            s2 = s { curr_expr = CurrExpr Evaluate (App func_body2 ar), expr_env = eenv2, exec_stack = stck' }
                         in
                         return (InProgress, [(s1, ()), (s2, ())], b { name_gen = ng5 })
                     _ -> let
@@ -483,7 +485,7 @@ verifyHigherOrderHandling = mkSimpleReducer (const ()) red
                                 . E.insert ar_bnd ar
                                 $ E.insert n func_body eenv
 
-                            s' = s { curr_expr = CurrExpr Evaluate (App func_body ar), expr_env = eenv'}
+                            s' = s { curr_expr = CurrExpr Evaluate (App func_body ar), expr_env = eenv', exec_stack = stck' }
                         in
                         return (InProgress, [(s', ())], b {name_gen = ng6})
         red _ s b = return (Finished, [(s, ())], b)
