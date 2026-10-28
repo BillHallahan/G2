@@ -45,7 +45,8 @@ tests = testGroup "All Tests"
         , smtSynthTestHeight "tests_seq_gen/tests/Test.hs" "f19"
         , smtSynthTestHeight "tests_seq_gen/tests/Test.hs" "@@"
 
-        , smtSynthTestHeightExcluding "tests_seq_gen/tests/TestInt.hs" "f1" ["-", "ite", "seq.at", "seq.indexof", "seq.len", "seq.replace", "str.replace_all", "seq.replace_all", "seq.rev", "seq.suffixof"]
+        , smtSynthTestHeightExcluding "tests_seq_gen/tests/TestInt.hs" "f1"
+            ["+", "-", "ite", "seq.at", "seq.extract", "seq.indexof", "seq.len", "seq.replace", "str.replace_all", "seq.replace_all", "seq.rev", "seq.suffixof"]
 
         , smtSynthTestWithEqCheck "tests_seq_gen/tests/TestFloat.hs" "f1" "seq-gen/FloatEq.hs" "eqFloatList"
 
@@ -57,7 +58,7 @@ tests = testGroup "All Tests"
         , smtSynthTestVerify "tests_seq_gen/tests/Verify1.hs" "myLength"
 
         , smtSynthTestVerifyExcluding "tests_seq_gen/tests/Verify1.hs" "count"
-                ["+", "-", "ite", "seq.at", "seq.extract", "seq.prefixof", "seq.rev", "seq.suffixof", "seq.indexof", "0", "-1"]
+                ["+", "ite", "seq.at", "seq.prefixof", "seq.rev", "seq.suffixof", "seq.indexof", "0", "-1"]
         , smtSynthTestVerifyExcluding "tests_seq_gen/tests/Verify1.hs" "myLast" ["ite", "seq.prefixof", "seq.suffixof"]
 
         , smtSynthTestRunSymexSMTStrings "tests_seq_gen/tests_symex/Test1.hs" "comp" (Just 2) Nothing
