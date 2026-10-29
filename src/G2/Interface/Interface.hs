@@ -893,13 +893,15 @@ runG2WithValidate :: ( MonadIO m
                -> Bindings
                -> m ([ExecRes t], GotUnknown, Bindings)
 runG2WithValidate proj src modN entry entry_id gflags red hal ord analyze solver simplifier state config bindings =
-    runGhcT (Just libdir) (case (red, hal, ord) of
-        (SomeReducer red', SomeHalter hal', SomeOrderer ord') -> do
-            when (validate config) (loadSession proj src modN gflags)
-            --runG2 red' hal' ord' analyze solver simplifier state bindings
-            let liftGhcT3 f x y z = liftGhcT (f x y z) 
-                analyze' = map liftGhcT3 analyze
-            runExecution (liftReducerGhcT red') (liftHalterGhcT hal') (liftOrdererGhcT ord') (runG2SolvingValidate modN entry entry_id config solver simplifier) analyze' state bindings)
+    case (red, hal, ord) of
+        (SomeReducer red', SomeHalter hal', SomeOrderer ord') ->
+            case validate config of
+                True -> runGhcT (Just libdir) (do
+                    when (validate config) (loadSession proj src modN gflags)
+                    let liftGhcT3 f x y z = liftGhcT (f x y z) 
+                        analyze' = map liftGhcT3 analyze
+                    runExecution (liftReducerGhcT red') (liftHalterGhcT hal') (liftOrdererGhcT ord') (runG2SolvingValidate modN entry entry_id config solver simplifier) analyze' state bindings)
+                False -> runExecution red' hal' ord' (runG2SolvingNoValidate entry_id config solver simplifier) analyze state bindings
 
 runG2Pre :: ( Named t
             , ASTContainer t Expr
@@ -953,6 +955,24 @@ runG2Solving :: ( MonadIO m
              -> Bindings
              -> m (Result (ExecRes t, NameGen) () ())
 runG2Solving solver simplifier s bindings = liftIO $ runG2SolvingResult solver simplifier bindings s
+
+runG2SolvingNoValidate :: ( MonadIO m
+                          , Named t
+                          , Solver solver
+                          , Simplifier simplifier) =>
+                          Id
+                       -> Config
+                       -> solver
+                       -> simplifier
+                       -> State t
+                       -> Bindings
+                       -> m (Result (ExecRes t, NameGen) () ())
+runG2SolvingNoValidate entry_id config solver simplifier s bindings = do
+    res <- runG2Solving solver simplifier s bindings
+    case res of
+        SAT (m, _) -> printStateOutput config entry_id bindings Nothing m
+        _ -> return ()
+    return res
 
 runG2SolvingValidate :: ( MonadIO m
                         , GhcMonad m

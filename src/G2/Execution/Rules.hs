@@ -419,7 +419,14 @@ evalLam :: State t -> LamUse -> Id -> Expr -> (Rule, [State t])
 evalLam = undefined
 
 retLam :: State t -> NameGen -> LamUse -> Id -> Expr -> Expr -> S.Stack Frame -> (Rule, [State t], NameGen)
-retLam s@(State { expr_env = eenv, tyvar_env = tvnv, poly_arg_map = pargm})
+retLam s ng u i e ae stck =
+    let (r, s'@(State { curr_expr = CurrExpr _ ce }), ng') = retLam' s ng u i e ae stck in
+    case S.pop (exec_stack s') of
+        Just (ApplyFrame ae', stck') | (Lam u' i' e') <- ce -> retLam s' ng' u' i' e' ae' stck'
+        _ -> (r, [s'], ng')
+
+retLam' :: State t -> NameGen -> LamUse -> Id -> Expr -> Expr -> S.Stack Frame -> (Rule, State t, NameGen)
+retLam' s@(State { expr_env = eenv, tyvar_env = tvnv, poly_arg_map = pargm})
        ng u i e ae stck'
     | TypeL <- u =
         case TV.deepLookup tvnv ae of
@@ -434,11 +441,11 @@ retLam s@(State { expr_env = eenv, tyvar_env = tvnv, poly_arg_map = pargm})
                     | otherwise = (e', eenv, ng', pargm)
             in
            ( RuleReturnEApplyLamType [n']
-            , [ s { expr_env = eenv'
-                  , curr_expr = CurrExpr Evaluate e''
-                  , exec_stack = stck'
-                  , tyvar_env = tvnv'
-                  , poly_arg_map = pargm'} ]
+            , s { expr_env = eenv'
+                , curr_expr = CurrExpr Evaluate e''
+                , exec_stack = stck'
+                , tyvar_env = tvnv'
+                , poly_arg_map = pargm'}
             , ng'' )
         Nothing -> error $ "retLam: Bad type\ni = " ++ show i
     | otherwise =
@@ -446,10 +453,10 @@ retLam s@(State { expr_env = eenv, tyvar_env = tvnv, poly_arg_map = pargm})
             (eenv', e', ng', news, pargm') = liftBind i ae eenv e ng pargm
         in
         ( RuleReturnEApplyLamExpr [news]
-        , [s { expr_env = eenv'
-             , curr_expr = CurrExpr Evaluate e'
-             , exec_stack = stck'
-             , poly_arg_map = pargm'}]
+        , s { expr_env = eenv'
+            , curr_expr = CurrExpr Evaluate e'
+            , exec_stack = stck'
+            , poly_arg_map = pargm'}
         , ng' )
 
 -- | Modifications to the ExprEnv and PolyArgMap that are needed when solving for RankNTypes-enabled functions.
