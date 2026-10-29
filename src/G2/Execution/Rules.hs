@@ -1290,18 +1290,23 @@ evalAssert s@(State { exec_stack = stck }) ng is e1 e2 =
     , ng)
 
 retUpdateFrame :: State t -> NameGen -> Name -> S.Stack Frame -> (Rule, [State t], NameGen)
-retUpdateFrame s@(State { expr_env = eenv
-                        , curr_expr = CurrExpr _ e}) ng un stck
+retUpdateFrame s ng n stck =
+    let (s', ng') = retUpdateFrame' s ng n stck in
+    case Stck.pop (exec_stack s') of
+        Just (UpdateFrame un, stck') -> retUpdateFrame s' ng' un stck'
+        _ -> (RuleReturnEUpdate n, [s'], ng')
+
+retUpdateFrame' :: State t -> NameGen -> Name -> S.Stack Frame -> (State t, NameGen)
+retUpdateFrame' s@(State { expr_env = eenv
+                         , curr_expr = CurrExpr _ e}) ng un stck
     | Var _ <- e =
-       ( RuleReturnEUpdateVar un
-       , [s { expr_env = E.insert un e eenv
-            , curr_expr = CurrExpr Return e
-            , exec_stack = stck }]
+       ( s { expr_env = E.insert un e eenv
+           , curr_expr = CurrExpr Return e
+           , exec_stack = stck }
        , ng)
     | otherwise =
-        ( RuleReturnEUpdateNonVar un
-        , [s { expr_env = E.insert un e eenv
-             , exec_stack = stck }]
+        ( s { expr_env = E.insert un e eenv
+            , exec_stack = stck }
         , ng)
 
 -- | Returning a state that has encountered an error.

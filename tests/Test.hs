@@ -1252,6 +1252,7 @@ verifierTests = testGroup "Verifier"
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,2,0,0)
     , checkExprVerified "tests/Verify/Function1.hs" "p1"
+    , checkExprVerifiedWithNoApprox "tests/Verify/Function1.hs" "p2"
     , checkExprCEx "tests/Verify/Function1.hs" "p1False"
     , checkExprCExSubpath "tests/Verify/Function1.hs" "p1False"
 #endif
@@ -1474,6 +1475,13 @@ checkExprVerifiedSubpathTL time_lim =
         (do config <- configTL time_lim; return $ config { search_strat = Subpath })
         defVerifyConfig
         (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
+
+checkExprVerifiedWithNoApprox :: String -> String -> TestTree
+checkExprVerifiedWithNoApprox =
+    let
+        vr_config = defVerifyConfig { approx = False }
+    in
+    checkExprVerifierWithConfig configTL30 vr_config (\case Verified -> True; Counterexample _ -> False; VerifyTimeOut -> False)
 
 checkExprVerifiedWithNoRevAbs :: String -> String -> TestTree
 checkExprVerifiedWithNoRevAbs =

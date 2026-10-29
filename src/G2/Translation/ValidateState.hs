@@ -345,7 +345,7 @@ validateState comp_func modN entry chAll chAny b in_out = do
 
         return (fst rs_anys)
 
-printStateOutput :: (GhcMonad m) => Config -> Id -> Bindings
+printStateOutput :: (MonadIO m) => Config -> Id -> Bindings
                -> Maybe ValidateRes
                -> ExecRes t
                -> m ()
@@ -364,7 +364,7 @@ printStateOutput config entry b mval_res exec_res@(ExecRes { final_state = s }) 
             let val_res = fromJust mval_res -- know mval_res is Just, can use fromJust
 
             (case val_res of
-                ValidationSrcError vse -> printException vse
+                ValidationSrcError vse -> liftIO $ print vse -- printException vse
                 _ -> return ())
             
             liftIO (case val_res of
