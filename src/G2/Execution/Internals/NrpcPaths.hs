@@ -48,7 +48,7 @@ paths seen_funcs nrpc_e_lhs nrpc_e_rhs
             eenv' = E.insertExprs (zip news binds_rhs') eenv
 
         in paths seen_funcs e'' nrpc_e_rhs (s {expr_env = eenv'}) (bindings {name_gen = ng'}) solver table
-    -- Case expression reaches any assert or error
+    -- Case expression
     | Case {} <- nrpc_e_lhs = evalCasePaths seen_funcs nrpc_e_lhs nrpc_e_rhs s bindings solver table
     -- Data Constructor
     | Data {} : _ <- unApp nrpc_e_lhs = evalDataConPaths nrpc_e_lhs nrpc_e_rhs s table
@@ -60,8 +60,8 @@ paths seen_funcs nrpc_e_lhs nrpc_e_rhs
         r <- solve solver s' bindings (E.symbolicIds . expr_env $ s') (path_conds s')
         case r of
             SAT _ -> return (1, table)
-            _ ->  return (0, table)
-    | otherwise = error $ "paths: expr not allowed \n" ++ show nrpc_e_lhs
+            _ -> return (0, table)
+    | otherwise = return (0, table) 
 
 evalPathsForApp :: Solver solver => HS.HashSet Name 
             -> Expr 
@@ -122,17 +122,24 @@ evalCasePaths seen_funcs lhs_e rhs_e
                 sym_vars = concatMap (\case DataAlt _ vrs -> vrs; _ -> []) altMatches
                 
                 eenv' = foldl (\ en id' -> E.insertSymbolic id' en ) eenv (i:sym_vars)
+
             (num_path_alts, table'') <- evalAlts altExprs rhs_e s{expr_env = eenv'} bindings seen_funcs solver table
+            
             return (num_path_alts, table'')
         -- Case where scrutinee could be anything, a variable, func application etc.
-        | Case e _ _ alts <- lhs_e = do
+        | Case e i _ alts <- lhs_e = do
             let e_ty = typeOf tvnv e
                 (new_sym, ng') = freshSeededName (Name "sym" Nothing 0 Nothing) ng
                 new_sym_id = Id new_sym e_ty
-                eenv' = E.insertSymbolic new_sym_id eenv
                 altExprs = map altExpr alts
-            (num_path_scrutinee, table') <- paths seen_funcs e (Var new_sym_id) (s {expr_env = eenv'}) (bindings {name_gen = ng'}) solver table
-            (num_path_alts, table'') <- evalAlts altExprs rhs_e s bindings seen_funcs solver table'
+                altMatches = map altMatch alts
+                sym_vars = concatMap (\case DataAlt _ vrs -> vrs; _ -> []) altMatches
+
+                eenv' = foldl (\ en id' -> E.insertSymbolic id' en ) eenv (i:new_sym_id:sym_vars)
+
+            (num_path_scrutinee, table') <- paths seen_funcs e (Var new_sym_id) s (bindings {name_gen = ng'}) solver table
+            (num_path_alts, table'') <- evalAlts altExprs rhs_e (s {expr_env = eenv'}) bindings seen_funcs solver table'
+            
             return (num_path_scrutinee * num_path_alts, table'')
         | otherwise = error $ "evalCasePaths: case not allowed \n" ++ show lhs_e
 
@@ -149,9 +156,13 @@ evalDataConPaths lhs_e rhs_e s@(State {expr_env = eenv}) table
         | Data (DataCon n1 _ _ _) : _ <- unApp lhs_e
         , Data (DataCon n2 _ _ _) : _ <- unApp rhs_e = do if n1 == n2 then return (1, table) else return (0, table)
         -- when left is data con but right hand side is symbolic variable
-        | (Data _) : _ <- unApp lhs_e
+        | Data _ : _ <- unApp lhs_e
         , Var (Id n _) : _ <- unApp rhs_e
         , E.isSymbolic n eenv = return (1, table)
+        | Data (DataCon n1 _ _ _) : _ <- unApp lhs_e
+        , Var (Id n _) : _ <- unApp rhs_e
+        , Just (Data (DataCon n2 _ _ _)) <- E.lookup n eenv
+        , n1 == n2 = return (1, table)
         -- To catch other data con cases
         | (Data _) : _ <- unApp lhs_e = return (0, table)
         | otherwise = error $ "evalDataConPaths: DataCon application not allowed \n" ++ show lhs_e
@@ -213,16 +224,17 @@ threshold :: Int
 threshold = 1
 
 getUpdatedStateIfPathsChanged :: Solver solver => HS.HashSet Name -> NRPC -> State t -> Bindings -> solver -> IO (State t)
-getUpdatedStateIfPathsChanged _ np s b solver = do
+getUpdatedStateIfPathsChanged _ np s@State{expr_env = eenv} b solver = do
     let nrpc_r = nrpc_rhs np
         nrpc_l = nrpc_lhs np
         reach_tbl = reach_table s
         -- Call paths here
-    (path, reach_tbl') <- paths HS.empty nrpc_r nrpc_l s b solver reach_tbl
+    (path, reach_tbl') <- paths HS.empty nrpc_l nrpc_r s b solver reach_tbl
+    -- print $ "Number of paths: " ++ show path ++ " for NRPC: " ++ show (E.lookup (idName (fromJust (varId  nrpc_r))) eenv)
     
-    let s' = s {reach_table = reach_tbl'}
+    let s' = s {reach_table = reach_tbl'} 
      
-    if path > threshold then updateState np s' else return s
+    if path > threshold then return s else updateState np s' 
 
 updateState :: NRPC -> State t -> IO (State t)
 updateState np s@(State {curr_expr = c_e
