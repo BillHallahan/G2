@@ -27,6 +27,7 @@ module InputOutputTest ( checkInputOutput
                        , checkInputOutputsSymFuncConstraintsSubPath
                        , checkInputOutputsSymFuncConstraintsSubPathSMTLists
                        , checkInputOutputsSymFuncConstraintsSubPathReturnsTrue
+                       , checkInputOutputOfPaths
                        , checkInputOutputsInstType
                        , checkInputOutputsWithValidate
                        , checkInputOutputsWithTemplatesAndHpc) where

@@ -90,6 +90,7 @@ data State t = State { expr_env :: E.ExprEnv -- ^ Mapping of `Name`s to `Expr`s
                      , forcing_var :: Bool -- ^ Are we currently forcing deep evaluation of a variable? See Note [Forcing Sharing] in G2.Execution.Rules
 
                      , track :: t
+                     , reach_table :: ReachabilityTable
                      } deriving (Show, Eq, Read, Generic, Data)
 
 type EEDiff = [(Name, Expr)] -- concrete values to insert in ExprEnv
@@ -152,6 +153,8 @@ data CurrExpr = CurrExpr EvalOrReturn Expr
               deriving (Show, Eq, Read, Generic, Data)
 
 instance Hashable CurrExpr
+
+type ReachabilityTable = HM.HashMap Name Bool
 
 -- | Gets the `Expr` represented by a state.
 getExpr :: State t -> Expr
@@ -275,6 +278,7 @@ instance Named t => Named (State t) where
             <> names (track s)
             <> names (lit_tables s)
             <> names (lit_table_stack s)
+            <> names (reach_table s)
 
     rename old new s =
         State { expr_env = rename old new (expr_env s)
@@ -310,7 +314,8 @@ instance Named t => Named (State t) where
                , global_lit_table_pc = rename old new $ global_lit_table_pc s
                , forcing_var = forcing_var s
                , reached_fc_ticks = rename old new $ reached_fc_ticks s
-               , log_path = log_path s }
+               , log_path = log_path s 
+               , reach_table = rename old new $ reach_table s }
 
     renames hm s =
         State { expr_env = renames hm (expr_env s)
@@ -346,7 +351,8 @@ instance Named t => Named (State t) where
                , global_lit_table_pc = renames hm $ global_lit_table_pc s
                , forcing_var = forcing_var s 
                , reached_fc_ticks = renames hm $ reached_fc_ticks s
-               , log_path = log_path s }
+               , log_path = log_path s
+               , reach_table = renames hm $ reach_table s }
 
 instance ASTContainer t Expr => ASTContainer (State t) Expr where
     containedASTs s = (containedASTs $ type_env s) ++
@@ -367,7 +373,8 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
                       (containedASTs $ lit_table_stack s) ++
                       (containedASTs $ global_lit_table_pc s) ++
                       (containedASTs $ reached_fc_ticks s) ++
-                      (containedASTs $ rules s)
+                      (containedASTs $ rules s) ++
+                      (containedASTs $ reach_table s)
 
     modifyContainedASTs f s = s { type_env  = modifyContainedASTs f $ type_env s
                                 , expr_env  = modifyContainedASTs f $ expr_env s
@@ -386,7 +393,8 @@ instance ASTContainer t Expr => ASTContainer (State t) Expr where
                                 , global_lit_table_pc = modifyContainedASTs f $ global_lit_table_pc s
                                 , sym_gens = modifyContainedASTs f $ sym_gens s
                                 , reached_fc_ticks = modifyContainedASTs f $ reached_fc_ticks s
-                                , rules = modifyContainedASTs f $ rules s }
+                                , rules = modifyContainedASTs f $ rules s 
+                                , reach_table = modifyContainedASTs f $ reach_table s }
 
 instance ASTContainer t Type => ASTContainer (State t) Type where
     containedASTs s = ((containedASTs . expr_env) s) ++
@@ -409,7 +417,8 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                       (containedASTs $ lit_table_stack s) ++
                       (containedASTs $ global_lit_table_pc s) ++
                       (containedASTs $ reached_fc_ticks s) ++
-                      (containedASTs $ rules s)
+                      (containedASTs $ rules s) ++
+                      (containedASTs $ reach_table s)
 
     modifyContainedASTs f s = s { type_env  = (modifyContainedASTs f . type_env) s
                                 , expr_env  = (modifyContainedASTs f . expr_env) s
@@ -430,7 +439,8 @@ instance ASTContainer t Type => ASTContainer (State t) Type where
                                 , lit_table_stack = modifyContainedASTs f $ lit_table_stack s
                                 , global_lit_table_pc = modifyContainedASTs f $ global_lit_table_pc s
                                 , reached_fc_ticks = modifyContainedASTs f $ reached_fc_ticks s
-                                , rules = modifyContainedASTs f $ rules s }
+                                , rules = modifyContainedASTs f $ rules s 
+                                , reach_table = modifyContainedASTs f $ reach_table s }
 
 instance Named Bindings where
     names b = names (fixed_inputs b)

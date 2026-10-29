@@ -64,6 +64,7 @@ module G2.Execution.Reducer (
                             , stdRed
                             , nonRedPCSymFuncRed
                             , nonRedLibFuncsReducer
+                            , nonRedPathsReducer
                             , nonRedHigherOrderReducer
                             , nonRedPCRed
                             , nonRedPCRedNoPrune
@@ -173,6 +174,7 @@ import G2.Config
 import G2.Data.Utils
 import qualified G2.Language.ExprEnv as E
 import G2.Execution.NormalForms
+import G2.Execution.Internals.NrpcPaths
 import G2.Execution.Internals.Reducer
 import G2.Execution.Rules
 import G2.Interface.ExecRes
@@ -208,6 +210,8 @@ import Data.Time.Clock
 import System.Clock
 import System.Directory
 import qualified G2.Language.TyVarEnv as TV 
+
+import Debug.Trace
 
 -- * Reducers
 --
@@ -463,6 +467,47 @@ nonRedLibFuncs exec_names no_nrpc_names
     , isNonRedBlockerTick nl
     , Just e <- E.lookup n eenv = return (Finished, [(s { curr_expr = CurrExpr Evaluate e }, rv)], b)
     | otherwise = return (Finished, [(s, rv)], b)
+
+
+-- | A reducer to skip execution of code that can have branch more than two branches  
+nonRedPathsReducer :: (MonadIO m, Solver solver) =>
+                        solver
+                      -> Config
+                      -> Reducer m Int t
+nonRedPathsReducer solver config =
+    (mkSimpleReducer (\_ -> 0)
+        (nonRedPathCons solver config))
+        { onAccept = \s b nrpc_count -> do
+            if print_num_nrpc config
+                then liftIO . putStrLn $ "NRPCs Generated: " ++ show nrpc_count
+                else return ()
+            return (s, b) }
+
+nonRedPathCons :: (MonadIO m, Solver solver )=> solver -> Config -> RedRules m Int t
+nonRedPathCons solver config rv@(nrpc_count)
+                s@(State { curr_expr = CurrExpr er ce
+                         , expr_env = eenv})
+                b@(Bindings { name_gen = ng })
+    | Case (Var (Id n _)) bindee t alts <- ce
+    , Just n' <- E.deepLookupVar n eenv
+    , E.isSymbolic n' eenv
+    , let s_nrpc = s { curr_expr = CurrExpr er $ Case (Var (Id n' t)) bindee t alts}
+    , Just (s'@(State { curr_expr = CurrExpr _ _ }), _, NRPC { nrpc_lhs = left, nrpc_rhs = right }, ng') <- createNonRedForCase ng Focused s_nrpc = 
+        do
+            (num_paths, reach_tbl') <- liftIO $ paths HS.empty left right s' (b {name_gen = ng'}) solver (reach_table s)
+            when (print_paths config) $ liftIO . putStrLn $ "Paths count: " ++ show num_paths -- ++ " : expression is:" ++ show left
+            if num_paths > 1 
+                then return (Finished, [(s' {reach_table = reach_tbl'}, nrpc_count + 1)], b {name_gen = ng'})
+                else return (Finished, [(s, rv)], b)
+    -- Removing the Tick so standard reducer can reduce case expression. 
+    -- This is to avoid adding a case expression again and again in the nrpc set
+    | Tick t e@(Case {}) <- ce
+    , isNonRedBlockerTick t = do
+        let ce' = removeNonRedBlockerTick e
+            s' = s {curr_expr = CurrExpr Evaluate ce'}
+        return (Finished, [(s', rv)], b)
+    | otherwise = return (Finished, [(s, rv)], b)
+
 
 -- | A reducer to add higher order functions to non reduced path constraints for solving later  
 nonRedHigherOrderReducer :: MonadIO m =>
@@ -821,10 +866,49 @@ createNonRed' ng
         (ng''', nrs') = addFirstNRPC ng'' focus' e'' (Var new_sym_id) nrs
 
         s' = s { expr_env = eenv'
-               , non_red_path_conds = nrs' }
+            , non_red_path_conds = nrs' }
     in
     Just (s', new_sym_id, NRPC focus' e'' (Var new_sym_id), ng''')
 createNonRed' _ _ _ _ = Nothing
+
+createNonRedForCase :: NameGen
+             -> GenFocus n
+             -> State t
+             -> Maybe
+                      ( State t -- ^ New state with NRPC applied
+                      , Id -- ^ New symbolic variable
+                      , NRPC -- ^ New NRPC
+                      , NameGen)
+createNonRedForCase ng focus
+              s@(State { curr_expr = CurrExpr _ ce
+              , tyvar_env = tvnv
+              , expr_env = eenv
+              , non_red_path_conds = nrs })
+    | Case {} <- ce
+    , (_, stck) <- allApplyFrames (exec_stack s)
+    , let e_ty = typeOf tvnv ce
+    , not $ hasFuncType e_ty = 
+    let
+        (new_sym, ng') = freshSeededName (Name "sym" Nothing 0 Nothing) ng
+        new_sym_id = Id new_sym e_ty
+        eenv' = E.insertSymbolic new_sym_id eenv
+        
+        (te, ng'') = nonRedBlockerTick ng' ce
+
+        focus' = case focus of
+                    Focused -> Focused
+                    Unfocused _ -> Unfocused (idName new_sym_id)
+
+        (ng''', nrs') = addFirstNRPC ng'' focus' te (Var new_sym_id) nrs
+        cexpr' = CurrExpr Return (Var new_sym_id)
+
+        s' = s { curr_expr = cexpr'
+            , expr_env = eenv'
+            , non_red_path_conds = nrs'
+            , exec_stack = stck }
+    in
+    Just (s', new_sym_id, NRPC focus' te (Var new_sym_id), ng''')
+createNonRedForCase _ _ _ = Nothing
 
 hasMagicTypes :: ASTContainer c Type => KnownValues -> c -> Bool
 hasMagicTypes kv = getAny . evalASTs hmt
@@ -843,6 +927,10 @@ allApplyFrames stck = go [] stck stck
 isNonRedBlockerTick :: Tickish -> Bool
 isNonRedBlockerTick (NamedLoc n) = nameOcc n == "NonRedBlocker"
 isNonRedBlockerTick _ = False
+
+removeNonRedBlockerTick :: Expr -> Expr
+removeNonRedBlockerTick e@(Tick t e') = if isNonRedBlockerTick t then e' else e
+removeNonRedBlockerTick e = e
 
 -- Note [Ignore Update Frames]
 -- In `strictRed`, when deciding whether to split up an expression to force strict evaluation of subexpression,
