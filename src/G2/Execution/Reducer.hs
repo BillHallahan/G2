@@ -211,8 +211,6 @@ import System.Clock
 import System.Directory
 import qualified G2.Language.TyVarEnv as TV 
 
-import Debug.Trace
-
 -- * Reducers
 --
 -- $reducers
@@ -496,7 +494,7 @@ nonRedPathCons solver config rv@(nrpc_count)
         do
             (num_paths, reach_tbl') <- liftIO $ paths HS.empty left right s' (b {name_gen = ng'}) solver (reach_table s)
             when (print_paths config) $ liftIO . putStrLn $ "Paths count: " ++ show num_paths -- ++ " : expression is:" ++ show left
-            if num_paths > 1 
+            if num_paths > nrpcThreshold 
                 then return (Finished, [(s' {reach_table = reach_tbl'}, nrpc_count + 1)], b {name_gen = ng'})
                 else return (Finished, [(s, rv)], b)
     -- Removing the Tick so standard reducer can reduce case expression. 

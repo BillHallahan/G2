@@ -15,6 +15,7 @@ test1 list = case f list of
 len [] = 0
 len (x:xs) = 1 + len xs
 
+test2 ::  [Int] -> [Int]
 test2 list = case len list of 
     1 -> []
     _ -> list

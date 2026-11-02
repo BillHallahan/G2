@@ -7,7 +7,8 @@ module G2.Execution.Internals.NrpcPaths
         ReachabilityTable,
         paths,
         reachabilityCheck,
-        getUpdatedStateIfPathsChanged
+        getUpdatedStateIfPathsChanged,
+        nrpcThreshold
     ) where
 
 import qualified Control.Monad.State as SM
@@ -220,8 +221,8 @@ reachabilityCheck' seen ng eenv e
         in reachabilityCheck' seen ng' eenv' e''
     | otherwise = return False
 
-threshold :: Int
-threshold = 1
+nrpcThreshold :: Int
+nrpcThreshold = 1
 
 getUpdatedStateIfPathsChanged :: Solver solver => HS.HashSet Name -> NRPC -> State t -> Bindings -> solver -> IO (State t)
 getUpdatedStateIfPathsChanged _ np s@State{expr_env = eenv} b solver = do
@@ -234,7 +235,7 @@ getUpdatedStateIfPathsChanged _ np s@State{expr_env = eenv} b solver = do
     
     let s' = s {reach_table = reach_tbl'} 
      
-    if path > threshold then return s else updateState np s' 
+    if path > nrpcThreshold then return s else updateState np s' 
 
 updateState :: NRPC -> State t -> IO (State t)
 updateState np s@(State {curr_expr = c_e
