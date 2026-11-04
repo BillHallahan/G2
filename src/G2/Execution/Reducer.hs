@@ -1488,7 +1488,7 @@ acceptTimeLogger = do
                             let diff = diffTimeSpec accept_time init_time
                                 diff_secs = (fromInteger (toNanoSecs diff)) / (10 ^ (9 :: Int) :: Double)
 
-                            let file_name = "time_logs/state_accept_log.txt"
+                            let file_name = "logs/state_accept_log.txt"
                             file_exists <- doesFileExist file_name
                             when file_exists $ appendFile file_name (" " ++ show diff_secs)
 
@@ -2338,8 +2338,8 @@ allOfHeightTerminated config func_name init_s = do
     curr_height_io <- newIORef (0 :: Int)
 
     let vs = HS.fromList . map idName . E.symbolicIds $ expr_env init_s
-        file_name = "logs/" ++ T.unpack (nameOcc func_name) ++ symb_func
-    file_exists <- doesFileExist (file_name ++ ".txt")
+        file_name = T.unpack (nameOcc func_name) ++ symb_func
+    file_exists <- doesFileExist ("logs/time_logs/" ++ file_name ++ ".txt")
     let file_name' = if not file_exists
                         then file_name
                         else "logs_second/" ++ T.unpack (nameOcc func_name) ++ symb_func
@@ -2372,12 +2372,12 @@ allOfHeightTerminated config func_name init_s = do
                     let diff = diffTimeSpec accept_time init_time
                         diff_secs = (fromInteger (toNanoSecs diff)) / (10 ^ (9 :: Int) :: Double)
                     liftIO $ writeIORef curr_height_io m
-                    let file_name = file_name_pre ++ ".txt"
-                    liftIO . appendFile file_name $ "(" ++ show diff_secs ++ "," ++ show (m - 1) ++ ")"
+                    let time_file_name = "logs/time_logs/" ++ file_name_pre ++ ".txt"
+                        state_count_file_name = "logs/sc_logs/" ++ file_name_pre ++ ".txt"
+                    liftIO . appendFile time_file_name $ "(" ++ show diff_secs ++ "," ++ show (m - 1) ++ ")"
 
                     let acc_dis_states = filter (\s -> calcHeight s == m - 1) $ map final_state (accepted processed) ++ discarded processed
-                        num_add_dis_file = file_name_pre ++ "_state_count.txt"
-                    liftIO . appendFile num_add_dis_file $ "(" ++ show (length acc_dis_states + 1) ++ "," ++ show (m - 1) ++ ")"
+                    liftIO . appendFile state_count_file_name $ "(" ++ show (length acc_dis_states + 1) ++ "," ++ show (m - 1) ++ ")"
             | otherwise = return ()
 
 --------

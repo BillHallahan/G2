@@ -208,7 +208,7 @@ g2PluginPass' cmd_lne config env modguts = do
 
     (imports_nm, import_tnm, injected_exg2) <- setUpImports (g2_config config) cmd_lne zip_nm new_tm env ex_g2 prev_explored
                                                             (comp_name Seq.:<| map_name Seq.:<| fold_name Seq.:<| zip_name Seq.:<| rel_names)
-    let simp_state = initSimpleState injected_exg2 imports_nm import_tnm
+    let !simp_state = initSimpleState injected_exg2 imports_nm import_tnm
 
     let mod_name = unpackFS . moduleNameFS . moduleName $ mg_module modguts
 
@@ -303,14 +303,14 @@ runFunc cmd_lne simp_state entry
 
 logAcceptedStateTime :: [Char] -> IO ()
 logAcceptedStateTime entryName  = do
-    let file_name = "time_logs/state_accept_log.txt"
+    let file_name = "logs/state_accept_log.txt"
     file_exists <- doesFileExist file_name
     when file_exists $ appendFile file_name $ "\n" ++ entryName ++ " : "
 
 logFCTime :: String -> TimeSpec -> IO ()
 logFCTime entry_name timeInFC = do
     let seconds_in_fc = fromInteger (toNanoSecs timeInFC) / (10 ^ (9 :: Int) :: Double)
-    let fc_file = "time_logs/fc_time.txt"
+    let fc_file = "logs/fc_time.txt"
     file_exists <- doesFileExist fc_file
     when file_exists $ appendFile fc_file $ "\n" ++ entry_name ++ " : " ++ show seconds_in_fc
 
