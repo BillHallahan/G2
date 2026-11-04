@@ -849,6 +849,11 @@ testFileTests = testGroup "TestFiles"
                                                                 , ("test4", 2000, [Exactly 1])
                                                                 , ("test5", 2000, [Exactly 1])
                                                                 , ("test6", 2000, [Exactly 1])
+                                                                , ("test7", 2000, [Exactly 1])
+                                                                , ("test8", 2000, [Exactly 1])
+                                                                , ("test9", 2000, [Exactly 1])
+                                                                , ("test10", 2000, [Exactly 1])
+                                                                , ("test11", 2000, [Exactly 1])
                                                                 ]
     , checkInputOutputOfPaths "tests/PathsTests/PathsTest2.hs" [ ("test1", 2000, [Exactly 2])
                                                                 , ("test2", 2000, [AtLeast 4])
