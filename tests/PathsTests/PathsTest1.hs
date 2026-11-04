@@ -109,3 +109,31 @@ test11 xs = case xs of
         xs'' = reverse xs'
         xs''' = xs'' ++ xs'
         in intersperse x xs'''
+
+data List2 = Nil2 | Int :>>> List2 deriving Eq
+
+test100 :: List2 -> List2
+test100 xs = case g2 xs of
+    True -> Nil2
+    False -> xs
+
+{-# NOINLINE g2 #-}
+g2 :: List2 -> Bool
+g2 xs = case xs of 
+    Nil2 -> False
+    x :>>> xs' -> case xs' of
+        Nil2 -> True
+        x' :>>> xs'' -> case xs'' of
+            Nil2 -> True
+            _ :>>> _ -> False
+
+test101 :: ListNew Int -> ListNew Int
+test101 xs = case g3 xs of
+    True -> Nil
+    False -> 1 :> Nil
+
+{-# NOINLINE g3 #-}
+g3 :: ListNew Int -> Bool
+g3 xs = case xs of 
+    Nil -> False
+    _ -> True

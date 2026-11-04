@@ -486,10 +486,10 @@ nonRedPathCons solver config rv@(nrpc_count)
                 s@(State { curr_expr = CurrExpr er ce
                          , expr_env = eenv})
                 b@(Bindings { name_gen = ng })
-    | Case (Var (Id n _)) bindee t alts <- ce
+    | Case (Var (Id n t')) bindee t alts <- ce
     , Just n' <- E.deepLookupVar n eenv
     , E.isSymbolic n' eenv
-    , let s_nrpc = s { curr_expr = CurrExpr er $ Case (Var (Id n' t)) bindee t alts}
+    , let s_nrpc = s { curr_expr = CurrExpr er $ Case (Var (Id n' t')) bindee t alts}
     , Just (s'@(State { curr_expr = CurrExpr _ _ }), _, NRPC { nrpc_lhs = left, nrpc_rhs = right }, ng') <- createNonRedForCase ng Focused s_nrpc = 
         do
             (num_paths, reach_tbl') <- liftIO $ paths HS.empty left right s' (b {name_gen = ng'}) solver (reach_table s)
