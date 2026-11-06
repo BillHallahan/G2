@@ -20,6 +20,18 @@ import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as S
 import G2.Solver
 
+-- | paths functions under-approximates the number of paths an expression can branch into.
+-- Before adding a non-reduced path constraint, paths checks if the expression can branch into more
+-- than a threshold number of paths. If it can, then the non-reduced path constraint is 
+-- added to the NRPC set of state.
+-- For example consider the following case expression:
+-- case sym of
+-- [] -> some_expr
+-- _  -> some_other_expr
+-- sym is a symbolic variable, so, we know it will branch into at least 2 paths.
+-- In paths functios, nrpc_e_lhs is the left hand side of the non-reduced-path constraint, 
+-- which is the case expression from above example, and nrpc_e_rhs is the right hand side of the non-reduced path constraint.
+-- Whenever an NRPC should be added for the first time, LHS is always going to be a symbolic variable.
 paths :: Solver solver => HS.HashSet Name -> Expr -> Expr -> State t -> Bindings -> solver -> ReachabilityTable -> IO (Int, ReachabilityTable)
 paths seen_funcs nrpc_e_lhs nrpc_e_rhs
         s@(State {expr_env = eenv, path_conds = originalPc})
@@ -62,7 +74,12 @@ paths seen_funcs nrpc_e_lhs nrpc_e_rhs
         case r of
             SAT _ -> return (1, table)
             _ -> return (0, table)
-    | otherwise = return (0, table) 
+    | SymGen _ _ <- nrpc_e_lhs = return (1, table)
+    | Assume _ e1 e2 <- nrpc_e_lhs = do
+        paths_e1 <- paths seen_funcs e1 nrpc_e_rhs s bindings solver table
+        paths_e2 <- paths seen_funcs e2 nrpc_e_rhs s bindings solver table
+        return $ Prelude.max paths_e1 paths_e2
+    | otherwise = error $ "paths: expression not allowed \n" ++ show nrpc_e_lhs
 
 evalPathsForApp :: Solver solver => HS.HashSet Name 
             -> Expr 
@@ -84,7 +101,7 @@ evalPathsForApp seen_funcs lhs_e rhs_e
             e1' = renameExpr old x' e
             eenv' = E.insert x' e1 eenv
         in
-            paths seen_funcs (mkApp (e1':e2)) rhs_e (s {expr_env = eenv'}) (bindings {name_gen = ng'}) solver table
+            evalPathsForApp seen_funcs (mkApp (e1':e2)) rhs_e (s {expr_env = eenv'}) (bindings {name_gen = ng'}) solver table
         -- Function applications that are not symbolic
         | Var (Id n _) : es <- unApp lhs_e
         , Just e <- E.lookup n eenv
@@ -128,6 +145,22 @@ evalCasePaths seen_funcs lhs_e rhs_e
             
             return (num_path_alts, table'')
         -- Case where scrutinee could be anything, a variable, func application etc.
+        --
+        -- If a case expression's scrutinee branches in m paths and alternatives branch in n paths,
+        -- then the total number of paths is m * n.
+        -- For example, consider the following case expression:
+        --
+        -- case (f x) of
+        --  [] -> some_expr
+        --  _  -> some_other_expr
+        -- 
+        -- if (f x) branches into 10 paths, some_expr branches into 5 paths, and 
+        -- some_other_expr branches into 3 paths, then the total number of paths is 10 * (5 + 3) = 80.
+        -- It looks like an over-approximation but it is still an under-approximation because of how paths work. 
+        -- Paths underapproximate function application, and since, we check approximate number of paths
+        -- an alternatives expression can generate, there is a chance that we are 
+        -- under-approximating the number of paths in the alternatives expression.
+        -- 
         | Case e i _ alts <- lhs_e = do
             let e_ty = typeOf tvnv e
                 (new_sym, ng') = freshSeededName (Name "sym" Nothing 0 Nothing) ng
@@ -169,10 +202,8 @@ evalDataConPaths lhs_e rhs_e s@(State {expr_env = eenv}) table
         | otherwise = error $ "evalDataConPaths: DataCon application not allowed \n" ++ show lhs_e
 
 reachabilityCheck :: HS.HashSet Name -> NameGen -> ExprEnv -> Expr -> ReachabilityTable -> (Bool, ReachabilityTable)
-reachabilityCheck seen ng eenv e table = 
-    let 
-        (res, table') = SM.runState (reachabilityCheck' seen ng eenv e) table 
-    in (res, table')
+reachabilityCheck seen ng eenv e table = SM.runState (reachabilityCheck' seen ng eenv e) table 
+   
 
 reachabilityCheck' :: SM.MonadState ReachabilityTable m => HS.HashSet Name -> NameGen -> ExprEnv -> Expr -> m Bool
 reachabilityCheck' seen ng eenv e
@@ -223,7 +254,10 @@ reachabilityCheck' seen ng eenv e
 
 nrpcThreshold :: Int
 nrpcThreshold = 1
-
+-- | If a non-reduced path constraint's symbolic variable gets concretized, then it is possible that
+-- the number of paths an expression can branch into has changed. Function getUpdatedStateIfPathsChanged
+-- checks if path has changed for the given non-reduced path constraint. 
+-- If it is not greater than the threshold, then the state is updated to evaluate the non-reduced path constraint.
 getUpdatedStateIfPathsChanged :: Solver solver => HS.HashSet Name -> NRPC -> State t -> Bindings -> solver -> IO (State t)
 getUpdatedStateIfPathsChanged _ np s@State{expr_env = eenv} b solver = do
     let nrpc_r = nrpc_rhs np
