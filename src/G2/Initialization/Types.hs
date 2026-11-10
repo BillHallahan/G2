@@ -20,18 +20,18 @@ import G2.Language.Monad
 import G2.Language.Syntax
 import G2.Translation.TransTypes
 
-data SimpleState = SimpleState { expr_env :: L.ExprEnv
-                               , type_env :: L.TypeEnv
-                               , name_gen :: L.NameGen
-                               , handles :: HM.HashMap Name L.Handle
-                               , known_values :: L.KnownValues
-                               , type_classes :: L.TypeClasses
-                               , families :: L.Families
+data SimpleState = SimpleState { expr_env :: !L.ExprEnv
+                               , type_env :: !L.TypeEnv
+                               , name_gen :: !L.NameGen
+                               , handles :: !(HM.HashMap Name L.Handle)
+                               , known_values :: !L.KnownValues
+                               , type_classes :: !L.TypeClasses
+                               , families :: !L.Families
                                , rewrite_rules :: ![L.RewriteRule]
-                               , exports :: [Name]
+                               , exports :: ![Name]
 
-                               , name_map :: NameMap
-                               , type_name_map :: TypeNameMap } deriving (Eq, Show, Read)
+                               , name_map :: !NameMap
+                               , type_name_map :: !TypeNameMap } deriving (Eq, Show, Read)
 
 newtype SimpleStateM a = SimpleStateM { unSM :: (SM.State SimpleState a) } deriving (Applicative, Functor, Monad)
 
