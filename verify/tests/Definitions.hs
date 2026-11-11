@@ -3,7 +3,6 @@
 {-# OPTIONS_GHC -Wno-unused-matches #-}
 {-# OPTIONS_GHC -Wno-unused-imports #-}
 {-# OPTIONS_GHC -Wno-incomplete-patterns #-}
-
 {-
 
     Definitions for the properties in Productive Use Of Failure

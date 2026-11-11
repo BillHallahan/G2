@@ -10,6 +10,7 @@ module G2.Language.NonRedPathConds ( Focus
                                    , addNRPC
                                    , addExistingNRPC
                                    , addFirstNRPC
+                                   , deleteNRPC
                                    , getNRPC
                                    , getLastNRPC
                                    , nullNRPC
@@ -100,7 +101,6 @@ instance Hashable NonRedPathConds
 -- required to fully reduce the state.  If they were, they would have been switched to focused NRPCs by the `adjustFocusReducer`.
 -- As such, the `adjustFocusReducer` also wipes out the NRPCs if the state's expression is false and all are unfocused. 
 
-
 -- | Is evaluation of the NRPC being forced? I.e. does evaluation of the state definitely evaluate the NRPC expression(s).
 -- See Note [NRPC Focus] and `Focus`.
 data GenFocus n = Focused
@@ -136,6 +136,9 @@ addFirstNRPC ng focus e1 e2 (NRPCs nrpc curr_uniq) =
         (uniq, ng') = if focus == Focused then freshUnique ng else (curr_uniq, ng)
     in
     (ng', NRPCs (NRPC { nrpc_focus = focus, nrpc_lhs = e1', nrpc_rhs = e2' } :<| nrpc) uniq)
+
+deleteNRPC :: NRPC -> NonRedPathConds -> NonRedPathConds
+deleteNRPC nrpc (NRPCs nrps uniq) = NRPCs (S.filter (/= nrpc) nrps) uniq
 
 varOnRight :: Expr -> Expr -> (Expr, Expr)
 varOnRight e1@(Var _) e2 = (e2, e1)
