@@ -2344,7 +2344,7 @@ allOfHeightTerminated config func_name init_s = do
                         then file_name
                         else "logs_second/" ++ T.unpack (nameOcc func_name) ++ symb_func
 
-    return $ analysis file_name' init_time curr_height_io vs
+    return $ analysis file_name' init_time curr_height_io (HS.toList vs)
     where
         symb_func = case higherOrderSolver config of
                         SymbolicFunc -> "_symbolic"
@@ -2356,13 +2356,16 @@ allOfHeightTerminated config func_name init_s = do
         worthAnalyzing (StateReduced _ []) = True
         worthAnalyzing (StateReduced s _) =
             case getExpr s of
-                Var (Id n _) -> E.isSymbolic n (expr_env s)
+                Case (Var (Id n _) ) _ _ _ -> E.isSymbolic n (expr_env s)
                 _ -> False
+        
+        toRun (StateReduced _ xs) = xs
+        toRun _ = []
 
         analysis file_name_pre init_time curr_height_io vs analysis_event processed all_states 
             | worthAnalyzing analysis_event = do
-                let calcHeight curr_s = sum $ (HS.toList $ HS.map (flip adtSum curr_s) vs)
-                let ms = map calcHeight all_states
+                let calcHeight curr_s = sum $ (map (flip adtSum curr_s)  vs)
+                let ms = map calcHeight $ toRun analysis_event ++ all_states
                     m = case ms of
                             [] -> -1
                             _:_ -> minimum ms
@@ -2485,7 +2488,6 @@ runReducer red hal ord solve_r analyze init_state init_bindings = do
                                         then updateHalterWithAll hal reduceds_h_vals ++ error "List returned by updateHalterWithAll is too short."
                                         else repeat h_val
 
-                        
                         sequence_ $ analyze <*> pure (StateReduced s new_states) <*> pure pr <*> pure (map state . concat $ M.elems xs)
 
                         mod_info <- mapM (\(s', r_val', h_val') -> do
@@ -2494,9 +2496,6 @@ runReducer red hal ord solve_r analyze init_state init_bindings = do
                                                             , reducer_val = r_val'
                                                             , halter_val = stepHalter hal h_val' pr new_states s'
                                                             , order_val = or_v}) $ zip3 new_states r_vals h_vals
-
-
-
 
                         case mod_info of
                             (s_h:ss_tail) -> do
