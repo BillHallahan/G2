@@ -1236,6 +1236,8 @@ verifierTests = testGroup "Verifier"
 
     , checkExprCExSubpath "tests/Verify/List8.hs" "p1False"
 
+    , checkExprVerifiedSubpath "tests/Verify/List9.hs" "p1"
+
     , checkExprVerified "tests/Verify/ListComp.hs" "p1"
     , checkExprVerifiedSubpath "tests/Verify/ListComp.hs" "p1"
     , checkExprVerified "tests/Verify/ListComp.hs" "p2"
