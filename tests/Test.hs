@@ -1227,10 +1227,14 @@ verifierTests = testGroup "Verifier"
     , checkExprCExWithNoArgRevAbs "tests/Verify/List4.hs" "p1False"
 
     , checkExprCEx "tests/Verify/List5.hs" "p1False"
+    , checkExprVerified "tests/Verify/List5.hs" "p2"
+    , checkExprVerifiedSubpath "tests/Verify/List5.hs" "p2"
 
     , checkExprCEx "tests/Verify/List6.hs" "p1False"
 
     , checkExprVerified "tests/Verify/List7.hs" "p1"
+
+    , checkExprCExSubpath "tests/Verify/List8.hs" "p1False"
 
     , checkExprVerified "tests/Verify/ListComp.hs" "p1"
     , checkExprVerifiedSubpath "tests/Verify/ListComp.hs" "p1"
