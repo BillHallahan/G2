@@ -86,7 +86,7 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
             | -- Check if we have a symbolic function at the center of the app
               Var (Id vn t):xs <- unApp $ getExpr s
             , vn' <- deepLookupCenterName vn eenv
-            , maybe True (allowed_frame . fst) (Stck.pop (exec_stack s)) || E.isSymbolic vn' eenv
+            , maybe True (allowed_frame . fst) (Stck.pop $ popUpdates (exec_stack s)) || E.isSymbolic vn' eenv
             
             -- Calculate arity of function, and wrap it in appropriate number of arguments
             , let arity = length . argumentTypes $ tyVarSubst tvnv t
@@ -208,6 +208,9 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
             | otherwise = symbolic_names' seen eenv e1 `HS.union` symbolic_names' seen eenv e2
         symbolic_names' seen eenv (Tick _ e) = symbolic_names' seen eenv e
         symbolic_names' _ _ _ = HS.empty
+
+        popUpdates stck | Just (UpdateFrame _, stck') <-Stck.pop stck = popUpdates stck'
+                        | otherwise = stck
 
         allowed_frame (ApplyFrame _) = False
         allowed_frame _ = True
