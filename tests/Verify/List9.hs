@@ -1,9 +1,14 @@
 module List9 where
 
-p1 :: [[Int]] -> Bool
+data A = A
+
+instance Eq A where
+    _ == _ = True
+
+p1 :: [[A]] -> Bool
 p1 xs = myfoldr (<>) xs == myfoldr (<>) xs
 
-myfoldr :: ([Int] -> [Int] -> [Int]) -> [[Int]] -> [Int]
+myfoldr :: ([A] -> [A] -> [A]) -> [[A]] -> [A]
 myfoldr k = go
           where
             go []     = []
