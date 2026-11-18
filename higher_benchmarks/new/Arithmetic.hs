@@ -7,7 +7,7 @@
 {-# LANGUAGE ScopedTypeVariables #-}
 {-# LANGUAGE TemplateHaskell #-}
 
-module Arithmetics.Interpreter where
+module Arithmetic where
 
 import G2.Plugin
 
@@ -86,9 +86,29 @@ evalB env (Eq lhs rhs) =
 
 prog1 :: Stmts
 prog1 =
+    [ If (Lt (I 0) (Var "x"))
+      [ Assert (Not
+                 (Eq
+                   (Mul (Var "x") (Var "y"))
+                   (Add (Var "x") (Var "y"))
+                 )
+               )
+      ]
+      []
+    ]
+
+{-# ANN interpreter1 (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order symbolic --search subpath --subpath-len 8 --returns-true --accept-times --print-timeout-list-depth --smt cvc5 --check-asserts --error-asserts")
+    #-}
+{-# ANN interpreter1 (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order sym-constraints --search subpath --subpath-len 8 --returns-true --accept-times --print-timeout-list-depth --smt cvc5 --check-asserts --error-asserts")
+    #-}
+interpreter1 :: Env -> Bool
+interpreter1 env = evalStmtsUnsafe env prog1
+
+prog2 :: Stmts
+prog2 =
   [
     Assign "k" (I 1),
-    -- Assign "i" (I 0),
+    Assign "i" (I 0),
     -- Assign "j" (I 0),
     Assign "n" (I 5),
     While (Or (Lt (Var "i") (Var "n"))
@@ -100,9 +120,9 @@ prog1 =
     Assert (Lt (Mul (Var "n") (I 2)) (Var "z"))
   ]
 
-{-# ANN evalProg1 (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order symbolic --search subpath --subpath-len 8 --returns-true --accept-times --print-timeout-list-depth --smt cvc5 --check-asserts --error-asserts")
+{-# ANN interpreter2 (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order symbolic --search subpath --subpath-len 8 --returns-true --accept-times --print-timeout-list-depth --smt cvc5 --check-asserts --error-asserts")
     #-}
-{-# ANN evalProg1 (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order sym-constraints --search subpath --subpath-len 8 --returns-true --accept-times --print-timeout-list-depth --smt cvc5 --check-asserts --error-asserts")
+{-# ANN interpreter2 (SymExWithConfig "--max-outputs 1 --no-step-limit --time 300 --higher-order sym-constraints --search subpath --subpath-len 8 --returns-true --accept-times --print-timeout-list-depth --smt cvc5 --check-asserts --error-asserts")
     #-}
-evalProg1 :: Env -> Bool
-evalProg1 env = evalStmtsUnsafe env prog1
+interpreter2 :: Env -> Bool
+interpreter2 env = evalStmtsUnsafe env prog2

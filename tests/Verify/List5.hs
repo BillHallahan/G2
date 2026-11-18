@@ -13,6 +13,10 @@ instance Eq Nat where
 Z     + y = y
 (S x) + y = S (x + y)
 
+(++) :: [a] -> [a] -> [a]
+[] ++ ys = ys
+(x:xs) ++ ys = x:(xs ++ ys)
+
 count :: Nat -> [Nat] -> Nat
 count x [] = Z
 count x (y:ys) =
@@ -30,3 +34,5 @@ pb ==> pa = (not pb) || pa
 infixr 0 ==>
 
 p1False n xs = n == n ==> S (count n xs) == count n [n]
+
+p2 n xs ys = count n xs + count n ys == count n (xs ++ ys)

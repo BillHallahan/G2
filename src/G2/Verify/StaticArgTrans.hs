@@ -20,7 +20,7 @@ detStatic f e =
     in
     zipWith (\n as -> if all (isSameArg n) as then Static else NonStatic) ns (f_align ++ repeat [])
     where
-        isF e_ | Var (Id n_ _):es <- unApp e_
+        isF e_ | Var (Id n_ _):es <- unApp $ stripAllTicks e_
                , f == n_ = Just es
                | otherwise = Nothing
         

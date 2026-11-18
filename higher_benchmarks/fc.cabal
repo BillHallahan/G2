@@ -18,7 +18,8 @@ common warnings
 executable FC
     import:           warnings
     main-is:          Main.hs
-    other-modules:      ReverseArgs
+    other-modules:      Arithmetic
+                      , ReverseArgs
                       , SequentialCalls
                       , TwoCalls
                       , Challenge
