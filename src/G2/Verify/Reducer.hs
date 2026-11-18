@@ -86,7 +86,7 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
             | -- Check if we have a symbolic function at the center of the app
               Var (Id vn t):xs <- unApp $ getExpr s
             , vn' <- deepLookupCenterName vn eenv
-            , maybe True (allowed_frame . fst) (Stck.pop $ popUpdates (exec_stack s)) || E.isSymbolic vn' eenv
+            , maybe True (allowed_frame . fst) (Stck.pop (exec_stack s)) || E.isSymbolic vn' eenv
             
             -- Calculate arity of function, and wrap it in appropriate number of arguments
             , let arity = length . argumentTypes $ tyVarSubst tvnv t
@@ -98,8 +98,12 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
 
             -- TypeIndex calculation is always deterministic
             , n /= typeIndex kv = do
-                -- Convert arguments into NRPCs
-                let s' = s { curr_expr = CurrExpr er wrapped_ce, exec_stack = stck' }
+                
+                let -- Move the non red blocker deeper into variable bindings, to prevent repeatedly adding the same/very similar
+                    -- function calls as NRPCs
+                    eenv' = E.alter insertNRBT n eenv
+                    -- Convert arguments into NRPCs
+                    s' = s { expr_env = eenv', curr_expr = CurrExpr er wrapped_ce, exec_stack = stck' }
                     (s'', ng') = if (arg_rev_abs v_config) == AbsFuncArgs then argsToNRPCs s' (name_gen b) v es else (s', ng)
 
                 -- Given a function call `f x1 ... xn`, we move the entire call to `f` into an NRPC.
@@ -209,9 +213,6 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
         symbolic_names' seen eenv (Tick _ e) = symbolic_names' seen eenv e
         symbolic_names' _ _ _ = HS.empty
 
-        popUpdates stck | Just (UpdateFrame _, stck') <-Stck.pop stck = popUpdates stck'
-                        | otherwise = stck
-
         allowed_frame (ApplyFrame _) = False
         allowed_frame _ = True
 
@@ -223,6 +224,12 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
                             | otherwise = hasNRBT e
         hasNRBT (App e1 _) = hasNRBT e1
         hasNRBT _ = False
+
+        insertNRBT = modifyContainedASTs insertNRBT'
+
+        insertNRBT' (App e1 e2) = App (insertNRBT' e1) e2
+        insertNRBT' v@(Var _) = nonRedBlockerTick0 v
+        insertNRBT' e = e
 
         popAppliable stck | Just (UpdateFrame _, stck') <- Stck.pop stck = popAppliable stck'
                           | Just (ApplyFrame _, stck') <- Stck.pop stck = popAppliable stck'
