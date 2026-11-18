@@ -18,6 +18,7 @@ import G2.Language
 import qualified G2.Language.ExprEnv as E
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as S
+import G2.Language.ReachesSym
 import G2.Solver
 
 -- | paths functions under-approximates the number of paths an expression can branch into.
@@ -108,13 +109,18 @@ evalPathsForApp seen_funcs lhs_e rhs_e
         , not (E.isSymbolic n eenv) = if not (HS.member n seen_funcs) 
             then paths (HS.insert n seen_funcs) (mkApp (e:es)) rhs_e s bindings solver table
             else return (1, table)
-        | Prim _ _ : _ <- unApp lhs_e = return (1, table)
+        | Prim _ _ : es <- unApp lhs_e = do
+            if doesExprContainSym es eenv then return (1, table) else return (0, table)
         -- Symbolic Functions
         | Var (Id n _) : _ <- unApp lhs_e
         ,  E.isSymbolic n eenv = return (1, table)
         -- Data constructor application
         | Data {} : _ <- unApp lhs_e = evalDataConPaths lhs_e rhs_e s table
         | otherwise = return (1, table)
+
+    where
+        doesExprContainSym :: [Expr] -> ExprEnv -> Bool
+        doesExprContainSym es env = any (reachesSymbolic env) es
 
 evalCasePaths :: Solver solver => HS.HashSet Name 
             -> Expr 
@@ -143,7 +149,7 @@ evalCasePaths seen_funcs lhs_e rhs_e
 
             (num_path_alts, table'') <- evalAlts altExprs rhs_e s{expr_env = eenv'} bindings seen_funcs solver table
             
-            return (num_path_alts, table'')
+            return (sum num_path_alts, table'')
         -- Case where scrutinee could be anything, a variable, func application etc.
         --
         -- If a case expression's scrutinee branches in m paths and alternatives branch in n paths,
@@ -155,11 +161,7 @@ evalCasePaths seen_funcs lhs_e rhs_e
         --  _  -> some_other_expr
         -- 
         -- if (f x) branches into 10 paths, some_expr branches into 5 paths, and 
-        -- some_other_expr branches into 3 paths, then the total number of paths is 10 * (5 + 3) = 80.
-        -- It looks like an over-approximation but it is still an under-approximation because of how paths work. 
-        -- Paths underapproximate function application, and since, we check approximate number of paths
-        -- an alternatives expression can generate, there is a chance that we are 
-        -- under-approximating the number of paths in the alternatives expression.
+        -- some_other_expr branches into 3 paths, then the minimum number of paths is 10 * (minimum 5  3) = 30.
         -- 
         | Case e i _ alts <- lhs_e = do
             let e_ty = typeOf tvnv e
@@ -172,17 +174,18 @@ evalCasePaths seen_funcs lhs_e rhs_e
                 eenv' = foldl (\ en id' -> E.insertSymbolic id' en ) eenv (i:new_sym_id:sym_vars)
 
             (num_path_scrutinee, table') <- paths seen_funcs e (Var new_sym_id) s (bindings {name_gen = ng'}) solver table
+            -- we return minimum number of paths an alternative can take
             (num_path_alts, table'') <- evalAlts altExprs rhs_e (s {expr_env = eenv'}) bindings seen_funcs solver table'
             
-            return (num_path_scrutinee * num_path_alts, table'')
+            return (num_path_scrutinee * minimum num_path_alts, table'')
         | otherwise = error $ "evalCasePaths: case not allowed \n" ++ show lhs_e
 
         where
-            evalAlts [] _ _ _ _ _ tbl = return (0, tbl)
+            evalAlts [] _ _ _ _ _ tbl = return ([0], tbl)
             evalAlts (a:as) r_e s' b' seen sol tbl = do
                 (p, tbl') <- paths seen a r_e s' b' sol tbl
                 (p', tbl'') <- evalAlts as r_e s' b' seen sol tbl'
-                return (p + p', tbl'')
+                return (p:p', tbl'')
 
 evalDataConPaths :: Expr -> Expr -> State t -> ReachabilityTable -> IO (Int, ReachabilityTable)
 evalDataConPaths lhs_e rhs_e s@(State {expr_env = eenv}) table

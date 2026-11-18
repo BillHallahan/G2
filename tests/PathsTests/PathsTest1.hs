@@ -137,3 +137,11 @@ g3 :: ListNew Int -> Bool
 g3 xs = case xs of 
     Nil -> False
     _ -> True
+
+k :: [Int] -> [Int]
+k xs = xs
+
+test12 :: [Int] -> [Int]
+test12 xs = case k xs of
+    [] -> []
+    x : xs' -> xs'
