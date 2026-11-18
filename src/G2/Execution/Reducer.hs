@@ -208,6 +208,7 @@ import Data.Time.Clock
 import System.Clock
 import System.Directory
 import qualified G2.Language.TyVarEnv as TV 
+import Data.HashMap.Internal.Array (map')
 
 -- * Reducers
 --
@@ -677,10 +678,13 @@ getNonRedForHigherOrder _ ng s
     | Just (s', _, _, ng1) <- createNonRed ng Focused s = Just (s', ng1)
     | otherwise = Nothing
 
-data ApproxPrevs t = AP { ap_nrpc_states :: [State t], ap_halter_states :: [ApproxPreppedState t]}
+data ApproxPrevs t = AP { ap_nrpc_states :: [State t] -- ^ States to move function applications into NRPCs in nrpcApproxReducer
+                        , ap_halter_states :: [ApproxPreppedState t] -- ^ States to use for discarding redundant states in the approximation halter
+                        , ap_halter_prev_uniqs :: [HS.HashSet Unique] -- ^ Sets of uniques that allow a state to be discarded, see Note [Previous State Approximations]
+                        }
 
 emptyApproxPrevs :: ApproxPrevs t
-emptyApproxPrevs = AP { ap_nrpc_states = [], ap_halter_states = [] }
+emptyApproxPrevs = AP { ap_nrpc_states = [], ap_halter_states = [], ap_halter_prev_uniqs = [] }
 
 addApproxPrevs :: SM.MonadState (ApproxPrevs t) m => State t -> m ()
 addApproxPrevs s = do
@@ -1547,12 +1551,10 @@ h1 <~> h2 =
                 in
                 C hv1' hv2'
 
-            , discardOnStart = \(C hv1 hv2) proc s ->
-                let
-                    b1 = discardOnStart h1 hv1 proc s
-                    b2 = discardOnStart h2 hv2 proc s
-                in
-                b1 || b2
+            , discardOnStart = \(C hv1 hv2) proc s -> do
+                b1 <- discardOnStart h1 hv1 proc s
+                b2 <- discardOnStart h2 hv2 proc s
+                return $ b1 || b2
 
             , stopRed = \(C hv1 hv2) proc s -> do
                 hc1 <- stopRed h1 hv1 proc s
@@ -1723,16 +1725,41 @@ hpcApproximationHalter = approximationHalter' stop_cond
             let acc_seen_hpc = HS.unions (map (reached_hpc . final_state) $ accepted pr) in
             HS.null $ HS.difference (reached_hpc s) acc_seen_hpc
 
+-- Note [Previous State Approximations]
+-- Consider two states s1 and s2 such that neither s1 nor s2 are the ancestor of the other.
+-- I.e., there is some common previous state s, such that s1 and s2 are both reduced from s
+-- along DIFFERENT paths:
+--            -----> s1
+--           /
+--    s -----
+--           \
+--            -----> s2
+-- If we discover s1 is approximated by s2, we may discard s1. However, there is no guarantee
+-- as to whether we will reduce to s1 or s2 first.
+-- If we reduce s1 first, we might do further reduction, and even split into more states:
+--                           -----> s1'
+--                          /
+--            -----> s1 -----
+--           /               \
+--    s -----                 ----> s1''
+--           \
+--            -----> s2
+-- In this case, based on s1 <= s2, we would like to discard all of s1', s1'', ...
+--
+-- To enable this, when we have some new state s2, we check if it approximates all previous approximation points (e.g. including s1).
+-- If it does approximate some previous point, we store a set of tags (in practice, previous nrpc uniques) uniquely identifying that previous point.
+-- This set of tags strictly grows as reduction continues. Thus, anay reduction of a future state with a superset of that tag set is halted.
+
 approximationHalter' :: (Named t, SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
                         (Processed r (State t) -> State t -> State t -> Bool) -- ^ Approximated states are discarded only if they match this condition
                                                                               -- Args: all accepted states, approximated (old) state, approximating (new) state
                      -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
                      -> Halter m () r t
-approximationHalter' stop_cond no_inline = mkSimpleHalter
+approximationHalter' stop_cond no_inline = (mkSimpleHalter
                                                         (const ())
                                                         (\hv _ _ -> hv)
                                                         stop
-                                                        (\hv _ _ _ -> hv)
+                                                        (\hv _ _ _ -> hv)) { discardOnStart = discard }
     where
         -- We risk ending up in a situation where:
         -- (1) we add the state to the list of approximatable previous states
@@ -1752,14 +1779,15 @@ approximationHalter' stop_cond no_inline = mkSimpleHalter
                 xs <- SM.gets ap_halter_states
                 let xs' = filter (\x -> num_steps (apState x) < num_steps s') xs
                     approx_prepped_s = createApproxPreppedState s'
-                approx <- liftIO $ findM (\prev -> do
-                                                more_res_s <- moreRestrictiveIncludingPCAndNRPC'
+
+                    moreResCall = moreRestrictiveIncludingPCAndNRPC'
                                                                 mr_cont
                                                                 Nothing
                                                                 lookupConcOrSymState
                                                                 no_inline
-                                                                prev
-                                                                approx_prepped_s
+
+                approx <- liftIO $ findM (\prev -> do
+                                                more_res_s <- moreResCall prev approx_prepped_s
                                                 return $ more_res_s && stop_cond pr (apState prev) s
                                                 ) xs'
                 case approx of
@@ -1776,7 +1804,23 @@ approximationHalter' stop_cond no_inline = mkSimpleHalter
                         --     putStrLn $ "    !!!modifying with " ++ show (log_path s') ++ " " ++ show (num_steps s)
                         --     putStrLn $ "    !!! stck s = " ++ show (exec_stack s)
                         --     putStrLn $ "    !!! stck s' = " ++ show (exec_stack s')
-                        SM.modify ((\app -> app { ap_halter_states = approx_prepped_s:xs }))
+                        
+                        -- Check if our current state approximates a previous state along some different path.
+                        -- See  Note [Previous State Approximations]
+                        let rel_prev = filter (\prev -> not 
+                                                     $ HS.isSubsetOf
+                                                            (getNRPCPreviousUniques . non_red_path_conds $ apState prev)
+                                                            (getNRPCPreviousUniques $ non_red_path_conds s)) $ xs
+                        approx_rev <- liftIO $ filterM (\prev -> do
+                                                        more_res_s <- moreResCall approx_prepped_s prev
+                                                        return $ more_res_s && stop_cond pr (apState prev) s
+                                                        ) rel_prev
+                        let uniq_rev = fmap (getNRPCPreviousUniques . non_red_path_conds . apState) approx_rev
+                        -- liftIO $ mapM_ (\ar -> putStrLn $ "    !!! prev_uniq " ++ show (log_path $ apState ar) ++ " " ++ show (num_steps $ apState ar)) approx_rev
+
+                        SM.modify ((\app -> app { ap_halter_states = approx_prepped_s:xs
+                                                , ap_halter_prev_uniqs = uniq_rev ++ ap_halter_prev_uniqs app
+                                                }))
                         return Continue
         -- stop _ _ s | log_path s == [1, 1, 1, 1]
         --            , num_steps s == 103
@@ -1786,7 +1830,14 @@ approximationHalter' stop_cond no_inline = mkSimpleHalter
         --                 ++ "e = " ++ show (curr_expr s')
         --                 ++ "not . isTyFun . typeOf $ e = " ++ show (not . isTyFun . typeOf $ e)
         stop _ _ _ = return Continue
-        
+
+        discard _ _ s = do
+            prev_uniqs <- SM.gets ap_halter_prev_uniqs
+            let s_prev_uniq = getNRPCPreviousUniques . non_red_path_conds $ s
+            let r = any (\prev_u -> prev_u `HS.isSubsetOf` s_prev_uniq) prev_uniqs
+            liftIO . when r $ putStrLn $ "    !!! removed by prev s = " ++ show (log_path s) ++ " " ++ show (num_steps s) ++ "   " ++ show (getNRPCUnique . non_red_path_conds $ s)
+            return r
+
         -- mr_cont _ _ _ _ _ _ _ _ _ = Left []
         mr_cont = mrContIgnoreNRPCTicks Nothing lookupConcOrSymState
 
@@ -1844,7 +1895,7 @@ acceptOnlyNewHPC h =
         Halter {
               initHalt = initHalt h
             , updatePerStateHalt = updatePerStateHalt h
-            , discardOnStart = discardOnStart h
+            , discardOnStart = \hv pr s -> SM.lift (discardOnStart h hv pr s)
             , stopRed = stop
             , stepHalter = stepHalter h
             , updateHalterWithAll = updateHalterWithAll h
@@ -2518,11 +2569,11 @@ runReducer red hal ord solve_r analyze init_state init_bindings = do
                     -> Bindings
                     -> M.Map b [ExState rv hv sov t]
                     -> m (Processed r (State t), Bindings)
-        switchState pr rs b xs
-            | not $ discardOnStart hal (halter_val rs') pr (state rs') =
-                runReducer' pr rs' b xs
-            | otherwise =
-                runReducerListSwitching (pr {discarded = state rs':discarded pr}) xs b
+        switchState pr rs b xs = do
+            discard <- discardOnStart hal (halter_val rs') pr (state rs')
+            case discard of
+                False -> runReducer' pr rs' b xs
+                True -> runReducerListSwitching (pr {discarded = state rs':discarded pr}) xs b
             where
                 rs' = rs { halter_val = updatePerStateHalt hal (halter_val rs) pr (state rs) }
 

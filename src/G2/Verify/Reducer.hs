@@ -686,7 +686,7 @@ discardOnFalse = (mkSimpleHalter (\_ -> ())
                                 (\hv _ _ -> hv)
                                 (\_ _ _ -> return Continue)
                                 (\hv _ _ _ -> hv))
-                    { discardOnStart = \_ pr s -> discard s pr
+                    { discardOnStart = \_ pr s -> return $ discard s pr
                     , filterAllStates = filterAll }
     where
         discard curr_state (Processed { accepted = acc }) = any checkShouldDiscard acc

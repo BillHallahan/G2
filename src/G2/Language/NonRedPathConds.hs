@@ -19,6 +19,7 @@ module G2.Language.NonRedPathConds ( Focus
                                    , pattern (:*>)
                                    , pattern (:<*)
                                    , getNRPCUnique
+                                   , getNRPCPreviousUniques
                                    , setFocus
                                    , findNRPC
                                    , allNRPC 
@@ -34,6 +35,7 @@ import Data.Data
 import qualified Data.Foldable as F
 import Data.List as L
 import Data.Hashable
+import qualified Data.HashSet as HS
 import Data.Sequence as S
 import GHC.Generics
 import G2.Language.ExprEnv (deepLookupVar)
@@ -42,7 +44,7 @@ data NRPC = NRPC { nrpc_focus :: Focus, nrpc_lhs :: Expr, nrpc_rhs :: Expr }
                           deriving (Eq, Read, Show, Data, Generic)
 instance Hashable NRPC
 
-data NonRedPathConds = NRPCs { nrpcs :: Seq NRPC, nrpc_uniq :: Unique }
+data NonRedPathConds = NRPCs { nrpcs :: Seq NRPC, nrpc_uniq :: Unique, nrpc_prev_uniq :: HS.HashSet Unique }
                           deriving (Eq, Read, Show, Data, Generic)
 
 instance Hashable NonRedPathConds
@@ -113,29 +115,29 @@ type Focus = GenFocus Name
 instance Hashable n => Hashable (GenFocus n)
 
 emptyNRPC :: NameGen -> (NonRedPathConds, NameGen)
-emptyNRPC ng = let (uniq, ng') = freshUnique ng in (NRPCs Empty uniq, ng')
+emptyNRPC ng = let (uniq, ng') = freshUnique ng in (NRPCs { nrpcs = Empty, nrpc_uniq = uniq, nrpc_prev_uniq = HS.empty}, ng')
 
 emptyNRPCNonUniq :: NonRedPathConds
-emptyNRPCNonUniq = NRPCs Empty 0
+emptyNRPCNonUniq = NRPCs { nrpcs = Empty, nrpc_uniq = 0, nrpc_prev_uniq = HS.empty}
 
 addNRPC :: NameGen -> Focus -> Expr -> Expr -> NonRedPathConds -> (NameGen, NonRedPathConds)
-addNRPC ng focus e1 e2 (NRPCs nrpc curr_uniq) =
+addNRPC ng focus e1 e2 (NRPCs nrpc curr_uniq prev_uniq) =
     let
         (e1', e2') = varOnRight e1 e2
         (uniq, ng') = if focus == Focused then freshUnique ng else (curr_uniq, ng)
     in
-    (ng', NRPCs (nrpc :|> NRPC { nrpc_focus = focus, nrpc_lhs = e1', nrpc_rhs = e2' }) uniq)
+    (ng', NRPCs (nrpc :|> NRPC { nrpc_focus = focus, nrpc_lhs = e1', nrpc_rhs = e2' }) uniq (HS.insert curr_uniq prev_uniq))
 
 addExistingNRPC :: NameGen -> NRPC -> NonRedPathConds -> (NameGen, NonRedPathConds)
 addExistingNRPC ng (NRPC focus e1 e2) = addNRPC ng focus e1 e2
 
 addFirstNRPC :: NameGen -> Focus -> Expr -> Expr -> NonRedPathConds -> (NameGen, NonRedPathConds)
-addFirstNRPC ng focus e1 e2 (NRPCs nrpc curr_uniq) =
+addFirstNRPC ng focus e1 e2 (NRPCs nrpc curr_uniq prev_uniq) =
     let
         (e1', e2') = varOnRight e1 e2
         (uniq, ng') = if focus == Focused then freshUnique ng else (curr_uniq, ng)
     in
-    (ng', NRPCs (NRPC { nrpc_focus = focus, nrpc_lhs = e1', nrpc_rhs = e2' } :<| nrpc) uniq)
+    (ng', NRPCs (NRPC { nrpc_focus = focus, nrpc_lhs = e1', nrpc_rhs = e2' } :<| nrpc) uniq (HS.insert curr_uniq prev_uniq))
 
 varOnRight :: Expr -> Expr -> (Expr, Expr)
 varOnRight e1@(Var _) e2 = (e2, e1)
@@ -143,15 +145,15 @@ varOnRight e1@(Tick _ (Var _)) e2 = (e2, e1)
 varOnRight e1 e2 = (e1, e2)
 
 getNRPC :: NonRedPathConds -> Maybe (NRPC, NonRedPathConds)
-getNRPC (NRPCs Empty _) = Nothing
-getNRPC (NRPCs (nr :<| nrpc) uniq) = Just (nr, NRPCs nrpc uniq)
+getNRPC (NRPCs Empty _ _) = Nothing
+getNRPC (NRPCs (nr :<| nrpc) uniq prev_uniq) = Just (nr, NRPCs nrpc uniq prev_uniq)
 
 getLastNRPC :: NonRedPathConds -> Maybe (NRPC, NonRedPathConds)
-getLastNRPC (NRPCs Empty _) = Nothing
-getLastNRPC (NRPCs (nrpc :|> nr) uniq) = Just (nr, NRPCs nrpc uniq)
+getLastNRPC (NRPCs Empty _ _) = Nothing
+getLastNRPC (NRPCs (nrpc :|> nr) uniq prev_uniq) = Just (nr, NRPCs nrpc uniq prev_uniq)
 
 nullNRPC :: NonRedPathConds -> Bool
-nullNRPC (NRPCs Empty _) = True
+nullNRPC (NRPCs Empty _ _) = True
 nullNRPC _ = False
 
 numNRPC :: NonRedPathConds -> Int
@@ -163,8 +165,11 @@ toListNRPC = F.toList . nrpcs
 getNRPCUnique :: NonRedPathConds -> Unique
 getNRPCUnique = nrpc_uniq
 
+getNRPCPreviousUniques :: NonRedPathConds -> HS.HashSet Unique
+getNRPCPreviousUniques = nrpc_prev_uniq
+
 setFocus :: Name -> Focus -> E.ExprEnv -> NonRedPathConds -> NonRedPathConds
-setFocus n focus eenv (NRPCs nrpc uniq) = NRPCs (fmap set nrpc) uniq
+setFocus n focus eenv (NRPCs nrpc uniq prev_uniq) = NRPCs (fmap set nrpc) uniq prev_uniq
     where
         set nr@(NRPC { nrpc_rhs = (Var (Id n' _) )}) | areSame n' = nr { nrpc_focus = focus }
         set e1_e2 = e1_e2
@@ -172,10 +177,10 @@ setFocus n focus eenv (NRPCs nrpc uniq) = NRPCs (fmap set nrpc) uniq
         areSame n' = deepLookupVar n eenv == deepLookupVar n' eenv
 
 findNRPC :: (NRPC -> Bool) -> NonRedPathConds -> Maybe NRPC
-findNRPC p (NRPCs nrpc _) = L.find p nrpc
+findNRPC p (NRPCs nrpc _ _) = L.find p nrpc
 
 allNRPC :: (NRPC -> Bool) -> NonRedPathConds -> Bool
-allNRPC p (NRPCs nrpc _) = all p nrpc
+allNRPC p (NRPCs nrpc _ _) = all p nrpc
 
 foldlNRPC' :: (a -> NRPC -> a) -> a -> NonRedPathConds -> a
 foldlNRPC' f i = F.foldl' f i . nrpcs
@@ -185,11 +190,11 @@ pattern EmpNRPC <- (nullNRPC -> True)
 
 pattern (:*>) :: NRPC -> NonRedPathConds -> NonRedPathConds
 pattern e1_e2 :*> nrpc <- (getNRPC -> Just (e1_e2, nrpc))
-    where e1_e2 :*> nrpc = NRPCs { nrpcs = e1_e2 :<| nrpcs nrpc , nrpc_uniq = nrpc_uniq nrpc}
+    where e1_e2 :*> nrpc = NRPCs { nrpcs = e1_e2 :<| nrpcs nrpc , nrpc_uniq = nrpc_uniq nrpc, nrpc_prev_uniq = nrpc_prev_uniq nrpc }
 
 pattern (:<*) :: NonRedPathConds -> NRPC -> NonRedPathConds
 pattern nrpc :<* e1_e2 <- (getLastNRPC -> Just (e1_e2, nrpc))
-    where nrpc :<* e1_e2 = NRPCs { nrpcs = nrpcs nrpc :|> e1_e2 , nrpc_uniq = nrpc_uniq nrpc}
+    where nrpc :<* e1_e2 = NRPCs { nrpcs = nrpcs nrpc :|> e1_e2 , nrpc_uniq = nrpc_uniq nrpc, nrpc_prev_uniq = nrpc_prev_uniq nrpc}
 
 {-# COMPLETE EmpNRPC, (:*>) #-}
 {-# COMPLETE EmpNRPC, (:<*) #-}
@@ -229,13 +234,13 @@ instance Named NRPC where
 
 instance ASTContainer NonRedPathConds Expr where
     containedASTs = containedASTs . nrpcs
-    modifyContainedASTs f (NRPCs nrpc uniq) = NRPCs { nrpcs = modifyContainedASTs f nrpc, nrpc_uniq = uniq } 
+    modifyContainedASTs f (NRPCs nrpc uniq prev_uniq) = NRPCs { nrpcs = modifyContainedASTs f nrpc, nrpc_uniq = uniq, nrpc_prev_uniq = prev_uniq } 
 
 instance ASTContainer NonRedPathConds Type where
     containedASTs = containedASTs . nrpcs
-    modifyContainedASTs f (NRPCs nrpc uniq) = NRPCs { nrpcs = modifyContainedASTs f nrpc, nrpc_uniq = uniq } 
+    modifyContainedASTs f (NRPCs nrpc uniq prev_uniq) = NRPCs { nrpcs = modifyContainedASTs f nrpc, nrpc_uniq = uniq, nrpc_prev_uniq = prev_uniq } 
 
 instance Named NonRedPathConds where
-    names (NRPCs nrpc _) = names nrpc
-    rename old new (NRPCs nrpc uniq) = NRPCs (rename old new nrpc) uniq
-    renames hm (NRPCs nrpc uniq) = NRPCs (renames hm nrpc) uniq
+    names (NRPCs nrpc _ _) = names nrpc
+    rename old new (NRPCs nrpc uniq prev_uniq) = NRPCs (rename old new nrpc) uniq prev_uniq
+    renames hm (NRPCs nrpc uniq prev_uniq) = NRPCs (renames hm nrpc) uniq prev_uniq
