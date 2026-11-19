@@ -153,7 +153,7 @@ data Halter m hv r t = Halter {
     -- `updatePerStateHalt`.  Allows a State to be discarded right
     -- before execution is about to (re-)begin.
     -- Return True if execution should proceed, False to discard
-    , discardOnStart :: hv -> Processed r (State t) -> State t -> Bool
+    , discardOnStart :: hv -> Processed r (State t) -> State t -> m Bool
 
     -- | Determines whether to continue reduction on the current state
     , stopRed :: StopRed m hv r t
@@ -176,7 +176,7 @@ data Halter m hv r t = Halter {
 mkSimpleHalter :: Monad m => InitHalter hv t -> UpdatePerStateHalt hv r t -> StopRed m hv r t -> StepHalter hv r t -> Halter m hv r t
 mkSimpleHalter initial update stop step = Halter { initHalt = initial
                                                  , updatePerStateHalt = update
-                                                 , discardOnStart = \_ _ _ -> False
+                                                 , discardOnStart = \_ _ _ -> return False
                                                  , stopRed = stop
                                                  , stepHalter = step
                                                  , updateHalterWithAll = map snd
@@ -187,7 +187,7 @@ mkSimpleHalter initial update stop step = Halter { initHalt = initial
 liftHalter :: (Monad m1, SM.MonadTrans m2) => Halter m1 rv r t -> Halter (m2 m1) rv r t
 liftHalter h = Halter { initHalt = initHalt h
                       , updatePerStateHalt = updatePerStateHalt h
-                      , discardOnStart = discardOnStart h
+                      , discardOnStart = \hv pr s -> SM.lift (discardOnStart h hv pr s)
                       , stopRed = \hv pr s -> SM.lift ((stopRed h) hv pr s)
                       , stepHalter = stepHalter h
                       , updateHalterWithAll = updateHalterWithAll h
@@ -196,7 +196,7 @@ liftHalter h = Halter { initHalt = initHalt h
 liftHalterGhcT :: Monad m => Halter m rv r t -> Halter (GhcT m) rv r t
 liftHalterGhcT h = Halter { initHalt = initHalt h
                       , updatePerStateHalt = updatePerStateHalt h
-                      , discardOnStart = discardOnStart h
+                      , discardOnStart = \hv pr s -> liftGhcT (discardOnStart h hv pr s)
                       , stopRed = \hv pr s -> liftGhcT ((stopRed h) hv pr s)
                       , stepHalter = stepHalter h
                       , updateHalterWithAll = updateHalterWithAll h

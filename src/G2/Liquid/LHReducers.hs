@@ -215,8 +215,8 @@ lhLimitByAcceptedHalter co =
     where
         -- If we start trying to execute a state with more than the maximal number
         -- of rules applied, we throw it away.
-        discard (Just v) _ s = num_steps s > v + co
-        discard Nothing _ _ = False
+        discard (Just v) _ s = return $ num_steps s > v + co
+        discard Nothing _ _ = return False
 
         -- Find all accepted states with the (current) minimal number of abstracted functions
         -- Then, get the minimal number of steps taken by one of those states
@@ -293,7 +293,7 @@ lhMaxOutputsHalter mx = (mkSimpleHalter
                             (\_ _ _ -> return Continue)
                             (\hv _ _ _ -> hv)) { discardOnStart = discard}
     where
-        discard m (Processed { accepted = acc }) _ = length acc' >= m
+        discard m (Processed { accepted = acc }) _ = return $ length acc' >= m
             where
                 acc_s = map final_state acc
                 min_abs = minAbstractCalls acc_s

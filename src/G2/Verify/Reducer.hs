@@ -98,8 +98,12 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
 
             -- TypeIndex calculation is always deterministic
             , n /= typeIndex kv = do
-                -- Convert arguments into NRPCs
-                let s' = s { curr_expr = CurrExpr er wrapped_ce, exec_stack = stck' }
+                
+                let -- Move the non red blocker deeper into variable bindings, to prevent repeatedly adding the same/very similar
+                    -- function calls as NRPCs
+                    eenv' = E.alter insertNRBT n eenv
+                    -- Convert arguments into NRPCs
+                    s' = s { expr_env = eenv', curr_expr = CurrExpr er wrapped_ce, exec_stack = stck' }
                     (s'', ng') = if (arg_rev_abs v_config) == AbsFuncArgs then argsToNRPCs s' (name_gen b) v es else (s', ng)
 
                 -- Given a function call `f x1 ... xn`, we move the entire call to `f` into an NRPC.
@@ -220,6 +224,12 @@ nrpcAnyCallReducer no_nrpc_names v_config config =
                             | otherwise = hasNRBT e
         hasNRBT (App e1 _) = hasNRBT e1
         hasNRBT _ = False
+
+        insertNRBT = modifyContainedASTs insertNRBT'
+
+        insertNRBT' (App e1 e2) = App (insertNRBT' e1) e2
+        insertNRBT' v@(Var _) = nonRedBlockerTick0 v
+        insertNRBT' e = e
 
         popAppliable stck | Just (UpdateFrame _, stck') <- Stck.pop stck = popAppliable stck'
                           | Just (ApplyFrame _, stck') <- Stck.pop stck = popAppliable stck'
@@ -676,7 +686,7 @@ discardOnFalse = (mkSimpleHalter (\_ -> ())
                                 (\hv _ _ -> hv)
                                 (\_ _ _ -> return Continue)
                                 (\hv _ _ _ -> hv))
-                    { discardOnStart = \_ pr s -> discard s pr
+                    { discardOnStart = \_ pr s -> return $ discard s pr
                     , filterAllStates = filterAll }
     where
         discard curr_state (Processed { accepted = acc }) = any checkShouldDiscard acc

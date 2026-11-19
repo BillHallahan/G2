@@ -28,7 +28,8 @@ module G2.Execution.Rules ( module G2.Execution.RuleTypes
 
                           , buildHigherOrderCaseAlts
 
-                          , nonRedBlockerTick ) where
+                          , nonRedBlockerTick
+                          , nonRedBlockerTick0 ) where
 
 import G2.Config.Config
 import G2.Execution.DataConPCMap
@@ -1538,6 +1539,11 @@ nonRedBlockerTick :: NameGen -> Expr -> (Expr, NameGen)
 nonRedBlockerTick ng e =
     let (n, ng') = freshSeededName (Name "NonRedBlocker" Nothing 0 Nothing) ng in
     (Tick (NamedLoc n) e, ng')
+
+nonRedBlockerTick0 :: Expr -> Expr
+nonRedBlockerTick0 e =
+    let n = Name "NonRedBlocker" Nothing 0 Nothing in
+    Tick (NamedLoc n) e
 
 retAssumeFrame :: State t -> NameGen -> Expr -> Expr -> S.Stack Frame -> (Rule, NewPC t, NameGen)
 retAssumeFrame s@(State { known_values = kv

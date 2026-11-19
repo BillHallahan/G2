@@ -302,7 +302,7 @@ acceptOnlyOneHalter =
                     (\hv _ _ -> hv)
                     (\_ _ _ -> return Continue) 
                     (\hv _ _ _ -> hv))
-        { discardOnStart = \_ pr _ -> not . null $ accepted pr}
+        { discardOnStart = \_ pr _ -> return . not . null $ accepted pr}
 
 -- | Remove all @Assume@s from the given `Expr`, unless they have a particular @Tick@
 elimAssumesExcept :: ASTContainer m Expr => m -> m
