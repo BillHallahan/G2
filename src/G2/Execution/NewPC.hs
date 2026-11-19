@@ -22,13 +22,11 @@ import G2.Solver.Solver
 
 import G2.Execution.MutVar
 import G2.Execution.LiteralTable
-import G2.Config.Config (DiscardUnknownStates (KeepUnknown))
 
 import Control.Exception
 import Data.List
 import Data.Maybe
 import qualified Data.Sequence as Seq
-import qualified Control.Applicative as HS
 import qualified Data.HashSet as H
 
 data NewPC t = NoState

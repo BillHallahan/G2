@@ -47,7 +47,7 @@ module G2.Interface.Interface ( MkCurrExpr
                               , reportTerminationResults
                               ) where
 
-import GHC hiding (Name, entry, nameModule, Id, Type)
+import GHC hiding (Name, nameModule, Id, Type)
 import GHC.Paths
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
