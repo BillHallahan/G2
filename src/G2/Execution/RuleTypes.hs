@@ -47,8 +47,7 @@ data Rule = RuleEvalVal
           | RuleEvalAssume
           | RuleEvalAssert
 
-          | RuleReturnEUpdateVar Name
-          | RuleReturnEUpdateNonVar Name
+          | RuleReturnEUpdate Name
 
           | RuleReturnAppSWHNF
 
