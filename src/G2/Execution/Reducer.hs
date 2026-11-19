@@ -208,7 +208,6 @@ import Data.Time.Clock
 import System.Clock
 import System.Directory
 import qualified G2.Language.TyVarEnv as TV 
-import Data.HashMap.Internal.Array (map')
 
 -- * Reducers
 --
@@ -680,7 +679,7 @@ getNonRedForHigherOrder _ ng s
 
 data ApproxPrevs t = AP { ap_nrpc_states :: [State t] -- ^ States to move function applications into NRPCs in nrpcApproxReducer
                         , ap_halter_states :: [ApproxPreppedState t] -- ^ States to use for discarding redundant states in the approximation halter
-                        , ap_halter_prev_uniqs :: [HS.HashSet Unique] -- ^ Sets of uniques that allow a state to be discarded, see Note [Previous State Approximations]
+                        , ap_halter_prev_uniqs :: [(Int, HS.HashSet Unique)] -- ^ Sets of uniques that allow a state to be discarded, see Note [Previous State Approximations]
                         }
 
 emptyApproxPrevs :: ApproxPrevs t
@@ -1815,7 +1814,7 @@ approximationHalter' stop_cond no_inline = (mkSimpleHalter
                                                         more_res_s <- moreResCall approx_prepped_s prev
                                                         return $ more_res_s && stop_cond pr (apState prev) s
                                                         ) rel_prev
-                        let uniq_rev = fmap (getNRPCPreviousUniques . non_red_path_conds . apState) approx_rev
+                        let uniq_rev = fmap (\as -> (num_steps . apState $ as, getNRPCPreviousUniques . non_red_path_conds . apState $ as)) approx_rev
                         -- liftIO $ mapM_ (\ar -> putStrLn $ "    !!! prev_uniq " ++ show (log_path $ apState ar) ++ " " ++ show (num_steps $ apState ar)) approx_rev
 
                         SM.modify ((\app -> app { ap_halter_states = approx_prepped_s:xs
@@ -1834,7 +1833,7 @@ approximationHalter' stop_cond no_inline = (mkSimpleHalter
         discard _ _ s = do
             prev_uniqs <- SM.gets ap_halter_prev_uniqs
             let s_prev_uniq = getNRPCPreviousUniques . non_red_path_conds $ s
-            let r = any (\prev_u -> prev_u `HS.isSubsetOf` s_prev_uniq) prev_uniqs
+            let r = any (\(ns, prev_u) -> ns > num_steps s && prev_u `HS.isSubsetOf` s_prev_uniq) prev_uniqs
             liftIO . when r $ putStrLn $ "    !!! removed by prev s = " ++ show (log_path s) ++ " " ++ show (num_steps s) ++ "   " ++ show (getNRPCUnique . non_red_path_conds $ s)
             return r
 
