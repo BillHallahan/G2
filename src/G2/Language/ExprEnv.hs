@@ -59,9 +59,7 @@ module G2.Language.ExprEnv
     , higherOrderExprs
     , toList
     , toExprList
-    , fromExprList
     , fromExprMap
-    , toHashMap
     ) where
 
 import G2.Language.AST
@@ -106,12 +104,6 @@ instance Hashable ExprEnv
 {-# INLINE unwrapExprEnv #-}
 unwrapExprEnv :: ExprEnv -> M.HashMap Name ConcOrSym
 unwrapExprEnv = coerce
-
-toHashMap :: ExprEnv -> M.HashMap Name Expr
-toHashMap eenv =
-    M.map(\e -> case e of
-                    Conc e' -> e'
-                    Sym i -> Var i) . unwrapExprEnv $ eenv
 
 -- | Constructs an empty `ExprEnv`
 empty :: ExprEnv
@@ -297,7 +289,7 @@ mapWithKey f (ExprEnv env) = ExprEnv $ M.mapWithKey f' env
                 _ -> s
 
 mapWithKey' :: (Name -> Expr -> a) -> ExprEnv -> M.HashMap Name a
-mapWithKey' f = M.mapWithKey f . toExprMap
+mapWithKey' f = M.mapWithKey f . M.map concOrSymToExpr . unwrapExprEnv
 
 mapConcWithKey :: (Name -> Expr -> Expr) -> ExprEnv -> ExprEnv
 mapConcWithKey f (ExprEnv env) = ExprEnv $ M.mapWithKey f' env
@@ -312,12 +304,9 @@ mapConcOrSym f = mapConcOrSymWithKey (\_ -> f)
 mapConcOrSymWithKey :: (Name -> ConcOrSym -> ConcOrSym) -> ExprEnv -> ExprEnv
 mapConcOrSymWithKey f (ExprEnv env) = ExprEnv $ M.mapWithKey f' env
     where
-        g :: ConcOrSym -> ConcOrSym
-        g (Conc e) = Conc e
-        g (Sym i) = Sym i
         f' :: Name -> ConcOrSym -> ConcOrSym
-        f' n (Conc e) = g $ f n $ Conc e
-        f' n (Sym i) = g $ f n $ Sym i
+        f' n (Conc e) = f n $ Conc e
+        f' n (Sym i) = f n $ Sym i
 
 mapM :: Monad m => (Expr -> m Expr) -> ExprEnv -> m ExprEnv
 mapM f eenv = return . ExprEnv =<< Pre.mapM f' (unwrapExprEnv eenv)
@@ -331,14 +320,14 @@ mapM f eenv = return . ExprEnv =<< Pre.mapM f' (unwrapExprEnv eenv)
 
 
 mapWithKeyM :: Monad m => (Name -> Expr -> m Expr) -> ExprEnv -> m ExprEnv
-mapWithKeyM f eenv = return . ExprEnv . M.fromList =<< Pre.mapM (uncurry f') (toList eenv)
+mapWithKeyM f (ExprEnv eenv) = ExprEnv <$> M.traverseWithKey f' eenv
     where
-        f' n (Conc e) = return . (n,) . Conc =<< f n e
+        f' n (Conc e) = return . Conc =<< f n e
         f' n s@(Sym i) = do
             e' <- f n (Var i)
             case e' of
-                Var i' -> return $ (n, Sym i')
-                _ -> return (n, s)
+                Var i' -> return $ Sym i'
+                _ -> return s
 
 filter :: (Expr -> Bool) -> ExprEnv -> ExprEnv
 filter p = filterWithKey (\_ -> p) 
@@ -396,14 +385,8 @@ toExprList env@(ExprEnv env') =
     M.toList
     . M.mapWithKey (\k _ -> env ! k) $ env'
 
-fromExprList :: [(Name, Expr)] -> ExprEnv
-fromExprList = ExprEnv . M.fromList . L.map (\(n, e) -> (n, Conc e))
-
 fromExprMap :: M.HashMap Name Expr -> ExprEnv
 fromExprMap = ExprEnv . M.map Conc
-
-toExprMap :: ExprEnv -> M.HashMap Name Expr
-toExprMap env = M.mapWithKey (\k _ -> env ! k) $ unwrapExprEnv env
 
 getIdFromName :: ExprEnv -> Name -> Maybe Id
 getIdFromName eenv name = 
