@@ -1,6 +1,6 @@
 {-# LANGUAGE FlexibleContexts #-}
 
-module G2.Language.HPC ( HPCMemoTable
+module G2.Language.HPC ( HpcMemoTable
                        , reachesHPC
                        , reachesHPC' ) where
 
@@ -13,15 +13,15 @@ import qualified Data.HashSet as HS
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.Text as T
 
-type HPCMemoTable = HM.HashMap Name (HS.HashSet (Unique, T.Text))
+type HpcMemoTable = HM.HashMap Name (HS.HashSet (Unique, T.Text))
 
 reachesHPC :: ASTContainer c Expr => HS.HashSet (Maybe T.Text) -> E.ExprEnv -> c -> (HS.HashSet (Unique, T.Text))
 reachesHPC mod_name eenv c = SM.evalState (reachesHPC' mod_name eenv c) HM.empty
 
-reachesHPC' :: (SM.MonadState HPCMemoTable m, ASTContainer c Expr) => HS.HashSet (Maybe T.Text) -> E.ExprEnv -> c -> m (HS.HashSet (Unique, T.Text))
+reachesHPC' :: (SM.MonadState HpcMemoTable m, ASTContainer c Expr) => HS.HashSet (Maybe T.Text) -> E.ExprEnv -> c -> m (HS.HashSet (Unique, T.Text))
 reachesHPC' mod_name eenv es = mconcat <$> mapM (reaches mod_name eenv) (containedASTs es) 
 
-reaches :: SM.MonadState HPCMemoTable m => HS.HashSet (Maybe T.Text) -> E.ExprEnv -> Expr -> m (HS.HashSet (Unique, T.Text))
+reaches :: SM.MonadState HpcMemoTable m => HS.HashSet (Maybe T.Text) -> E.ExprEnv -> Expr -> m (HS.HashSet (Unique, T.Text))
 reaches mod_name eenv (Var (Id n _)) = do
     seen <- SM.get
     case HM.lookup n seen of

@@ -1,16 +1,66 @@
-{-# LANGUAGE CPP, GADTs, RankNTypes #-}
+{-# LANGUAGE CPP, FlexibleContexts, GADTs, RankNTypes #-}
 
-module G2.Execution.Internals.Reducer where
+module G2.Execution.Internals.Reducer (module G2.Execution.Internals.Reducer
+                                      , HPC.HpcMemoTable ) where
 
 import G2.Language
+import qualified G2.Language.HPC as HPC
 import qualified Control.Monad.State as SM
+import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashSet as HS
 import qualified Data.Map as M
+import qualified Data.Text as T
+import System.Clock
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
 import GHC.Driver.Monad
 #else
 import GhcMonad (GhcT, liftGhcT)
 #endif
+
+-- * Reducer State
+
+data ReducerState = RS { hpc_tracker :: HpcTracker
+                       , hpc_memo_table :: HPC.HpcMemoTable }
+
+data HpcTracker = HPC {
+                        hpc_ticks :: HM.HashMap (Unique, T.Text) TimeSpec -- ^ The HPC ticks that execution has reached mapped to the time each was reached
+
+                      , tick_count :: Int -- ^ Total number of HPC ticks that we could reach
+                      , num_reached :: Int -- ^ Total number of HPC ticks currently reached by execution
+
+                      , initial_time :: TimeSpec -- ^ The initial creation time of the HpcTracker
+                      
+                      , h_print_times :: Bool -- ^ Print the time each tick is reached?
+                      , h_print_ticks :: Bool -- ^ Print each HPC tick number that was reached?
+                      }
+
+getHpcTracker :: SM.MonadState ReducerState m => m HpcTracker
+getHpcTracker = SM.gets hpc_tracker
+
+modifyHpcTracker :: SM.MonadState ReducerState m => (HpcTracker -> HpcTracker) -> m ()
+modifyHpcTracker f = SM.modify' (\rs -> rs { hpc_tracker = f (hpc_tracker rs) })
+
+putHpcTracker :: SM.MonadState ReducerState m => HpcTracker -> m ()
+putHpcTracker hpc = SM.modify' (\rs -> rs { hpc_tracker = hpc })
+
+getHpcMemoTable :: SM.MonadState ReducerState m => m HPC.HpcMemoTable
+getHpcMemoTable = SM.gets hpc_memo_table
+
+putHpcMemoTable :: SM.MonadState ReducerState m => HPC.HpcMemoTable -> m ()
+putHpcMemoTable hpc = SM.modify' (\rs -> rs { hpc_memo_table = hpc })
+
+modifyHpcMemoTable :: SM.MonadState ReducerState m => (HPC.HpcMemoTable -> HPC.HpcMemoTable) -> m ()
+modifyHpcMemoTable f = SM.modify' (\rs -> rs { hpc_memo_table = f (hpc_memo_table rs) })
+
+reachesHPC :: (SM.MonadState ReducerState m, ASTContainer c Expr) => HS.HashSet (Maybe T.Text) -> ExprEnv -> c -> m (HS.HashSet (Unique, T.Text))
+reachesHPC mod_name eenv e = do
+    hpc <- getHpcMemoTable
+    let (v, hpc') = SM.runState (HPC.reachesHPC' mod_name eenv e) hpc
+    putHpcMemoTable hpc'
+    return v
+
+-- * Reducers, Halters, Orderers
 
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,

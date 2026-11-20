@@ -328,8 +328,7 @@ type RHOStack m t = SM.StateT (ApproxPrevs t)
                         (SM.StateT LengthNTrack
                             (SM.StateT PrettyGuide
                                 (SM.StateT ErrorMemoTable
-                                    (SM.StateT HpcTracker
-                                        (SM.StateT HPCMemoTable m)))))
+                                    (SM.StateT ReducerState m))))
 
 -- Todo: implement this in a way that doesn't trigger the orphan rule
 {-# SPECIALIZE runReducer :: Ord b =>
@@ -391,7 +390,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                          $ expr_env s
 
     (func_constraint_res, func_const_time) <- solveFuncConstraintsReducer config solver simplifier approx_no_inline
-    let func_constraint_res' = liftSomeReducer . liftSomeReducer . liftSomeReducer . liftSomeReducer . liftSomeReducer . liftSomeReducer . SomeReducer $ func_constraint_res
+    let func_constraint_res' = liftSomeReducer . liftSomeReducer . liftSomeReducer . liftSomeReducer . liftSomeReducer . SomeReducer $ func_constraint_res
 
     let state_name = Name "state" Nothing 0 Nothing
                          
@@ -450,7 +449,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                             False -> SomeHalter halter
         
         halter_hpc_discard = case hpc_discard_strat config of
-                                    True -> SomeHalter (liftHalter . liftHalter . liftHalter . liftHalter . liftHalter $ noNewHPCHalter mod_name) .<~> halter_step
+                                    True -> SomeHalter (liftHalter . liftHalter . liftHalter . liftHalter $ noNewHPCHalter mod_name) .<~> halter_step
                                     False -> halter_step
 
         halter_approx_discard = case approx_discard config of
@@ -726,13 +725,15 @@ runG2WithConfig proj src entry_f f gflags mb_modname state config bindings = do
                             else setTypePrinting AggressiveTypes (mkPrettyGuide ())
         pretty_guide' = setLogTypeClasses (log_typeclasses config) 
                       $ setLogInternalName (log_internal_names config) pretty_guide
+        
+        red_state = RS { hpc_tracker = hpc_t
+                       , hpc_memo_table = HM.empty }
 
     (in_out, got_unknown, bindings'', timed_out, fc_time) <- case null analysis of
         True -> do
             rho <- initRedHaltOrd state' all_mod_set solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
             case rho of
                 (red, hal, ord, to, fc_time) ->
-                        SM.evalStateT (
                             SM.evalStateT
                                 (SM.evalStateT
                                     (SM.evalStateT
@@ -747,9 +748,7 @@ runG2WithConfig proj src entry_f f gflags mb_modname state config bindings = do
                                     )
                                 HM.empty
                                 )
-                                hpc_t
-                            )
-                            HM.empty
+                            red_state
         False -> do
             rho <- initRedHaltOrd state' all_mod_set solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
             case rho of
@@ -771,7 +770,7 @@ runG2WithConfig proj src entry_f f gflags mb_modname state config bindings = do
                                             )
                                             HM.empty
                                         )
-                                        hpc_t
+                                        red_state
                                     )
                                     HM.empty
                                 )

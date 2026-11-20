@@ -26,8 +26,10 @@ or switch to executing a different state.
 
 The `runReducer` function reduces States, guided by a `Reducer`, `Halter`, and `Orderer`.
 -}
-module G2.Execution.Reducer ( 
-                              Reducer (..)
+module G2.Execution.Reducer (
+                              ReducerState (..)
+                             
+                            , Reducer (..)
 
                             , Halter (..)
                             , InitHalter
@@ -126,7 +128,7 @@ module G2.Execution.Reducer (
                             , hpcApproximationHalter
                             , approximationHalter'
 
-                            , HPCMemoTable
+                            , HpcMemoTable
                             , noNewHPCHalter
                             , acceptOnlyNewHPC
 
@@ -181,7 +183,6 @@ import G2.Language
 import G2.Language.Approximation
 import G2.Language.Typing as Ty
 import G2.Language.KnownValues as KV
-import G2.Language.HPC
 import qualified G2.Language.Monad as MD
 import qualified G2.Language.PathConds as PC
 import qualified G2.Language.Stack as Stck
@@ -1818,7 +1819,7 @@ mrContIgnoreNRPCTicks genLemma lkp s1 s2 ns hm active n1 n2 e1 e2 =
             moreRestrictive' (mrContIgnoreNRPCTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1 e2'
         _ -> Left []
 
-noNewHPCHalter :: SM.MonadState HPCMemoTable m => HS.HashSet (Maybe T.Text) -> Halter m Unique (ExecRes t) t
+noNewHPCHalter :: SM.MonadState ReducerState m => HS.HashSet (Maybe T.Text) -> Halter m Unique (ExecRes t) t
 noNewHPCHalter mod_name = mkSimpleHalter
                                 (const 0)
                                 (\hv _ _ -> hv)
@@ -1833,13 +1834,13 @@ noNewHPCHalter mod_name = mkSimpleHalter
 
                 if HS.null diff1
                     then do
-                        reachable_hpc <- reachesHPC' mod_name (expr_env s) (curr_expr s, exec_stack s, non_red_path_conds s)
+                        reachable_hpc <- reachesHPC mod_name (expr_env s) (curr_expr s, exec_stack s, non_red_path_conds s)
                         let diff2 = HS.difference reachable_hpc acc_seen_hpc
                         if HS.null diff2 then do return (Discard "noNewHPCHalter") else do return Continue
                     else return Continue
             | otherwise = return Continue
 
-acceptOnlyNewHPC :: (Monad m1, SM.MonadState HPCMemoTable (m2 m1), SM.MonadTrans m2) => Halter m1 r (ExecRes t) t -> Halter (m2 m1) r (ExecRes t) t
+acceptOnlyNewHPC :: (Monad m1, SM.MonadState ReducerState (m2 m1), SM.MonadTrans m2) => Halter m1 r (ExecRes t) t -> Halter (m2 m1) r (ExecRes t) t
 acceptOnlyNewHPC h =
         Halter {
               initHalt = initHalt h
