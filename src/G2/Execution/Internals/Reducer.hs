@@ -29,6 +29,15 @@ data ReducerState = RS { hpc_tracker :: HpcTracker
                        , error_memo_table :: ErrorMemoTable                       
                        }
 
+initReducerState :: HpcTracker -> PrettyGuide -> ReducerState
+initReducerState hpc pg = RS { hpc_tracker = hpc
+                             , hpc_memo_table = HM.empty
+                             , pretty_guide = pg
+                             , error_memo_table = HM.empty }
+
+initReducerStatePG :: PrettyGuide -> ReducerState
+initReducerStatePG = initReducerState (error "initReducerStatePG: no HPC tick tracking")
+
 data HpcTracker = HPC {
                         hpc_ticks :: HM.HashMap (Unique, T.Text) TimeSpec -- ^ The HPC ticks that execution has reached mapped to the time each was reached
 

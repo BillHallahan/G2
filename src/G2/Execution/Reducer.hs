@@ -28,7 +28,10 @@ The `runReducer` function reduces States, guided by a `Reducer`, `Halter`, and `
 -}
 module G2.Execution.Reducer (
                               ReducerState (..)
-                             
+                            , HpcTracker
+                            , initReducerState
+                            , initReducerStatePG
+
                             , Reducer (..)
 
                             , Halter (..)
@@ -1156,7 +1159,7 @@ taggerRedStep n _ s@(State {tags = ts}) b@(Bindings { name_gen = ng }) =
     else
         return (Finished, [(s, ())], b)
 
-getLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => Config -> PrettyTrack t ->  Maybe (Reducer m () t)
+getLogger :: (MonadIO m, SM.MonadState ReducerState m, Show t) => Config -> PrettyTrack t ->  Maybe (Reducer m () t)
 getLogger config pretty_track =
     case logStates config of
         Log Raw fp -> Just (simpleLogger fp)
@@ -1173,14 +1176,14 @@ simpleLogger fn =
                     { updateWithAll = \s -> map (\(s_, i) -> s_ { log_path = log_path s_ ++ [i]} ) $ zip s [1..] }
 
 -- | A Reducer to producer logging output 
-prettyLogger :: (MonadIO m, SM.MonadState PrettyGuide m) => PrettyTrack t -> FilePath -> Reducer m () t
+prettyLogger :: (MonadIO m, SM.MonadState ReducerState m) => PrettyTrack t -> FilePath -> Reducer m () t
 prettyLogger pretty_track fp =
     (mkSimpleReducer
         (const ())
         (\_ s b -> do
-            pg <- SM.get
+            pg <- getPrettyGuide
             let pg' = updatePrettyGuide (s { track = () }) pg
-            SM.put pg'
+            putPrettyGuide pg'
             liftIO $ outputState True stdFileNamer fp (log_path s) s b (\s_ _ -> T.unpack $ prettyState pg' pretty_track s_)
             return (NoProgress, [(s, ())], b)
         )
@@ -1301,10 +1304,10 @@ limLoggerConfig fp = LimLogger { every_n = 0
 
 newtype LLTracker = LLTracker { ll_count :: Int }
 
-getLimLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Named t, Show t) => Config -> PrettyTrack t -> IO (Maybe (Reducer m LLTracker t))
+getLimLogger :: (MonadIO m, SM.MonadState ReducerState m, Named t, Show t) => Config -> PrettyTrack t -> IO (Maybe (Reducer m LLTracker t))
 getLimLogger = getLimLogger' stdFileNamer
 
-getLimLogger' :: (MonadIO m, SM.MonadState PrettyGuide m, Named t, Show t) =>
+getLimLogger' :: (MonadIO m, SM.MonadState ReducerState m, Named t, Show t) =>
                  (State t -> FilePath)
               -> Config
               -> PrettyTrack t
@@ -1369,14 +1372,14 @@ limLogger :: (MonadIO m, Show t) => LimLogger t -> Reducer m LLTracker t
 limLogger ll@(LimLogger {filter_env = f_env}) =
     genLimLogger (\off s b -> liftIO $ outputState (output_files ll) (output_name ll) (lim_output_path ll) off (if f_env then filterStateEnv s else s) b pprExecStateStr) ll
 
-prettyLimLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Named t) => PrettyTrack t -> LimLogger t -> Reducer m LLTracker t
+prettyLimLogger :: (MonadIO m, SM.MonadState ReducerState m, Named t) => PrettyTrack t -> LimLogger t -> Reducer m LLTracker t
 prettyLimLogger pretty_track ll@(LimLogger {filter_env = f_env, order_env = o_env}) =
     genLimLogger (\off s@(State {}) b -> do
-                pg <- SM.get
+                pg <- getPrettyGuide
                 let pg' = updatePrettyGuide s pg
                 let s' = if inline_nrpc ll then inlineNRPC s else s
                     s'' = if inline_fc ll then inlineFC s' else s'
-                SM.put pg'
+                putPrettyGuide pg'
                 let pg'' = setEnvOrdering o_env pg'
                 let s''' = if f_env then filterStateEnv s'' else s''     
                 liftIO $ outputState (output_files ll) (output_name ll) (lim_output_path ll) off s''' b (\s_ _ -> T.unpack $ prettyState pg'' pretty_track s_)
@@ -1451,7 +1454,7 @@ getFileDirAndName dn is n =
     (dir, dir ++ n ++ ".txt")
 
 -- | Output each path and current expression on the command line
-currExprLogger :: (MonadIO m, SM.MonadState PrettyGuide m, Show t) => LimLogger t -> Reducer m LLTracker t
+currExprLogger :: (MonadIO m, SM.MonadState ReducerState m, Show t) => LimLogger t -> Reducer m LLTracker t
 currExprLogger ll@(LimLogger { after_n = aft, before_n = bfr, down_path = down }) = 
     (mkSimpleReducer (const $ LLTracker { ll_count = every_n ll }) rr)
         { updateWithAll = updateWithAllLL
@@ -1464,9 +1467,9 @@ currExprLogger ll@(LimLogger { after_n = aft, before_n = bfr, down_path = down }
             | down `L.isPrefixOf` log_path s || log_path s `L.isPrefixOf` down
             , aft <= length_rules && maybe True (length_rules <=) bfr = do
                 liftIO $ print (log_path s)
-                pg <- SM.get
+                pg <- getPrettyGuide
                 let pg' = updatePrettyGuide (s { track = () }) pg
-                SM.put pg'
+                putPrettyGuide pg'
                 liftIO . T.putStrLn $ printHaskellDirtyPG pg' (getExpr s)
                 return (NoProgress, [(s, llt { ll_count = every_n ll })], b)
             | otherwise =
@@ -2402,14 +2405,14 @@ type SolveStates m r t = State t -> Bindings -> m (Result (r, NameGen) () ())
                           -> IO (Processed r (State t), Bindings)
     #-}
 {-# SPECIALIZE runReducer :: Ord b =>
-                             Reducer (SM.StateT PrettyGuide IO) rv t
-                          -> Halter (SM.StateT PrettyGuide IO) hv r t
-                          -> Orderer (SM.StateT PrettyGuide IO) sov b r t
-                          -> SolveStates (SM.StateT PrettyGuide IO) r t
-                          -> [AnalyzeStates (SM.StateT PrettyGuide IO) r t]
+                             Reducer (SM.StateT ReducerState IO) rv t
+                          -> Halter (SM.StateT ReducerState IO) hv r t
+                          -> Orderer (SM.StateT ReducerState IO) sov b r t
+                          -> SolveStates (SM.StateT ReducerState IO) r t
+                          -> [AnalyzeStates (SM.StateT ReducerState IO) r t]
                           -> State t
                           -> Bindings
-                          -> SM.StateT PrettyGuide IO (Processed r (State t), Bindings)
+                          -> SM.StateT ReducerState IO (Processed r (State t), Bindings)
     #-}
 -- | Uses a passed Reducer, Halter and Orderer to execute the reduce on the State, and generated States
 runReducer :: forall m b rv hv sov r t .

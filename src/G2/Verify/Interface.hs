@@ -41,7 +41,7 @@ data VerifyResult = Verified
 type VerStack m = SM.StateT LemmaInfo
                     (SM.StateT (ApproxPrevs VerifierTracker)
                         (SM.StateT LengthNTrack
-                            (SM.StateT PrettyGuide m)))
+                            (SM.StateT ReducerState m)))
 
 labelApproxPoints :: State VerifierTracker -> String
 labelApproxPoints s
@@ -207,6 +207,9 @@ verifyFromFile proj src f transConfig config verify_config = do
     init_time <- getTime Realtime
     rho <- verifyRedHaltOrd verifier_state solver simplifier config' verify_config (S.fromList no_nrpc_names)
     let to = case rho of (_, _, _, to_)-> to_
+        rs = initReducerStatePG (if showType config == Lax 
+                                        then mkPrettyGuide ()
+                                        else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
     (er, _got_unknown, bindings''') <-
             case rho of
                 (red, hal, ord, _) ->
@@ -221,9 +224,7 @@ verifyFromFile proj src f transConfig config verify_config = do
                                     )
                                     lnt
                                 )
-                                (if showType config == Lax 
-                                then mkPrettyGuide ()
-                                else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
+                                rs
     
     to' <- readIORef to
     accept_time <- getTime Realtime

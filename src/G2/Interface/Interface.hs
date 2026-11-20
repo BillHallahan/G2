@@ -429,7 +429,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                                 False -> accept_time_red f
 
         logger_std_red f = case m_logger of
-                            Just logger -> liftSomeReducer $ liftSomeReducer (logger .~> num_steps_red f)
+                            Just logger -> liftSomeReducer $ liftSomeReducer (liftSomeReducer (logger) .~> num_steps_red f)
                             Nothing -> liftSomeReducer $ liftSomeReducer (num_steps_red f)
 
         nrpc_approx_red f = case approx_nrpc config of
@@ -724,11 +724,7 @@ runG2WithConfig proj src entry_f f gflags mb_modname state config bindings = do
         pg' = setLogTypeClasses (log_typeclasses config) 
             $ setLogInternalName (log_internal_names config) pg
         
-        red_state = RS { hpc_tracker = hpc_t
-                       , hpc_memo_table = HM.empty
-                       
-                       , pretty_guide = pg'
-                       , error_memo_table = HM.empty }
+        red_state = initReducerState hpc_t pg'
 
     (in_out, got_unknown, bindings'', timed_out, fc_time) <- case null analysis of
         True -> do
