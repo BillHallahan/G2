@@ -665,7 +665,7 @@ checkNRPCConsistent no_inline eenv = snd . F.foldl' incCheck ([], True)
 
 -- | If a state S has a current expression, path constraints, and NRPC set that are approximated by some
 -- other state S', discard S. Any counterexample discoverable from S is also discoverable from S'.
-approximationHalter :: (SM.MonadState (ApproxPrevs VerifierTracker) m, MonadIO m) =>
+approximationHalter :: (SM.MonadState (ReducerState VerifierTracker) m, MonadIO m) =>
                        HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
                     -> Halter m () r VerifierTracker
 approximationHalter = approximationHalter' (\_ old_state new_state -> goal (track old_state) `isValidFor` goal (track new_state))

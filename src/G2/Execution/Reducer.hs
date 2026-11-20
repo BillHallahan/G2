@@ -724,19 +724,9 @@ getNonRedForHigherOrder _ ng s
     | Just (s', _, _, ng1) <- createNonRed ng Focused s = Just (s', ng1)
     | otherwise = Nothing
 
-data ApproxPrevs t = AP { ap_nrpc_states :: [State t], ap_halter_states :: [ApproxPreppedState t]}
-
-emptyApproxPrevs :: ApproxPrevs t
-emptyApproxPrevs = AP { ap_nrpc_states = [], ap_halter_states = [] }
-
-addApproxPrevs :: SM.MonadState (ApproxPrevs t) m => State t -> m ()
-addApproxPrevs s = do
-    xs <- SM.gets ap_halter_states
-    SM.modify (\a -> a { ap_halter_states = createApproxPreppedState s:xs })
-
 -- | When a newly reached function application is approximated by a previously seen (and thus explored) function application,
 -- shift the new function application into the NRPCs.
-nrpcApproxReducer :: (SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
+nrpcApproxReducer :: (SM.MonadState (ReducerState t) m, MonadIO m) =>
                      HS.HashSet Name -- ^ Names of functions that should not be approximated
                   -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
                   -> Config
@@ -766,7 +756,7 @@ nrpcApproxReducer no_inline no_nrpc_names config =
                 --     putStrLn $ "log_path s = " ++ show (log_path s)
                 --     putStrLn $ "num_steps s = " ++ show (num_steps s)
                 let s' = s { curr_expr = CurrExpr Evaluate e, exec_stack = Stck.empty }
-                xs <- SM.gets ap_nrpc_states
+                xs <- getApproxPrevs >>= (return . ap_nrpc_states)
                 approx <- liftIO $ findM (\prev -> do
                                             -- liftIO $ do
                                             --      putStrLn $ "curr_expr s = " ++ show (getExpr s)
@@ -785,7 +775,7 @@ nrpcApproxReducer no_inline no_nrpc_names config =
 
                 case nr_s_ng of
                     Just (nr_s, _, _, ng') | isJust approx -> return (Finished, [(nr_s, rv + 1)], b { name_gen = ng' })
-                    _ -> do SM.modify (\app -> app { ap_nrpc_states = s':xs }); return (Finished, [(s, rv)], b)
+                    _ -> do modifyApproxPrevs (\app -> app { ap_nrpc_states = s':xs }); return (Finished, [(s, rv)], b)
             | Tick nl (Var (Id n _)) <- ce
             , isNonRedBlockerTick nl
             , Just e <- E.lookup n eenv = return (Finished, [(s { curr_expr = CurrExpr Evaluate e }, rv)], b)
@@ -1245,7 +1235,7 @@ taggerRedStep n _ s@(State {tags = ts}) b@(Bindings { name_gen = ng }) =
     else
         return (Finished, [(s, ())], b)
 
-getLogger :: (MonadIO m, SM.MonadState ReducerState m, Show t) => Config -> PrettyTrack t ->  Maybe (Reducer m () t)
+getLogger :: (MonadIO m, SM.MonadState (ReducerState t) m, Show t) => Config -> PrettyTrack t ->  Maybe (Reducer m () t)
 getLogger config pretty_track =
     case logStates config of
         Log Raw fp -> Just (simpleLogger fp)
@@ -1262,7 +1252,7 @@ simpleLogger fn =
                     { updateWithAll = \s -> map (\(s_, i) -> s_ { log_path = log_path s_ ++ [i]} ) $ zip s [1..] }
 
 -- | A Reducer to producer logging output 
-prettyLogger :: (MonadIO m, SM.MonadState ReducerState m) => PrettyTrack t -> FilePath -> Reducer m () t
+prettyLogger :: (MonadIO m, SM.MonadState (ReducerState t) m) => PrettyTrack t -> FilePath -> Reducer m () t
 prettyLogger pretty_track fp =
     (mkSimpleReducer
         (const ())
@@ -1390,10 +1380,10 @@ limLoggerConfig fp = LimLogger { every_n = 0
 
 newtype LLTracker = LLTracker { ll_count :: Int }
 
-getLimLogger :: (MonadIO m, SM.MonadState ReducerState m, Named t, Show t) => Config -> PrettyTrack t -> IO (Maybe (Reducer m LLTracker t))
+getLimLogger :: (MonadIO m, SM.MonadState (ReducerState t) m, Named t, Show t) => Config -> PrettyTrack t -> IO (Maybe (Reducer m LLTracker t))
 getLimLogger = getLimLogger' stdFileNamer
 
-getLimLogger' :: (MonadIO m, SM.MonadState ReducerState m, Named t, Show t) =>
+getLimLogger' :: (MonadIO m, SM.MonadState (ReducerState t) m, Named t, Show t) =>
                  (State t -> FilePath)
               -> Config
               -> PrettyTrack t
@@ -1458,7 +1448,7 @@ limLogger :: (MonadIO m, Show t) => LimLogger t -> Reducer m LLTracker t
 limLogger ll@(LimLogger {filter_env = f_env}) =
     genLimLogger (\off s b -> liftIO $ outputState (output_files ll) (output_name ll) (lim_output_path ll) off (if f_env then filterStateEnv s else s) b pprExecStateStr) ll
 
-prettyLimLogger :: (MonadIO m, SM.MonadState ReducerState m, Named t) => PrettyTrack t -> LimLogger t -> Reducer m LLTracker t
+prettyLimLogger :: (MonadIO m, SM.MonadState (ReducerState t) m, Named t) => PrettyTrack t -> LimLogger t -> Reducer m LLTracker t
 prettyLimLogger pretty_track ll@(LimLogger {filter_env = f_env, order_env = o_env}) =
     genLimLogger (\off s@(State {}) b -> do
                 pg <- getPrettyGuide
@@ -1540,7 +1530,7 @@ getFileDirAndName dn is n =
     (dir, dir ++ n ++ ".txt")
 
 -- | Output each path and current expression on the command line
-currExprLogger :: (MonadIO m, SM.MonadState ReducerState m, Show t) => LimLogger t -> Reducer m LLTracker t
+currExprLogger :: (MonadIO m, SM.MonadState (ReducerState t) m, Show t) => LimLogger t -> Reducer m LLTracker t
 currExprLogger ll@(LimLogger { after_n = aft, before_n = bfr, down_path = down }) = 
     (mkSimpleReducer (const $ LLTracker { ll_count = every_n ll }) rr)
         { updateWithAll = updateWithAllLL
@@ -1804,7 +1794,7 @@ adtHeightHalter f lim = mkSimpleHalter init_h
             | E.isSymbolic n eenv = HS.insert n sym
         update sym _ _ _ = sym
 
-hpcApproximationHalter :: (Named t, SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
+hpcApproximationHalter :: (Named t, SM.MonadState (ReducerState t) m, MonadIO m) =>
                           HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
                        -> Halter m () (ExecRes  t) t
 hpcApproximationHalter = approximationHalter' stop_cond
@@ -1813,7 +1803,7 @@ hpcApproximationHalter = approximationHalter' stop_cond
             let acc_seen_hpc = HS.unions (map (reached_hpc . final_state) $ accepted pr) in
             HS.null $ HS.difference (reached_hpc s) acc_seen_hpc
 
-approximationHalter' :: (Named t, SM.MonadState (ApproxPrevs t) m, MonadIO m) =>
+approximationHalter' :: (Named t, SM.MonadState (ReducerState t) m, MonadIO m) =>
                         (Processed r (State t) -> State t -> State t -> Bool) -- ^ Approximated states are discarded only if they match this condition
                                                                               -- Args: all accepted states, approximated (old) state, approximating (new) state
                      -> HS.HashSet Name -- ^ Names that should not be inlined (often: top level names from the original source code)
@@ -1839,7 +1829,7 @@ approximationHalter' stop_cond no_inline = mkSimpleHalter
             , not . isTyFun . (typeOf tvnv) $ e = do
                 -- liftIO $ do
                 --     putStrLn $ "approx halter log_path s = " ++ show (log_path s) ++ " " ++ show (num_steps s)
-                xs <- SM.gets ap_halter_states
+                xs <- getApproxPrevs >>= (return . ap_halter_states)
                 let xs' = filter (\x -> num_steps (apState x) < num_steps s') xs
                     approx_prepped_s = createApproxPreppedState s'
                 approx <- liftIO $ findM (\prev -> do
@@ -1866,7 +1856,7 @@ approximationHalter' stop_cond no_inline = mkSimpleHalter
                         --     putStrLn $ "    !!!modifying with " ++ show (log_path s') ++ " " ++ show (num_steps s)
                         --     putStrLn $ "    !!! stck s = " ++ show (exec_stack s)
                         --     putStrLn $ "    !!! stck s' = " ++ show (exec_stack s')
-                        SM.modify ((\app -> app { ap_halter_states = approx_prepped_s:xs }))
+                        modifyApproxPrevs ((\app -> app { ap_halter_states = approx_prepped_s:xs }))
                         return Continue
         -- stop _ _ s | log_path s == [1, 1, 1, 1]
         --            , num_steps s == 103
@@ -1908,7 +1898,7 @@ mrContIgnoreNRPCTicks genLemma lkp s1 s2 ns hm active n1 n2 e1 e2 =
             moreRestrictive' (mrContIgnoreNRPCTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1 e2'
         _ -> Left []
 
-noNewHPCHalter :: SM.MonadState ReducerState m => HS.HashSet (Maybe T.Text) -> Halter m Unique (ExecRes t) t
+noNewHPCHalter :: SM.MonadState (ReducerState t) m => HS.HashSet (Maybe T.Text) -> Halter m Unique (ExecRes t) t
 noNewHPCHalter mod_name = mkSimpleHalter
                                 (const 0)
                                 (\hv _ _ -> hv)
@@ -1929,7 +1919,7 @@ noNewHPCHalter mod_name = mkSimpleHalter
                     else return Continue
             | otherwise = return Continue
 
-acceptOnlyNewHPC :: (Monad m1, SM.MonadState ReducerState (m2 m1), SM.MonadTrans m2) => Halter m1 r (ExecRes t) t -> Halter (m2 m1) r (ExecRes t) t
+acceptOnlyNewHPC :: (Monad m1, SM.MonadState (ReducerState t) (m2 m1), SM.MonadTrans m2) => Halter m1 r (ExecRes t) t -> Halter (m2 m1) r (ExecRes t) t
 acceptOnlyNewHPC h =
         Halter {
               initHalt = initHalt h
@@ -2491,14 +2481,14 @@ type SolveStates m r t = State t -> Bindings -> m (Result (r, NameGen) () ())
                           -> IO (Processed r (State t), Bindings)
     #-}
 {-# SPECIALIZE runReducer :: Ord b =>
-                             Reducer (SM.StateT ReducerState IO) rv t
-                          -> Halter (SM.StateT ReducerState IO) hv r t
-                          -> Orderer (SM.StateT ReducerState IO) sov b r t
-                          -> SolveStates (SM.StateT ReducerState IO) r t
-                          -> [AnalyzeStates (SM.StateT ReducerState IO) r t]
+                             Reducer (SM.StateT (ReducerState t) IO) rv t
+                          -> Halter (SM.StateT (ReducerState t) IO) hv r t
+                          -> Orderer (SM.StateT (ReducerState t) IO) sov b r t
+                          -> SolveStates (SM.StateT (ReducerState t) IO) r t
+                          -> [AnalyzeStates (SM.StateT (ReducerState t) IO) r t]
                           -> State t
                           -> Bindings
-                          -> SM.StateT ReducerState IO (Processed r (State t), Bindings)
+                          -> SM.StateT (ReducerState t) IO (Processed r (State t), Bindings)
     #-}
 -- | Uses a passed Reducer, Halter and Orderer to execute the reduce on the State, and generated States
 runReducer :: forall m b rv hv sov r t .

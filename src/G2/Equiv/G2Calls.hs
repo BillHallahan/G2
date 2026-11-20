@@ -75,9 +75,9 @@ rewriteRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                      EquivTracker ->
                      Config ->
                      NebulaConfig ->
-                     ( SomeReducer (SM.StateT ReducerState m) EquivTracker
-                     , SomeHalter (SM.StateT ReducerState m) (ExecRes EquivTracker) EquivTracker
-                     , SomeOrderer (SM.StateT ReducerState m) (ExecRes EquivTracker) EquivTracker)
+                     ( SomeReducer (SM.StateT (ReducerState EquivTracker) m) EquivTracker
+                     , SomeHalter (SM.StateT (ReducerState EquivTracker) m) (ExecRes EquivTracker) EquivTracker
+                     , SomeOrderer (SM.StateT (ReducerState EquivTracker) m) (ExecRes EquivTracker) EquivTracker)
 rewriteRedHaltOrd solver simplifier h_opp track_opp config (NC { use_labeled_errors = use_labels }) =
     let
         state_name = Name "state" Nothing 0 Nothing

@@ -53,7 +53,7 @@ import qualified Data.Text.IO as T
 import System.Clock
 
 -- | A reducer to add higher order functions to the symbolic function constraints for solving later  
-addFuncConstraintReducer :: (Solver solver, Simplifier simplifier, MonadIO m, SM.MonadState ReducerState m) =>
+addFuncConstraintReducer :: (Solver solver, Simplifier simplifier, MonadIO m, SM.MonadState (ReducerState t) m) =>
                              solver
                          -> simplifier
                          -> HS.HashSet Name
@@ -105,7 +105,7 @@ In the running example, we would get:
     fr_branch1 = 2 \/ fr_branch2 = 2 = 3 => g y = r2
 -}
 
-redFuncConstraint :: (Solver solver, Simplifier simplifier, MonadIO m, SM.MonadState ReducerState m) =>
+redFuncConstraint :: (Solver solver, Simplifier simplifier, MonadIO m, SM.MonadState (ReducerState t) m) =>
                      solver
                   -> simplifier
                   -> HS.HashSet Name
@@ -2056,7 +2056,7 @@ reaches _ (Prim Error _) = return $ Any True
 reaches _ (Prim Undefined _) = return $ Any True
 reaches eenv e = mconcat <$> mapM (reaches eenv) (children e)
 
-funcArgReachesErrorHalter :: SM.MonadState ReducerState m => Halter m () r t
+funcArgReachesErrorHalter :: SM.MonadState (ReducerState t) m => Halter m () r t
 funcArgReachesErrorHalter = mkSimpleHalter
                                 (const ())
                                 (\hv _ _ -> hv)

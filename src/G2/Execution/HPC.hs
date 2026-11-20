@@ -69,14 +69,14 @@ hpcInsert i t hpc@(HPC { hpc_ticks = tr, num_reached = nr }) =
             ts <- liftIO $ getTime Monotonic
             return $ hpc { hpc_ticks = HM.insert (i, t) ts tr, num_reached = nr + 1 }
 
-totalTickCount :: SM.MonadState ReducerState m => m Int
+totalTickCount :: SM.MonadState (ReducerState t) m => m Int
 totalTickCount = do
     (HPC { tick_count = ttc }) <- getHpcTracker
     return ttc
 
 -- | A reducer that tracks and prints the number of HPC ticks encountered during execution.
 -- A HPC tick is considered reached as soon as a State reaches it.
-immedHpcReducer :: (MonadIO m, SM.MonadState ReducerState m) =>
+immedHpcReducer :: (MonadIO m, SM.MonadState (ReducerState t) m) =>
                    HS.HashSet (Maybe T.Text) -- ^ A module to track tick count in
                 -> Reducer m () t
 immedHpcReducer md = (mkSimpleReducer (const ()) logTick) { afterRed = after }
@@ -96,7 +96,7 @@ immedHpcReducer md = (mkSimpleReducer (const ()) logTick) { afterRed = after }
 
 -- | A reducer that tracks and prints the number of HPC ticks encountered during execution.
 -- A HPC tick is considered reached only once a State that reached it is accepted.
-onAcceptHpcReducer :: (MonadIO m, SM.MonadState ReducerState m) =>
+onAcceptHpcReducer :: (MonadIO m, SM.MonadState (ReducerState t) m) =>
                       State t
                    -> HS.HashSet (Maybe T.Text) -- ^ Modules to track tick count in
                    -> IO (Reducer m HpcTracker t)
@@ -122,7 +122,7 @@ onAcceptHpcReducer st md = do
 
         after = afterHPC
 
-afterHPC :: (MonadIO m, SM.MonadState ReducerState m) => m ()
+afterHPC :: (MonadIO m, SM.MonadState (ReducerState t) m) => m ()
 afterHPC = do
     hpc <- getHpcTracker
     let init_ts = initial_time hpc
@@ -166,7 +166,7 @@ getHPCTicks _ _ = []
 -- Based on the paper:
 --     Steering Symbolic Execution to Less Traveled Paths
 --     You Li, Zhendong Su, Linzhang Wang, Xuandong Li
-lengthNSubpathOrderer :: (MonadIO m, SM.MonadState ReducerState m) =>
+lengthNSubpathOrderer :: (MonadIO m, SM.MonadState (ReducerState t) m) =>
                          Int -- ^ N, the length of the subpaths to track
                       -> Orderer m [(Unique, T.Text)] Int r t
 lengthNSubpathOrderer n = (mkSimpleOrderer initial order update) { stepOrderer  = step }

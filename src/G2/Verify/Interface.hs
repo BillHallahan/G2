@@ -40,7 +40,7 @@ data VerifyResult = Verified
 
 type VerStack m = SM.StateT LemmaInfo
                     (SM.StateT (ApproxPrevs VerifierTracker)
-                            (SM.StateT ReducerState m))
+                            (SM.StateT (ReducerState VerifierTracker) m))
 
 labelApproxPoints :: State VerifierTracker -> String
 labelApproxPoints s
@@ -124,7 +124,7 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
                                     False -> SomeHalter halter
 
         halter_approx_discard = case approx verify_config of
-                                        True -> SomeHalter (liftHalter $ approximationHalter approx_no_inline) .<~> inconsistent_halter
+                                        True -> SomeHalter (liftHalter . liftHalter $ approximationHalter approx_no_inline) .<~> inconsistent_halter
                                         False -> inconsistent_halter
 
         orderer = case search_strat config of
