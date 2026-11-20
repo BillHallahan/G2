@@ -317,6 +317,7 @@ moveOutStatePieces tenv_name s = do
         lit_table_stack_exp = liftDataT (lit_table_stack s)
         lit_tables_exp = liftDataT (lit_tables s)
         global_lit_table_pc_exp = liftDataT . PC.toList $ global_lit_table_pc s
+        reach_table_exp = liftDataT (reach_table s)
 
     [| State { expr_env = $(expr_env_exp)
              , type_env = $(varE tenv_name)
@@ -354,7 +355,8 @@ moveOutStatePieces tenv_name s = do
 
              , global_lit_table_pc = PC.fromList $(global_lit_table_pc_exp)
              
-             , log_path = [] } |]
+             , log_path = [] 
+             , reach_table = $(reach_table_exp) } |]
 
 -- Returns an Q Exp represeting a [(Name, Expr)] list
 regVarBindings :: TV.TyVarEnv -> [TH.Name] -> TypeEnvName -> CleanedNamesName -> InputIds -> Bindings -> Q Exp
