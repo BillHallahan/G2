@@ -23,6 +23,8 @@ import GhcMonad (GhcT, liftGhcT)
 
 data ReducerState = RS { hpc_tracker :: HpcTracker
                        , hpc_memo_table :: HPC.HpcMemoTable
+
+                       , length_n_track :: LengthNTrack
                        
                        , pretty_guide :: PrettyGuide
 
@@ -32,6 +34,9 @@ data ReducerState = RS { hpc_tracker :: HpcTracker
 initReducerState :: HpcTracker -> PrettyGuide -> ReducerState
 initReducerState hpc pg = RS { hpc_tracker = hpc
                              , hpc_memo_table = HM.empty
+
+                             , length_n_track = lnt
+
                              , pretty_guide = pg
                              , error_memo_table = HM.empty }
 
@@ -52,6 +57,14 @@ data HpcTracker = HPC {
 
 type ErrorMemoTable = HM.HashMap Name Bool
 
+newtype LengthNTrack = LNT { unLNT :: HM.HashMap [(Unique, T.Text)] Int }
+
+-- | State used by `lengthNSubpathOrderer`.
+lnt :: LengthNTrack
+lnt = LNT HM.empty
+
+-- HpcTracker
+
 getHpcTracker :: SM.MonadState ReducerState m => m HpcTracker
 getHpcTracker = SM.gets hpc_tracker
 
@@ -60,6 +73,8 @@ modifyHpcTracker f = SM.modify' (\rs -> rs { hpc_tracker = f (hpc_tracker rs) })
 
 putHpcTracker :: SM.MonadState ReducerState m => HpcTracker -> m ()
 putHpcTracker hpc = SM.modify' (\rs -> rs { hpc_tracker = hpc })
+
+-- HpcMemoTable
 
 getHpcMemoTable :: SM.MonadState ReducerState m => m HPC.HpcMemoTable
 getHpcMemoTable = SM.gets hpc_memo_table
@@ -77,11 +92,22 @@ reachesHPC mod_name eenv e = do
     putHpcMemoTable hpc'
     return v
 
+-- LengthNTrack
+
+getLengthNTrack :: SM.MonadState ReducerState m => m LengthNTrack
+getLengthNTrack = SM.gets length_n_track
+
+modifyLengthNTrack :: SM.MonadState ReducerState m => (LengthNTrack -> LengthNTrack) -> m ()
+modifyLengthNTrack f = SM.modify' (\rs -> rs { length_n_track = f (length_n_track rs) })
+
+-- PrettyGuide
 getPrettyGuide :: SM.MonadState ReducerState m => m PrettyGuide
 getPrettyGuide = SM.gets pretty_guide
 
 putPrettyGuide:: SM.MonadState ReducerState m => PrettyGuide -> m ()
 putPrettyGuide pg = SM.modify' (\rs -> rs { pretty_guide = pg })
+
+-- ErrorMemoTable
 
 getErrorMemoTable :: SM.MonadState ReducerState m => m ErrorMemoTable
 getErrorMemoTable = SM.gets error_memo_table

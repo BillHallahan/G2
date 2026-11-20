@@ -40,8 +40,7 @@ data VerifyResult = Verified
 
 type VerStack m = SM.StateT LemmaInfo
                     (SM.StateT (ApproxPrevs VerifierTracker)
-                        (SM.StateT LengthNTrack
-                            (SM.StateT ReducerState m)))
+                            (SM.StateT ReducerState m))
 
 labelApproxPoints :: State VerifierTracker -> String
 labelApproxPoints s
@@ -95,8 +94,8 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
                                 False -> accept_time_red f
 
         logger_std_red f = case m_logger of
-                            Just logger -> liftSomeReducer . liftSomeReducer $ liftSomeReducer (logger .~> num_steps_red f)
-                            Nothing -> liftSomeReducer . liftSomeReducer $ liftSomeReducer (num_steps_red f)
+                            Just logger -> liftSomeReducer $ liftSomeReducer (logger .~> num_steps_red f)
+                            Nothing -> liftSomeReducer $ liftSomeReducer (num_steps_red f)
 
         set_focus_red f = SomeReducer adjustFocusReducer .~> logger_std_red f
 
@@ -216,13 +215,10 @@ verifyFromFile proj src f transConfig config verify_config = do
                         SM.evalStateT
                                 (SM.evalStateT
                                     (SM.evalStateT
-                                        (SM.evalStateT
-                                            (runG2WithSomes' red hal ord [] solver simplifier verifier_state bindings'')
-                                            emptyLemmaInfo
-                                        )
-                                        emptyApproxPrevs
+                                        (runG2WithSomes' red hal ord [] solver simplifier verifier_state bindings'')
+                                        emptyLemmaInfo
                                     )
-                                    lnt
+                                    emptyApproxPrevs
                                 )
                                 rs
     

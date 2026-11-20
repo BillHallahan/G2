@@ -5,13 +5,11 @@
 module G2.Execution.HPC ( HpcT
                         , HpcM
                         , HpcTracker
-                        , LengthNTrack
                         
                         , hpcTracker
                         , immedHpcReducer
                         , onAcceptHpcReducer
                         
-                        , lnt
                         , lengthNSubpathOrderer ) where
 
 import G2.Execution.Internals.Reducer
@@ -157,16 +155,9 @@ getHPCTicks :: HS.HashSet (Maybe T.Text) -> Expr -> [(Unique, T.Text)]
 getHPCTicks m (Tick (HpcTick i m2) _) | Just m2 `HS.member` m = [(i, m2)]
 getHPCTicks _ _ = []
 
-
 -------------------------------------------------------------------------------
 -- Length N Subpaths
 -------------------------------------------------------------------------------
-
-newtype LengthNTrack = LNT { unLNT :: HM.HashMap [(Unique, T.Text)] Int }
-
--- | State used by `lengthNSubpathOrderer`.
-lnt :: LengthNTrack
-lnt = LNT HM.empty
 
 -- | Orders states based on length N subpaths.
 -- Each time execution switches states, the state with the least common most
@@ -175,7 +166,7 @@ lnt = LNT HM.empty
 -- Based on the paper:
 --     Steering Symbolic Execution to Less Traveled Paths
 --     You Li, Zhendong Su, Linzhang Wang, Xuandong Li
-lengthNSubpathOrderer :: (MonadIO m, SM.MonadState LengthNTrack m) =>
+lengthNSubpathOrderer :: (MonadIO m, SM.MonadState ReducerState m) =>
                          Int -- ^ N, the length of the subpaths to track
                       -> Orderer m [(Unique, T.Text)] Int r t
 lengthNSubpathOrderer n = (mkSimpleOrderer initial order update) { stepOrderer  = step }
@@ -183,14 +174,14 @@ lengthNSubpathOrderer n = (mkSimpleOrderer initial order update) { stepOrderer  
         initial _ = []
 
         order p _ _ = do
-            LNT sp <- SM.get
+            LNT sp <- getLengthNTrack
             return $ fromMaybe 0 (HM.lookup p sp)
 
         update p _ _ = p
 
         step p _ _ (State { curr_expr = CurrExpr Evaluate (Tick (HpcTick i m) _) }) = do
             let p' = take n $ (i, m):p
-            SM.modify (LNT . HM.insertWith (+) p' 1 . unLNT)
+            modifyLengthNTrack (LNT . HM.insertWith (+) p' 1 . unLNT)
             -- count <- SM.gets (HM.lookup p' . unLNT)
             -- liftIO $ do
             --     putStrLn $ "p' = " ++ show p' ++ " c = " ++ show count
