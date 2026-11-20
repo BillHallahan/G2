@@ -69,10 +69,10 @@ data ApproxPrevs t = AP { ap_nrpc_states :: [State t], ap_halter_states :: [Appr
 emptyApproxPrevs :: ApproxPrevs t
 emptyApproxPrevs = AP { ap_nrpc_states = [], ap_halter_states = [] }
 
-addApproxPrevs :: SM.MonadState (ApproxPrevs t) m => State t -> m ()
+addApproxPrevs :: SM.MonadState (ReducerState t) m => State t -> m ()
 addApproxPrevs s = do
-    xs <- SM.gets ap_halter_states
-    SM.modify (\a -> a { ap_halter_states = createApproxPreppedState s:xs })
+    xs <- SM.gets (ap_halter_states . approx_prevs)
+    SM.modify (\rs -> rs { approx_prevs = (approx_prevs rs) { ap_halter_states = createApproxPreppedState s:xs } })
 
 -- | State used by `lengthNSubpathOrderer`.
 lnt :: LengthNTrack

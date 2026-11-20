@@ -796,7 +796,7 @@ mrContIgnoreNRPCTicks genLemma lkp s1 s2 ns hm active n1 n2 e1 e2 =
             moreRestrictive' (mrContIgnoreNRPCTicks genLemma lkp) genLemma lkp s1 s2 ns hm active n1 n2 e1 e2'
         _ -> Left []
 
-acceptLemmaReducer :: (MonadIO m, SM.MonadState (ApproxPrevs VerifierTracker) m) => Reducer m () VerifierTracker
+acceptLemmaReducer :: (MonadIO m, SM.MonadState (ReducerState VerifierTracker) m) => Reducer m () VerifierTracker
 acceptLemmaReducer = (mkSimpleReducer (const ()) (\rv s b -> return (NoProgress, [(s, rv)], b))) { onDiscard = dis }
     where
         dis _ all_states s _
