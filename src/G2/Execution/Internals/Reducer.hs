@@ -5,6 +5,7 @@ module G2.Execution.Internals.Reducer (module G2.Execution.Internals.Reducer
 
 import G2.Language
 import qualified G2.Language.HPC as HPC
+import G2.Lib.Printers
 import qualified Control.Monad.State as SM
 import qualified Data.HashMap.Lazy as HM
 import qualified Data.HashSet as HS
@@ -21,7 +22,12 @@ import GhcMonad (GhcT, liftGhcT)
 -- * Reducer State
 
 data ReducerState = RS { hpc_tracker :: HpcTracker
-                       , hpc_memo_table :: HPC.HpcMemoTable }
+                       , hpc_memo_table :: HPC.HpcMemoTable
+                       
+                       , pretty_guide :: PrettyGuide
+
+                       , error_memo_table :: ErrorMemoTable                       
+                       }
 
 data HpcTracker = HPC {
                         hpc_ticks :: HM.HashMap (Unique, T.Text) TimeSpec -- ^ The HPC ticks that execution has reached mapped to the time each was reached
@@ -34,6 +40,8 @@ data HpcTracker = HPC {
                       , h_print_times :: Bool -- ^ Print the time each tick is reached?
                       , h_print_ticks :: Bool -- ^ Print each HPC tick number that was reached?
                       }
+
+type ErrorMemoTable = HM.HashMap Name Bool
 
 getHpcTracker :: SM.MonadState ReducerState m => m HpcTracker
 getHpcTracker = SM.gets hpc_tracker
@@ -59,6 +67,18 @@ reachesHPC mod_name eenv e = do
     let (v, hpc') = SM.runState (HPC.reachesHPC' mod_name eenv e) hpc
     putHpcMemoTable hpc'
     return v
+
+getPrettyGuide :: SM.MonadState ReducerState m => m PrettyGuide
+getPrettyGuide = SM.gets pretty_guide
+
+putPrettyGuide:: SM.MonadState ReducerState m => PrettyGuide -> m ()
+putPrettyGuide pg = SM.modify' (\rs -> rs { pretty_guide = pg })
+
+getErrorMemoTable :: SM.MonadState ReducerState m => m ErrorMemoTable
+getErrorMemoTable = SM.gets error_memo_table
+
+putErrorMemoTable :: SM.MonadState ReducerState m => ErrorMemoTable -> m ()
+putErrorMemoTable emt = SM.modify' (\rs -> rs { error_memo_table = emt })
 
 -- * Reducers, Halters, Orderers
 
