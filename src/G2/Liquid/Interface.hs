@@ -137,7 +137,7 @@ runLHCore entry mb_modname_exg2 ghci config lhconfig = do
     let simplifier = NaNInfBlockSimplifier :>> FloatSimplifier :>> ArithSimplifier
 
     let (red, hal, ord) = lhReducerHalterOrderer config lhconfig solver simplifier entry (nameModule $ idName ifi) cfn final_st
-    (exec_res, final_bindings) <- SM.evalStateT (runLHG2 config red hal ord solver simplifier pres_names ifi final_st bindings) (mkPrettyGuide ())
+    (exec_res, final_bindings) <- SM.evalStateT (runLHG2 config red hal ord solver simplifier pres_names ifi final_st bindings) (initReducerStatePG $ mkPrettyGuide ())
 
     close solver
 
@@ -456,9 +456,9 @@ lhReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifier)
                        -> Maybe T.Text
                        -> CounterfactualName
                        -> State t
-                       -> ( SomeReducer (SM.StateT PrettyGuide m) LHTracker
-                          , SomeHalter (SM.StateT PrettyGuide m) (ExecRes LHTracker) LHTracker
-                          , SomeOrderer (SM.StateT PrettyGuide m) (ExecRes LHTracker) LHTracker)
+                       -> ( SomeReducer (SM.StateT (ReducerState LHTracker) m) LHTracker
+                          , SomeHalter (SM.StateT (ReducerState LHTracker) m) (ExecRes LHTracker) LHTracker
+                          , SomeOrderer (SM.StateT (ReducerState LHTracker) m) (ExecRes LHTracker) LHTracker)
 lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st =
     let
         state_name = Name "state" Nothing 0 Nothing

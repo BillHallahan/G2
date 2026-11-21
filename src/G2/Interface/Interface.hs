@@ -324,12 +324,7 @@ initCheckReaches s@(State { expr_env = eenv
                           , tyvar_env = tvnv}) m_mod reaches =
     s {expr_env = checkReaches tvnv eenv kv reaches m_mod }
 
-type RHOStack m t = SM.StateT (ApproxPrevs t)
-                        (SM.StateT LengthNTrack
-                            (SM.StateT PrettyGuide
-                                (SM.StateT ErrorMemoTable
-                                    (SM.StateT HpcTracker
-                                        (SM.StateT HPCMemoTable m)))))
+type RHOStack m t = SM.StateT (ReducerState t) m
 
 -- Todo: implement this in a way that doesn't trigger the orphan rule
 {-# SPECIALIZE runReducer :: Ord b =>
@@ -391,7 +386,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                          $ expr_env s
 
     (func_constraint_res, func_const_time) <- solveFuncConstraintsReducer config solver simplifier approx_no_inline
-    let func_constraint_res' = liftSomeReducer . liftSomeReducer . liftSomeReducer . liftSomeReducer . liftSomeReducer . liftSomeReducer . SomeReducer $ func_constraint_res
+    let func_constraint_res' = SomeReducer $ func_constraint_res
 
     let state_name = Name "state" Nothing 0 Nothing
                          
@@ -405,13 +400,12 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                         False -> strict_red f
 
         nrpc_lib_red f = case lib_nrpc config of
-                                Nrpc -> liftSomeReducer
-                                            (SomeReducer (nonRedLibFuncsReducer
+                                Nrpc -> (SomeReducer (nonRedLibFuncsReducer
                                                                         exec_func_names
                                                                         no_nrpc_names
                                                                         config
-                                                        ) .== Finished .--> hpc_red f)
-                                NoNrpc -> liftSomeReducer (hpc_red f)
+                                                     ) .== Finished .--> hpc_red f)
+                                NoNrpc -> (hpc_red f)
 
         nrpc_higher_red f = case symbolic_func_nrpc config of
                                 Nrpc -> SomeReducer (nonRedHigherOrderReducer config approx_no_inline) .== Finished .--> nrpc_lib_red f
@@ -421,7 +415,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                                 Nrpc -> SomeReducer (nonRedPathsReducer solver config) .== Finished .--> nrpc_higher_red f
                                 NoNrpc -> nrpc_higher_red f
         
-        func_const_red f = liftSomeReducer $ case higherOrderSolver config of
+        func_const_red f = case higherOrderSolver config of
                                 SymConstraints -> SomeReducer (limitSolvingFuncConstraintPieces $ fc_arg_step_limit config) .~>
                                     (SomeReducer (addFuncConstraintReducer solver simplifier approx_no_inline config) .== Finished
                                                                                         .--> nrpc_paths_red f)
@@ -436,8 +430,8 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                                 False -> accept_time_red f
 
         logger_std_red f = case m_logger of
-                            Just logger -> liftSomeReducer $ liftSomeReducer (logger .~> num_steps_red f)
-                            Nothing -> liftSomeReducer $ liftSomeReducer (num_steps_red f)
+                            Just logger -> logger .~> num_steps_red f
+                            Nothing -> num_steps_red f
 
         nrpc_approx_red f = case approx_nrpc config of
                                 Nrpc -> let nrpc_approx = nrpcApproxReducer approx_no_inline no_nrpc_names config in
@@ -454,7 +448,7 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                             False -> SomeHalter halter
         
         halter_hpc_discard = case hpc_discard_strat config of
-                                    True -> SomeHalter (liftHalter . liftHalter . liftHalter . liftHalter . liftHalter $ noNewHPCHalter mod_name) .<~> halter_step
+                                    True -> SomeHalter (noNewHPCHalter mod_name) .<~> halter_step
                                     False -> halter_step
 
         halter_approx_discard = case approx_discard config of
@@ -472,10 +466,10 @@ initRedHaltOrd s mod_name solver simplifier config exec_func_names no_nrpc_names
                                         SomeHalter (sumAdtHeightHalter lim) .<~> max_halter_height
                                     Nothing -> max_halter_height
 
-        halter_func_arg = SomeHalter (liftHalter . liftHalter . liftHalter $ funcArgReachesErrorHalter) .<~> sum_halter_height
+        halter_func_arg = SomeHalter funcArgReachesErrorHalter .<~> sum_halter_height
 
         orderer = case search_strat config of
-                        Subpath -> SomeOrderer . liftOrderer $ lengthNSubpathOrderer (subpath_length config)
+                        Subpath -> SomeOrderer $ lengthNSubpathOrderer (subpath_length config)
                         ADTHeightOrd -> SomeOrderer $ sumAdtHeightOrderer 0
                         Iterative -> SomeOrderer pickLeastUsedOrderer
 
@@ -721,39 +715,26 @@ runG2WithConfig proj src entry_f f gflags mb_modname state config bindings = do
     
     analysis4 <- if print_up_to_height config then do l <- allOfHeightTerminated config (idName entry_f) state'; return [l] else return noAnalysis
 
-    let analysis2 = if states_at_step config then [\s p xs -> SM.lift .  SM.lift . SM.lift . SM.lift . SM.lift . SM.lift  $ logStatesAtStep s p xs] else noAnalysis
-        analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift . SM.lift . SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
+    let analysis2 = if states_at_step config then [\s p xs -> SM.lift . SM.lift  $ logStatesAtStep s p xs] else noAnalysis
+        analysis3 = if print_num_red_rules config then [\s p xs -> SM.lift . SM.lift . SM.lift $ logRedRuleNum s p xs] else noAnalysis
         analysis = analysis1 ++ analysis2 ++ analysis3 ++ analysis4
 
-    let pretty_guide = if showType config == Lax 
+    let pg = if showType config == Lax 
                             then (mkPrettyGuide ())
                             else setTypePrinting AggressiveTypes (mkPrettyGuide ())
-        pretty_guide' = setLogTypeClasses (log_typeclasses config) 
-                      $ setLogInternalName (log_internal_names config) pretty_guide
+        pg' = setLogTypeClasses (log_typeclasses config) 
+            $ setLogInternalName (log_internal_names config) pg
+        
+        red_state = initReducerState hpc_t pg'
 
     (in_out, got_unknown, bindings'', timed_out, fc_time) <- case null analysis of
         True -> do
             rho <- initRedHaltOrd state' all_mod_set solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
             case rho of
                 (red, hal, ord, to, fc_time) ->
-                        SM.evalStateT (
                             SM.evalStateT
-                                (SM.evalStateT
-                                    (SM.evalStateT
-                                        (SM.evalStateT
-                                            (SM.evalStateT
-                                                    (addTimedOutAndFCTime to fc_time $ runG2WithValidate proj src all_mod_set (T.unpack f) entry_f gflags red hal ord [] solver simplifier state' config bindings')
-                                                emptyApproxPrevs
-                                            )
-                                            lnt
-                                        )
-                                        pretty_guide'
-                                    )
-                                HM.empty
-                                )
-                                hpc_t
-                            )
-                            HM.empty
+                                (addTimedOutAndFCTime to fc_time $ runG2WithValidate proj src all_mod_set (T.unpack f) entry_f gflags red hal ord [] solver simplifier state' config bindings')
+                            red_state
         False -> do
             rho <- initRedHaltOrd state' all_mod_set solver simplifier config (S.fromList executable_funcs) (S.fromList non_rec_funcs)
             case rho of
@@ -762,20 +743,8 @@ runG2WithConfig proj src entry_f f gflags mb_modname state config bindings = do
                             SM.evalStateT (
                                 SM.evalStateT (
                                     SM.evalStateT
-                                        (SM.evalStateT
-                                            (SM.evalStateT
-                                                (SM.evalStateT
-                                                    (SM.evalStateT
-                                                            (addTimedOutAndFCTime to fc_time $ runG2WithValidate proj src all_mod_set (T.unpack f) entry_f gflags red hal ord analysis solver simplifier state' config bindings')
-                                                        emptyApproxPrevs
-                                                    )
-                                                    lnt
-                                                )
-                                                pretty_guide'
-                                            )
-                                            HM.empty
-                                        )
-                                        hpc_t
+                                        (addTimedOutAndFCTime to fc_time $ runG2WithValidate proj src all_mod_set (T.unpack f) entry_f gflags red hal ord analysis solver simplifier state' config bindings')
+                                        red_state
                                     )
                                     HM.empty
                                 )
@@ -896,14 +865,14 @@ runG2WithValidate :: ( MonadIO m
                -> Config
                -> Bindings
                -> m ([ExecRes t], GotUnknown, Bindings)
-runG2WithValidate proj src modN entry entry_id gflags red hal ord analyze solver simplifier state config bindings =
+runG2WithValidate proj src modN entry_f entry_id gflags red hal ord analyze solver simplifier state config bindings =
     runGhcT (Just libdir) (case (red, hal, ord) of
         (SomeReducer red', SomeHalter hal', SomeOrderer ord') -> do
             when (validate config) (loadSession proj src modN gflags)
             --runG2 red' hal' ord' analyze solver simplifier state bindings
             let liftGhcT3 f x y z = liftGhcT (f x y z) 
                 analyze' = map liftGhcT3 analyze
-            runExecution (liftReducerGhcT red') (liftHalterGhcT hal') (liftOrdererGhcT ord') (runG2SolvingValidate modN entry entry_id config solver simplifier) analyze' state bindings)
+            runExecution (liftReducerGhcT red') (liftHalterGhcT hal') (liftOrdererGhcT ord') (runG2SolvingValidate modN entry_f entry_id config solver simplifier) analyze' state bindings)
 
 runG2Pre :: ( Named t
             , ASTContainer t Expr

@@ -1,16 +1,147 @@
-{-# LANGUAGE CPP, GADTs, RankNTypes #-}
+{-# LANGUAGE CPP, FlexibleContexts, GADTs, RankNTypes #-}
 
-module G2.Execution.Internals.Reducer where
+module G2.Execution.Internals.Reducer (module G2.Execution.Internals.Reducer
+                                      , HPC.HpcMemoTable ) where
 
 import G2.Language
+import G2.Language.Approximation
+import qualified G2.Language.HPC as HPC
+import G2.Lib.Printers
 import qualified Control.Monad.State as SM
+import qualified Data.HashMap.Lazy as HM
+import qualified Data.HashSet as HS
 import qualified Data.Map as M
+import qualified Data.Text as T
+import System.Clock
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,0,2,0)
 import GHC.Driver.Monad
 #else
 import GhcMonad (GhcT, liftGhcT)
 #endif
+
+-- * Reducer State
+
+data ReducerState t = RS { hpc_tracker :: HpcTracker
+                          , hpc_memo_table :: HPC.HpcMemoTable
+
+                          , length_n_track :: LengthNTrack
+
+                          , approx_prevs :: ApproxPrevs t
+                       
+                          , pretty_guide :: PrettyGuide
+
+                          , error_memo_table :: ErrorMemoTable                       
+                          }
+
+initReducerState :: HpcTracker -> PrettyGuide -> ReducerState t
+initReducerState hpc pg = RS { hpc_tracker = hpc
+                             , hpc_memo_table = HM.empty
+
+                             , length_n_track = lnt
+
+                             , approx_prevs = emptyApproxPrevs
+
+                             , pretty_guide = pg
+                             , error_memo_table = HM.empty }
+
+initReducerStatePG :: PrettyGuide -> ReducerState t
+initReducerStatePG = initReducerState (error "initReducerStatePG: no HPC tick tracking")
+
+data HpcTracker = HPC {
+                        hpc_ticks :: HM.HashMap (Unique, T.Text) TimeSpec -- ^ The HPC ticks that execution has reached mapped to the time each was reached
+
+                      , tick_count :: Int -- ^ Total number of HPC ticks that we could reach
+                      , num_reached :: Int -- ^ Total number of HPC ticks currently reached by execution
+
+                      , initial_time :: TimeSpec -- ^ The initial creation time of the HpcTracker
+                      
+                      , h_print_times :: Bool -- ^ Print the time each tick is reached?
+                      , h_print_ticks :: Bool -- ^ Print each HPC tick number that was reached?
+                      }
+
+type ErrorMemoTable = HM.HashMap Name Bool
+
+newtype LengthNTrack = LNT { unLNT :: HM.HashMap [(Unique, T.Text)] Int }
+
+data ApproxPrevs t = AP { ap_nrpc_states :: [State t], ap_halter_states :: [ApproxPreppedState t]}
+
+emptyApproxPrevs :: ApproxPrevs t
+emptyApproxPrevs = AP { ap_nrpc_states = [], ap_halter_states = [] }
+
+addApproxPrevs :: SM.MonadState (ReducerState t) m => State t -> m ()
+addApproxPrevs s = do
+    xs <- SM.gets (ap_halter_states . approx_prevs)
+    SM.modify (\rs -> rs { approx_prevs = (approx_prevs rs) { ap_halter_states = createApproxPreppedState s:xs } })
+
+-- | State used by `lengthNSubpathOrderer`.
+lnt :: LengthNTrack
+lnt = LNT HM.empty
+
+-- HpcTracker
+
+getHpcTracker :: SM.MonadState (ReducerState t) m => m HpcTracker
+getHpcTracker = SM.gets hpc_tracker
+
+modifyHpcTracker :: SM.MonadState (ReducerState t) m => (HpcTracker -> HpcTracker) -> m ()
+modifyHpcTracker f = SM.modify' (\rs -> rs { hpc_tracker = f (hpc_tracker rs) })
+
+putHpcTracker :: SM.MonadState (ReducerState t) m => HpcTracker -> m ()
+putHpcTracker hpc = SM.modify' (\rs -> rs { hpc_tracker = hpc })
+
+-- HpcMemoTable
+
+getHpcMemoTable :: SM.MonadState (ReducerState t) m => m HPC.HpcMemoTable
+getHpcMemoTable = SM.gets hpc_memo_table
+
+putHpcMemoTable :: SM.MonadState (ReducerState t) m => HPC.HpcMemoTable -> m ()
+putHpcMemoTable hpc = SM.modify' (\rs -> rs { hpc_memo_table = hpc })
+
+modifyHpcMemoTable :: SM.MonadState (ReducerState t) m => (HPC.HpcMemoTable -> HPC.HpcMemoTable) -> m ()
+modifyHpcMemoTable f = SM.modify' (\rs -> rs { hpc_memo_table = f (hpc_memo_table rs) })
+
+reachesHPC :: (SM.MonadState (ReducerState t) m, ASTContainer c Expr) => HS.HashSet (Maybe T.Text) -> ExprEnv -> c -> m (HS.HashSet (Unique, T.Text))
+reachesHPC mod_name eenv e = do
+    hpc <- getHpcMemoTable
+    let (v, hpc') = SM.runState (HPC.reachesHPC' mod_name eenv e) hpc
+    putHpcMemoTable hpc'
+    return v
+
+-- LengthNTrack
+
+getLengthNTrack :: SM.MonadState (ReducerState t) m => m LengthNTrack
+getLengthNTrack = SM.gets length_n_track
+
+modifyLengthNTrack :: SM.MonadState (ReducerState t) m => (LengthNTrack -> LengthNTrack) -> m ()
+modifyLengthNTrack f = SM.modify' (\rs -> rs { length_n_track = f (length_n_track rs) })
+
+-- ApproxPrevs
+
+getApproxPrevs :: SM.MonadState (ReducerState t) m => m (ApproxPrevs t)
+getApproxPrevs = SM.gets approx_prevs
+
+putApproxPrevs :: SM.MonadState (ReducerState t) m => ApproxPrevs t -> m ()
+putApproxPrevs ap = SM.modify' (\rs -> rs { approx_prevs = ap })
+
+modifyApproxPrevs :: SM.MonadState (ReducerState t) m => (ApproxPrevs t -> ApproxPrevs t) -> m ()
+modifyApproxPrevs f = SM.modify' (\rs -> rs { approx_prevs = f (approx_prevs rs) })
+
+-- PrettyGuide
+getPrettyGuide :: SM.MonadState (ReducerState t) m => m PrettyGuide
+getPrettyGuide = SM.gets pretty_guide
+
+putPrettyGuide:: SM.MonadState (ReducerState t) m => PrettyGuide -> m ()
+putPrettyGuide pg = SM.modify' (\rs -> rs { pretty_guide = pg })
+
+-- ErrorMemoTable
+
+getErrorMemoTable :: SM.MonadState (ReducerState t) m => m ErrorMemoTable
+getErrorMemoTable = SM.gets error_memo_table
+
+putErrorMemoTable :: SM.MonadState (ReducerState t) m => ErrorMemoTable -> m ()
+putErrorMemoTable emt = SM.modify' (\rs -> rs { error_memo_table = emt })
+
+-- * Reducers, Halters, Orderers
 
 -- | Used when applying execution rules
 -- Allows tracking extra information to control halting of rule application,
