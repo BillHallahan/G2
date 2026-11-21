@@ -456,9 +456,9 @@ lhReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifier)
                        -> Maybe T.Text
                        -> CounterfactualName
                        -> State t
-                       -> ( SomeReducer (SM.StateT ReducerState m) LHTracker
-                          , SomeHalter (SM.StateT ReducerState m) (ExecRes LHTracker) LHTracker
-                          , SomeOrderer (SM.StateT ReducerState m) (ExecRes LHTracker) LHTracker)
+                       -> ( SomeReducer (SM.StateT (ReducerState LHTracker) m) LHTracker
+                          , SomeHalter (SM.StateT (ReducerState LHTracker) m) (ExecRes LHTracker) LHTracker
+                          , SomeOrderer (SM.StateT (ReducerState LHTracker) m) (ExecRes LHTracker) LHTracker)
 lhReducerHalterOrderer config lhconfig solver simplifier entry mb_modname cfn st =
     let
         state_name = Name "state" Nothing 0 Nothing

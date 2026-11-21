@@ -417,9 +417,9 @@ gatherReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifier)
                            -> LHConfig
                            -> solver
                            -> simplifier
-                           -> IO ( SomeReducer (SM.StateT ReducerState m) [FuncCall]
-                                 , SomeHalter (SM.StateT ReducerState m) (ExecRes [FuncCall]) [FuncCall]
-                                 , SomeOrderer (SM.StateT ReducerState m) (ExecRes [FuncCall]) [FuncCall])
+                           -> IO ( SomeReducer (SM.StateT (ReducerState [FuncCall]) m) [FuncCall]
+                                 , SomeHalter (SM.StateT (ReducerState [FuncCall]) m) (ExecRes [FuncCall]) [FuncCall]
+                                 , SomeOrderer (SM.StateT (ReducerState [FuncCall]) m) (ExecRes [FuncCall]) [FuncCall])
 gatherReducerHalterOrderer infconfig config lhconfig solver simplifier = do
     let
         state_name = Name "state" Nothing 0 Nothing
@@ -530,9 +530,9 @@ inferenceReducerHalterOrderer :: (MonadIO m, MonadIO m_run, Solver solver, Simpl
                               -> Maybe T.Text
                               -> Name
                               -> State LHTracker
-                              -> InfStack m ( SomeReducer (SM.StateT ReducerState m_run) LHTracker
-                                            , SomeHalter  (SM.StateT ReducerState m_run) (ExecRes LHTracker) LHTracker
-                                            , SomeOrderer (SM.StateT ReducerState m_run) (ExecRes LHTracker) LHTracker)
+                              -> InfStack m ( SomeReducer (SM.StateT (ReducerState LHTracker) m_run) LHTracker
+                                            , SomeHalter  (SM.StateT (ReducerState LHTracker) m_run) (ExecRes LHTracker) LHTracker
+                                            , SomeOrderer (SM.StateT (ReducerState LHTracker) m_run) (ExecRes LHTracker) LHTracker)
 inferenceReducerHalterOrderer infconfig config lhconfig solver simplifier entry mb_modname cfn st = do
     extra_ce <- extraMaxCExI (entry, mb_modname)
     extra_time <- extraMaxTimeI (entry, mb_modname)
@@ -623,9 +623,9 @@ realCExReducerHalterOrderer :: (MonadIO m, MonadIO m_run, Solver solver, Simplif
                             -> solver
                             -> simplifier
                             -> Name
-                            -> InfStack m ( SomeReducer (SM.StateT ReducerState m_run) LHTracker
-                                          , SomeHalter (SM.StateT ReducerState m_run) (ExecRes LHTracker) LHTracker
-                                          , SomeOrderer (SM.StateT ReducerState m_run) (ExecRes LHTracker) LHTracker)
+                            -> InfStack m ( SomeReducer (SM.StateT (ReducerState LHTracker) m_run) LHTracker
+                                          , SomeHalter (SM.StateT (ReducerState LHTracker) m_run) (ExecRes LHTracker) LHTracker
+                                          , SomeOrderer (SM.StateT (ReducerState LHTracker) m_run) (ExecRes LHTracker) LHTracker)
 realCExReducerHalterOrderer infconfig config lhconfig entry modname solver simplifier  cfn = do
     extra_ce <- extraMaxCExI (entry, modname)
     extra_depth <- extraMaxDepthI
@@ -1113,7 +1113,7 @@ genericG2CallLogging :: ( MonadIO m
                      -> State t
                      -> Bindings
                      -> String
-                     -> (SM.StateT ReducerState m) ([ExecRes t], GotUnknown, Bindings)
+                     -> (SM.StateT (ReducerState t) m) ([ExecRes t], GotUnknown, Bindings)
 genericG2CallLogging config solver s bindings lg = do
     let simplifier = NaNInfBlockSimplifier :>> FloatSimplifier :>> ArithSimplifier
 
