@@ -376,7 +376,7 @@ gatherAllowedCalls entry m lrs ghci infconfig config lhconfig = do
                   , track = [] :: [FuncCall] }
 
     (red, hal, ord) <- gatherReducerHalterOrderer infconfig config' lhconfig solver simplifier
-    (exec_res, _, bindings'') <- SM.evalStateT (runG2WithSomes red hal ord noAnalysis solver simplifier pres_names s'' bindings') (mkPrettyGuide ())
+    (exec_res, _, bindings'') <- SM.evalStateT (runG2WithSomes red hal ord noAnalysis solver simplifier pres_names s'' bindings') (initReducerStatePG $ mkPrettyGuide ())
 
     putStrLn $ "length exec_res = " ++ show (length exec_res)
 
@@ -417,9 +417,9 @@ gatherReducerHalterOrderer :: (MonadIO m, Solver solver, Simplifier simplifier)
                            -> LHConfig
                            -> solver
                            -> simplifier
-                           -> IO ( SomeReducer (SM.StateT PrettyGuide m) [FuncCall]
-                                 , SomeHalter (SM.StateT PrettyGuide m) (ExecRes [FuncCall]) [FuncCall]
-                                 , SomeOrderer (SM.StateT PrettyGuide m) (ExecRes [FuncCall]) [FuncCall])
+                           -> IO ( SomeReducer (SM.StateT (ReducerState [FuncCall]) m) [FuncCall]
+                                 , SomeHalter (SM.StateT (ReducerState [FuncCall]) m) (ExecRes [FuncCall]) [FuncCall]
+                                 , SomeOrderer (SM.StateT (ReducerState [FuncCall]) m) (ExecRes [FuncCall]) [FuncCall])
 gatherReducerHalterOrderer infconfig config lhconfig solver simplifier = do
     let
         state_name = Name "state" Nothing 0 Nothing
@@ -509,7 +509,7 @@ runLHInferenceCore entry m lrs ghci = do
 
     (red, hal, ord) <- inferenceReducerHalterOrderer infconfig g2config lhconfig solver simplifier entry m cfn final_st'
     -- liftIO is important so that we specialize runLHG2Inference
-    (exec_res, final_bindings) <- liftIO $ SM.evalStateT (runLHG2Inference g2config red hal ord solver simplifier pres_names ifi final_st' bindings) (mkPrettyGuide ())
+    (exec_res, final_bindings) <- liftIO $ SM.evalStateT (runLHG2Inference g2config red hal ord solver simplifier pres_names ifi final_st' bindings) (initReducerStatePG $ mkPrettyGuide ())
 
     let exec_res' = modifyASTs simpErrors exec_res
 
@@ -530,9 +530,9 @@ inferenceReducerHalterOrderer :: (MonadIO m, MonadIO m_run, Solver solver, Simpl
                               -> Maybe T.Text
                               -> Name
                               -> State LHTracker
-                              -> InfStack m ( SomeReducer (SM.StateT PrettyGuide m_run) LHTracker
-                                            , SomeHalter  (SM.StateT PrettyGuide m_run) (ExecRes LHTracker) LHTracker
-                                            , SomeOrderer (SM.StateT PrettyGuide m_run) (ExecRes LHTracker) LHTracker)
+                              -> InfStack m ( SomeReducer (SM.StateT (ReducerState LHTracker) m_run) LHTracker
+                                            , SomeHalter  (SM.StateT (ReducerState LHTracker) m_run) (ExecRes LHTracker) LHTracker
+                                            , SomeOrderer (SM.StateT (ReducerState LHTracker) m_run) (ExecRes LHTracker) LHTracker)
 inferenceReducerHalterOrderer infconfig config lhconfig solver simplifier entry mb_modname cfn st = do
     extra_ce <- extraMaxCExI (entry, mb_modname)
     extra_time <- extraMaxTimeI (entry, mb_modname)
@@ -608,7 +608,7 @@ runLHCExSearch entry m lrs ghci = do
 
     (red, hal, ord) <- realCExReducerHalterOrderer infconfig g2config lhconfig' entry m solver simplifier cfn
     -- liftIO is important so that we specialize runLHG2Inference
-    (exec_res, final_bindings) <- liftIO $ SM.evalStateT (runLHG2Inference g2config red hal ord solver simplifier pres_names ifi final_st' bindings) (mkPrettyGuide ())
+    (exec_res, final_bindings) <- liftIO $ SM.evalStateT (runLHG2Inference g2config red hal ord solver simplifier pres_names ifi final_st' bindings) (initReducerStatePG $ mkPrettyGuide ())
 
     liftIO $ close solver
 
@@ -623,9 +623,9 @@ realCExReducerHalterOrderer :: (MonadIO m, MonadIO m_run, Solver solver, Simplif
                             -> solver
                             -> simplifier
                             -> Name
-                            -> InfStack m ( SomeReducer (SM.StateT PrettyGuide m_run) LHTracker
-                                          , SomeHalter (SM.StateT PrettyGuide m_run) (ExecRes LHTracker) LHTracker
-                                          , SomeOrderer (SM.StateT PrettyGuide m_run) (ExecRes LHTracker) LHTracker)
+                            -> InfStack m ( SomeReducer (SM.StateT (ReducerState LHTracker) m_run) LHTracker
+                                          , SomeHalter (SM.StateT (ReducerState LHTracker) m_run) (ExecRes LHTracker) LHTracker
+                                          , SomeOrderer (SM.StateT (ReducerState LHTracker) m_run) (ExecRes LHTracker) LHTracker)
 realCExReducerHalterOrderer infconfig config lhconfig entry modname solver simplifier  cfn = do
     extra_ce <- extraMaxCExI (entry, modname)
     extra_depth <- extraMaxDepthI
@@ -1113,7 +1113,7 @@ genericG2CallLogging :: ( MonadIO m
                      -> State t
                      -> Bindings
                      -> String
-                     -> (SM.StateT PrettyGuide m) ([ExecRes t], GotUnknown, Bindings)
+                     -> (SM.StateT (ReducerState t) m) ([ExecRes t], GotUnknown, Bindings)
 genericG2CallLogging config solver s bindings lg = do
     let simplifier = NaNInfBlockSimplifier :>> FloatSimplifier :>> ArithSimplifier
 

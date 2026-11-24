@@ -60,9 +60,11 @@ runG2ForNebula solver state h_opp track_opp config nc bindings = do
 
         state' = state { track = (track state) { saw_tick = Nothing } }
 
+        rs = initReducerStatePG (mkPrettyGuide ())
+
     (in_out, got_unknown, bindings') <- case rewriteRedHaltOrd solver simplifier h_opp track_opp config nc of
                 (red, hal, ord) ->
-                    SM.evalStateT (runG2WithSomes red hal ord noAnalysis solver simplifier sym_config state' bindings) (mkPrettyGuide ())
+                    SM.evalStateT (runG2WithSomes red hal ord noAnalysis solver simplifier sym_config state' bindings) rs
 
     return (in_out, got_unknown, bindings')
 
@@ -73,9 +75,9 @@ rewriteRedHaltOrd :: (MonadIO m, Solver solver, Simplifier simplifier) =>
                      EquivTracker ->
                      Config ->
                      NebulaConfig ->
-                     ( SomeReducer (SM.StateT PrettyGuide m) EquivTracker
-                     , SomeHalter (SM.StateT PrettyGuide m) (ExecRes EquivTracker) EquivTracker
-                     , SomeOrderer (SM.StateT PrettyGuide m) (ExecRes EquivTracker) EquivTracker)
+                     ( SomeReducer (SM.StateT (ReducerState EquivTracker) m) EquivTracker
+                     , SomeHalter (SM.StateT (ReducerState EquivTracker) m) (ExecRes EquivTracker) EquivTracker
+                     , SomeOrderer (SM.StateT (ReducerState EquivTracker) m) (ExecRes EquivTracker) EquivTracker)
 rewriteRedHaltOrd solver simplifier h_opp track_opp config (NC { use_labeled_errors = use_labels }) =
     let
         state_name = Name "state" Nothing 0 Nothing

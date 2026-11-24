@@ -39,9 +39,7 @@ data VerifyResult = Verified
                   deriving (Show)
 
 type VerStack m = SM.StateT LemmaInfo
-                    (SM.StateT (ApproxPrevs VerifierTracker)
-                        (SM.StateT LengthNTrack
-                            (SM.StateT PrettyGuide m)))
+                            (SM.StateT (ReducerState VerifierTracker) m)
 
 labelApproxPoints :: State VerifierTracker -> String
 labelApproxPoints s
@@ -95,8 +93,8 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
                                 False -> accept_time_red f
 
         logger_std_red f = case m_logger of
-                            Just logger -> liftSomeReducer . liftSomeReducer $ liftSomeReducer (logger .~> num_steps_red f)
-                            Nothing -> liftSomeReducer . liftSomeReducer $ liftSomeReducer (num_steps_red f)
+                            Just logger -> liftSomeReducer (logger .~> num_steps_red f)
+                            Nothing -> liftSomeReducer (num_steps_red f)
 
         set_focus_red f = SomeReducer adjustFocusReducer .~> logger_std_red f
 
@@ -129,7 +127,7 @@ verifyRedHaltOrd s solver simplifier config verify_config no_nrpc_names = do
                                         False -> inconsistent_halter
 
         orderer = case search_strat config of
-                        Subpath -> SomeOrderer . liftOrderer . liftOrderer $ lengthNSubpathOrderer (subpath_length config)
+                        Subpath -> SomeOrderer . liftOrderer $ lengthNSubpathOrderer (subpath_length config)
                         ADTHeightOrd -> SomeOrderer $ sumAdtHeightOrderer 0
                         Iterative -> SomeOrderer pickLeastUsedOrderer
 
@@ -207,23 +205,18 @@ verifyFromFile proj src f transConfig config verify_config = do
     init_time <- getTime Realtime
     rho <- verifyRedHaltOrd verifier_state solver simplifier config' verify_config (S.fromList no_nrpc_names)
     let to = case rho of (_, _, _, to_)-> to_
+        rs = initReducerStatePG (if showType config == Lax 
+                                        then mkPrettyGuide ()
+                                        else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
     (er, _got_unknown, bindings''') <-
             case rho of
                 (red, hal, ord, _) ->
                         SM.evalStateT
-                                (SM.evalStateT
                                     (SM.evalStateT
-                                        (SM.evalStateT
-                                            (runG2WithSomes' red hal ord [] solver simplifier verifier_state bindings'')
-                                            emptyLemmaInfo
-                                        )
-                                        emptyApproxPrevs
+                                        (runG2WithSomes' red hal ord [] solver simplifier verifier_state bindings'')
+                                        emptyLemmaInfo
                                     )
-                                    lnt
-                                )
-                                (if showType config == Lax 
-                                then mkPrettyGuide ()
-                                else setTypePrinting AggressiveTypes (mkPrettyGuide ())) 
+                                rs
     
     to' <- readIORef to
     accept_time <- getTime Realtime

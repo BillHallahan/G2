@@ -20,7 +20,9 @@ import G2.Config
 import G2.Data.Utils
 import G2.Execution.NewPC
 import G2.Execution.NormalForms
-import G2.Execution.Internals.Reducer
+import G2.Execution.Internals.Reducer ( ReducerState, Reducer (..), Halter (..), RedRules, ReducerRes (..), HaltC (..)
+                                      , ErrorMemoTable, getErrorMemoTable, putErrorMemoTable
+                                      , mkSimpleReducer, mkSimpleHalter )
 import G2.Language as L
 import qualified G2.Language.ExprEnv as E
 import G2.Language.Monad
@@ -51,7 +53,7 @@ import qualified Data.Text.IO as T
 import System.Clock
 
 -- | A reducer to add higher order functions to the symbolic function constraints for solving later  
-addFuncConstraintReducer :: (Solver solver, Simplifier simplifier, MonadIO m, SM.MonadState ErrorMemoTable m) =>
+addFuncConstraintReducer :: (Solver solver, Simplifier simplifier, MonadIO m, SM.MonadState (ReducerState t) m) =>
                              solver
                          -> simplifier
                          -> HS.HashSet Name
@@ -103,7 +105,7 @@ In the running example, we would get:
     fr_branch1 = 2 \/ fr_branch2 = 2 = 3 => g y = r2
 -}
 
-redFuncConstraint :: (Solver solver, Simplifier simplifier, MonadIO m, SM.MonadState ErrorMemoTable m) =>
+redFuncConstraint :: (Solver solver, Simplifier simplifier, MonadIO m, SM.MonadState (ReducerState t) m) =>
                      solver
                   -> simplifier
                   -> HS.HashSet Name
@@ -132,9 +134,9 @@ redFuncConstraint solver simplifier no_inline fc_count s b =
             unif_s_ng <- runNamingT (unifyFuncConstraints solver simplifier no_inline s') ng'
             case unif_s_ng of
                 (Just s'', ng'') -> do
-                    err_memo <- SM.get
+                    err_memo <- getErrorMemoTable
                     let (xs, err_memo', ng''') = addFuncArgStates err_memo s ng''
-                    SM.put err_memo'
+                    putErrorMemoTable err_memo'
                     return (Finished, [(s'', fc_count + 1)] ++ map (,fc_count) xs, b { name_gen = ng''' })
                 _ -> return (Finished, [], b { name_gen = ng' })
         Nothing -> return (Finished, [(s, fc_count)], b)
@@ -2036,8 +2038,6 @@ addFuncArgStates'' s@(State { curr_expr = CurrExpr _ ce
     | otherwise = error $ "addFuncArgStates'': unsupported " ++ show t
     where t = tyVarSubst tv_env $ typeOf tv_env e
 
-type ErrorMemoTable = HM.HashMap Name Bool
-
 reachesError :: (SM.MonadState ErrorMemoTable m, ASTContainer c Expr) => E.ExprEnv -> c -> m Bool
 reachesError eenv es = return . getAny =<< mconcat <$> mapM (reaches eenv) (containedASTs es) 
 
@@ -2056,7 +2056,7 @@ reaches _ (Prim Error _) = return $ Any True
 reaches _ (Prim Undefined _) = return $ Any True
 reaches eenv e = mconcat <$> mapM (reaches eenv) (children e)
 
-funcArgReachesErrorHalter :: SM.MonadState ErrorMemoTable m => Halter m () r t
+funcArgReachesErrorHalter :: SM.MonadState (ReducerState t) m => Halter m () r t
 funcArgReachesErrorHalter = mkSimpleHalter
                                 (const ())
                                 (\hv _ _ -> hv)
