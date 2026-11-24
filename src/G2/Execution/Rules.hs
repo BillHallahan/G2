@@ -1371,10 +1371,10 @@ retCurrExpr s@(State { expr_env = eenv, known_values = kv, tyvar_env = tvnv, foc
                                                                             (App p_e1 (Var x), App p_e2 (Var x), E.insertSymbolic x eenv_, ng_t)
                                                                         _ -> (p_e1, p_e2, eenv_, ng_)
 
-                                    (p_e1'', ng_3) = addNRPCTick ng_2 p_e1'
-                                    (p_e2'', ng_4) = addNRPCTick ng_3 p_e2'
+                                    -- (p_e1'', ng_3) = addNRPCTick ng_2 p_e1'
+                                    (p_e2'', ng_4) = addNRPCTick ng_2 p_e2'
 
-                                    (ng_5, nrpcs') = addFirstNRPC ng_4 focus p_e1'' p_e2'' nrpcs
+                                    (ng_5, nrpcs') = addFirstNRPC ng_4 focus p_e1' p_e2'' nrpcs
                                 in
                                 ((ng_5, eenv_'), nrpcs'))
                             ((ng, eenv'), non_red_path_conds s)
