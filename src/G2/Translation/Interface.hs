@@ -44,6 +44,8 @@ translateBase tr_con config extra hsc = do
 
   let base_tys' = base_tys `HM.union` (specialTypes (smt_tuples config))
   let base_prog' = addPrimsToBase base_tys' base_prog
+  -- let reqFun = filter (\(Name f _ _ _ , _) -> f == "$fEqTuple4") (HM.toList base_prog')
+  -- print ("Binds are:" ++ show reqFun)
   return (base_exg2 { exg2_binds = base_prog', exg2_tycons = base_tys' }, b_nm, b_tnm)
 
 #if MIN_VERSION_GLASGOW_HASKELL(9,6,0,0)
